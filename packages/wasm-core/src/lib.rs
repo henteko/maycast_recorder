@@ -68,12 +68,16 @@ impl Muxer {
         video_height: u32,
         audio_sample_rate: u32,
         audio_channels: u16,
+        video_config: Option<Vec<u8>>,
+        audio_config: Option<Vec<u8>>,
     ) -> Self {
         let config = MuxerConfig {
             video_width,
             video_height,
             audio_sample_rate,
             audio_channels,
+            video_codec_config: video_config,
+            audio_codec_config: audio_config,
             ..MuxerConfig::default()
         };
         Self {

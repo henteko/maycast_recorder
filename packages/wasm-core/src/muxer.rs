@@ -11,6 +11,8 @@ pub struct MuxerConfig {
     pub audio_timescale: u32,
     pub audio_sample_rate: u32,
     pub audio_channels: u16,
+    pub video_codec_config: Option<Vec<u8>>,
+    pub audio_codec_config: Option<Vec<u8>>,
 }
 
 impl Default for MuxerConfig {
@@ -24,6 +26,8 @@ impl Default for MuxerConfig {
             audio_timescale: 48000,
             audio_sample_rate: 48000,
             audio_channels: 2,
+            video_codec_config: None,
+            audio_codec_config: None,
         }
     }
 }
@@ -82,8 +86,12 @@ impl MuxerState {
 
         self.video_sequence_number += 1;
 
+        // Convert timestamp from microseconds to timescale units
+        // timescale = 30000, so: timestamp_in_timescale = (timestamp_us * 30000) / 1_000_000
+        let timestamp_scaled = (timestamp * self.config.video_timescale as u64) / 1_000_000;
+
         // Generate moof (Movie Fragment Box)
-        self.write_moof_video(timestamp, data.len() as u32, is_keyframe)?;
+        self.write_moof_video(timestamp_scaled, data.len() as u32, is_keyframe)?;
 
         // Generate mdat (Media Data Box)
         self.write_mdat(data)?;
@@ -99,8 +107,12 @@ impl MuxerState {
 
         self.audio_sequence_number += 1;
 
+        // Convert timestamp from microseconds to timescale units
+        // timescale = 48000 (or configured), so: timestamp_in_timescale = (timestamp_us * timescale) / 1_000_000
+        let timestamp_scaled = (timestamp * self.config.audio_timescale as u64) / 1_000_000;
+
         // Generate moof (Movie Fragment Box)
-        self.write_moof_audio(timestamp, data.len() as u32)?;
+        self.write_moof_audio(timestamp_scaled, data.len() as u32)?;
 
         // Generate mdat (Media Data Box)
         self.write_mdat(data)?;
@@ -505,7 +517,7 @@ impl MuxerState {
     fn write_stbl(&self, buf: &mut Vec<u8>, is_video: bool) -> Result<(), String> {
         let mut stbl_data = Vec::new();
 
-        // stsd (Sample Description) - with one dummy entry
+        // stsd (Sample Description)
         let mut stsd_data = vec![
             // version(1) + flags(3)
             0x00, 0x00, 0x00, 0x00,
@@ -513,20 +525,105 @@ impl MuxerState {
             0x00, 0x00, 0x00, 0x01,
         ];
 
-        // Dummy sample entry (minimal avc1 or mp4a)
-        let codec_type = if is_video { b"avc1" } else { b"mp4a" };
+        // Build sample entry based on codec type
+        if is_video {
+            // Build avc1 (H.264) sample entry
+            let mut sample_entry = Vec::new();
 
-        let sample_entry = [
-            // size (placeholder)
-            0x00, 0x00, 0x00, 0x10,
-            // type
-            codec_type[0], codec_type[1], codec_type[2], codec_type[3],
-            // reserved
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            // data_reference_index
-            0x00, 0x01,
-        ];
-        stsd_data.extend_from_slice(&sample_entry);
+            // SampleEntry fields (8 bytes)
+            sample_entry.extend_from_slice(&[
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // reserved
+                0x00, 0x01, // data_reference_index = 1
+            ]);
+
+            // VisualSampleEntry fields (70 bytes)
+            sample_entry.extend_from_slice(&[
+                0x00, 0x00, // pre_defined
+                0x00, 0x00, // reserved
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // pre_defined[12]
+            ]);
+
+            // width (2 bytes)
+            sample_entry.extend_from_slice(&(self.config.video_width as u16).to_be_bytes());
+            // height (2 bytes)
+            sample_entry.extend_from_slice(&(self.config.video_height as u16).to_be_bytes());
+
+            sample_entry.extend_from_slice(&[
+                0x00, 0x48, 0x00, 0x00, // horizresolution = 72 dpi (16.16 fixed point)
+                0x00, 0x48, 0x00, 0x00, // vertresolution = 72 dpi (16.16 fixed point)
+                0x00, 0x00, 0x00, 0x00, // reserved
+                0x00, 0x01, // frame_count = 1
+                // compressorname (32 bytes) - Pascal string
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x18, // depth = 24 (0x0018)
+                0xFF, 0xFF, // pre_defined = -1
+            ]);
+
+            // Add avcC box if config is available
+            if let Some(ref config) = self.config.video_codec_config {
+                let avcc_size = 8 + config.len() as u32;
+                sample_entry.extend_from_slice(&avcc_size.to_be_bytes());
+                sample_entry.extend_from_slice(b"avcC");
+                sample_entry.extend_from_slice(config);
+            }
+
+            // Write sample entry with size
+            let entry_size = 8 + 8 + 70 + if self.config.video_codec_config.is_some() {
+                8 + self.config.video_codec_config.as_ref().unwrap().len()
+            } else {
+                0
+            };
+            stsd_data.extend_from_slice(&(entry_size as u32).to_be_bytes());
+            stsd_data.extend_from_slice(b"avc1");
+            stsd_data.extend_from_slice(&sample_entry);
+        } else {
+            // Build mp4a (AAC) sample entry
+            let mut sample_entry = Vec::new();
+
+            // SampleEntry fields (8 bytes)
+            sample_entry.extend_from_slice(&[
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // reserved
+                0x00, 0x01, // data_reference_index = 1
+            ]);
+
+            // AudioSampleEntry fields (20 bytes)
+            sample_entry.extend_from_slice(&[
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // reserved[8]
+            ]);
+
+            // channelcount (2 bytes)
+            sample_entry.extend_from_slice(&self.config.audio_channels.to_be_bytes());
+
+            sample_entry.extend_from_slice(&[
+                0x00, 0x10, // samplesize = 16 bits
+                0x00, 0x00, // pre_defined
+                0x00, 0x00, // reserved
+            ]);
+
+            // samplerate (4 bytes) - 16.16 fixed point
+            sample_entry.extend_from_slice(&((self.config.audio_sample_rate as u32) << 16).to_be_bytes());
+
+            // Add esds box if config is available
+            if let Some(ref config) = self.config.audio_codec_config {
+                let esds_size = 8 + config.len() as u32;
+                sample_entry.extend_from_slice(&esds_size.to_be_bytes());
+                sample_entry.extend_from_slice(b"esds");
+                sample_entry.extend_from_slice(config);
+            }
+
+            // Write sample entry with size
+            let entry_size = 8 + 8 + 20 + if self.config.audio_codec_config.is_some() {
+                8 + self.config.audio_codec_config.as_ref().unwrap().len()
+            } else {
+                0
+            };
+            stsd_data.extend_from_slice(&(entry_size as u32).to_be_bytes());
+            stsd_data.extend_from_slice(b"mp4a");
+            stsd_data.extend_from_slice(&sample_entry);
+        }
 
         let stsd_size = 8 + stsd_data.len() as u32;
         self.write_box_header_to_buf(&mut stbl_data, stsd_size, b"stsd")?;
@@ -635,13 +732,18 @@ impl MuxerState {
         //   - tfdt (Track Fragment Decode Time)
         //   - trun (Track Fragment Run)
 
+        // Calculate moof size (fixed for our structure):
+        // moof header(8) + mfhd(16) + traf header(8) + tfhd(16) + tfdt(20) + trun(28)
+        // = 8 + 16 + (8 + 16 + 20 + 28) = 8 + 16 + 72 = 96
+        let moof_size = 96;
+
         let mut moof_data = Vec::new();
 
         // mfhd
         self.write_mfhd(&mut moof_data, self.video_sequence_number)?;
 
         // traf for video (track_id = 1)
-        self.write_traf(&mut moof_data, 1, timestamp, data_size, is_keyframe)?;
+        self.write_traf(&mut moof_data, 1, timestamp, data_size, moof_size, is_keyframe)?;
 
         let size = 8 + moof_data.len() as u32;
         self.write_box_header(size, b"moof")?;
@@ -651,13 +753,18 @@ impl MuxerState {
     }
 
     fn write_moof_audio(&mut self, timestamp: u64, data_size: u32) -> Result<(), String> {
+        // Calculate moof size (fixed for our structure):
+        // moof header(8) + mfhd(16) + traf header(8) + tfhd(16) + tfdt(20) + trun(28)
+        // = 8 + 16 + (8 + 16 + 20 + 28) = 8 + 16 + 72 = 96
+        let moof_size = 96;
+
         let mut moof_data = Vec::new();
 
         // mfhd
         self.write_mfhd(&mut moof_data, self.audio_sequence_number)?;
 
         // traf for audio (track_id = 2)
-        self.write_traf(&mut moof_data, 2, timestamp, data_size, false)?;
+        self.write_traf(&mut moof_data, 2, timestamp, data_size, moof_size, false)?;
 
         let size = 8 + moof_data.len() as u32;
         self.write_box_header(size, b"moof")?;
@@ -690,6 +797,7 @@ impl MuxerState {
         track_id: u32,
         timestamp: u64,
         data_size: u32,
+        moof_size: u32,
         is_keyframe: bool,
     ) -> Result<(), String> {
         let mut traf_data = Vec::new();
@@ -700,8 +808,22 @@ impl MuxerState {
         // tfdt (Track Fragment Decode Time)
         self.write_tfdt(&mut traf_data, timestamp)?;
 
+        // Calculate sample duration based on track type
+        let sample_duration = if track_id == 1 {
+            // Video track: 30fps = 30000 timescale / 30 fps = 1000 units per frame
+            self.config.video_timescale / 30
+        } else {
+            // Audio track: AAC typically has 1024 samples per frame
+            // At 48000 Hz timescale, 1024 samples = 1024 timescale units
+            1024
+        };
+
+        // Calculate data_offset: from start of moof to start of mdat data
+        // data_offset = moof_size + mdat_header_size
+        let data_offset = moof_size + 8;
+
         // trun (Track Fragment Run)
-        self.write_trun(&mut traf_data, data_size, is_keyframe)?;
+        self.write_trun(&mut traf_data, data_size, sample_duration, data_offset, is_keyframe)?;
 
         let size = 8 + traf_data.len() as u32;
         self.write_box_header_to_buf(buf, size, b"traf")?;
@@ -757,9 +879,9 @@ impl MuxerState {
         Ok(())
     }
 
-    fn write_trun(&self, buf: &mut Vec<u8>, sample_size: u32, _is_keyframe: bool) -> Result<(), String> {
-        // flags: data-offset-present (0x000001) + sample-size-present (0x000200)
-        let flags = 0x000201;
+    fn write_trun(&self, buf: &mut Vec<u8>, sample_size: u32, sample_duration: u32, data_offset: u32, _is_keyframe: bool) -> Result<(), String> {
+        // flags: data-offset-present (0x000001) + sample-duration-present (0x000100) + sample-size-present (0x000200)
+        let flags = 0x000301;
 
         let mut trun_data = vec![
             // version + flags
@@ -773,8 +895,16 @@ impl MuxerState {
         trun_data.extend_from_slice(&[0x00, 0x00, 0x00, 0x01]);
 
         // data_offset - offset from moof start to mdat data
-        // This will be the size of moof box
-        trun_data.extend_from_slice(&[0x00, 0x00, 0x00, 0x08]); // mdat header size
+        trun_data.push((data_offset >> 24) as u8);
+        trun_data.push((data_offset >> 16) as u8);
+        trun_data.push((data_offset >> 8) as u8);
+        trun_data.push(data_offset as u8);
+
+        // sample_duration
+        trun_data.push((sample_duration >> 24) as u8);
+        trun_data.push((sample_duration >> 16) as u8);
+        trun_data.push((sample_duration >> 8) as u8);
+        trun_data.push(sample_duration as u8);
 
         // sample_size
         trun_data.push((sample_size >> 24) as u8);

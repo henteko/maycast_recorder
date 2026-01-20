@@ -11,6 +11,11 @@ export default defineConfig({
     wasm(),
     topLevelAwait(),
   ],
+  resolve: {
+    alias: {
+      'maycast-wasm-core': path.resolve(__dirname, '../wasm-core/pkg/maycast_wasm_core.js'),
+    },
+  },
   worker: {
     format: 'es',
     plugins: () => [wasm(), topLevelAwait()],
