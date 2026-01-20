@@ -94,10 +94,16 @@ impl Muxer {
 
     /// Add a video chunk and return the fMP4 fragment (moof + mdat)
     #[wasm_bindgen]
-    pub fn push_video(&mut self, data: &[u8], timestamp: f64, is_keyframe: bool) -> Result<Vec<u8>, String> {
+    pub fn push_video(
+        &mut self,
+        data: &[u8],
+        timestamp: f64,
+        is_keyframe: bool,
+    ) -> Result<Vec<u8>, String> {
         // Convert microseconds (from WebCodecs) to internal timestamp
         let timestamp_us = timestamp as u64;
-        self.state.push_video_chunk(data, timestamp_us, is_keyframe)?;
+        self.state
+            .push_video_chunk(data, timestamp_us, is_keyframe)?;
         Ok(self.state.get_fragment())
     }
 

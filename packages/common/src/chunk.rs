@@ -41,7 +41,13 @@ pub struct ChunkMetadata {
 }
 
 impl ChunkMetadata {
-    pub fn new(chunk_id: ChunkId, timestamp: u64, size: usize, hash: String, has_keyframe: bool) -> Self {
+    pub fn new(
+        chunk_id: ChunkId,
+        timestamp: u64,
+        size: usize,
+        hash: String,
+        has_keyframe: bool,
+    ) -> Self {
         Self {
             chunk_id,
             timestamp,

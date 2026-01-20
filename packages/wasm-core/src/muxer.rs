@@ -137,18 +137,16 @@ impl MuxerState {
 
         let ftyp_data = [
             // major_brand: 'iso5'
-            b'i', b's', b'o', b'5',
-            // minor_version: 512
-            0x00, 0x00, 0x02, 0x00,
-            // compatible_brands: iso5, iso6, mp41
-            b'i', b's', b'o', b'5',
-            b'i', b's', b'o', b'6',
-            b'm', b'p', b'4', b'1',
+            b'i', b's', b'o', b'5', // minor_version: 512
+            0x00, 0x00, 0x02, 0x00, // compatible_brands: iso5, iso6, mp41
+            b'i', b's', b'o', b'5', b'i', b's', b'o', b'6', b'm', b'p', b'4', b'1',
         ];
 
         let size = 8 + ftyp_data.len() as u32;
         self.write_box_header(size, b"ftyp")?;
-        self.buffer.write_all(&ftyp_data).map_err(|e| e.to_string())?;
+        self.buffer
+            .write_all(&ftyp_data)
+            .map_err(|e| e.to_string())?;
 
         Ok(())
     }
@@ -174,7 +172,9 @@ impl MuxerState {
 
         let size = 8 + moov_data.len() as u32;
         self.write_box_header(size, b"moov")?;
-        self.buffer.write_all(&moov_data).map_err(|e| e.to_string())?;
+        self.buffer
+            .write_all(&moov_data)
+            .map_err(|e| e.to_string())?;
 
         Ok(())
     }
@@ -185,10 +185,8 @@ impl MuxerState {
 
         let mut mvhd_data = vec![
             // version(1) + flags(3)
-            0x00, 0x00, 0x00, 0x00,
-            // creation_time
-            0x00, 0x00, 0x00, 0x00,
-            // modification_time
+            0x00, 0x00, 0x00, 0x00, // creation_time
+            0x00, 0x00, 0x00, 0x00, // modification_time
             0x00, 0x00, 0x00, 0x00,
         ];
 
@@ -200,26 +198,16 @@ impl MuxerState {
 
         mvhd_data.extend_from_slice(&[
             // duration (0 for live/fragmented)
-            0x00, 0x00, 0x00, 0x00,
-            // rate (1.0 = 0x00010000)
-            0x00, 0x01, 0x00, 0x00,
-            // volume (1.0 = 0x0100)
-            0x01, 0x00,
-            // reserved
-            0x00, 0x00,
-            // reserved
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            // matrix (identity matrix)
-            0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x40, 0x00, 0x00, 0x00,
-            // pre_defined (6 x 4 bytes)
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            // next_track_ID
+            0x00, 0x00, 0x00, 0x00, // rate (1.0 = 0x00010000)
+            0x00, 0x01, 0x00, 0x00, // volume (1.0 = 0x0100)
+            0x01, 0x00, // reserved
+            0x00, 0x00, // reserved
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // matrix (identity matrix)
+            0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00, // pre_defined (6 x 4 bytes)
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // next_track_ID
             0x00, 0x00, 0x00, 0x03, // Track 1: video, Track 2: audio
         ]);
 
@@ -272,9 +260,15 @@ impl MuxerState {
             (flags >> 8) as u8,
             flags as u8,
             // creation_time
-            0x00, 0x00, 0x00, 0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
             // modification_time
-            0x00, 0x00, 0x00, 0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
         ];
 
         // track_ID
@@ -285,14 +279,10 @@ impl MuxerState {
 
         tkhd_data.extend_from_slice(&[
             // reserved
-            0x00, 0x00, 0x00, 0x00,
-            // duration
-            0x00, 0x00, 0x00, 0x00,
-            // reserved
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            // layer
-            0x00, 0x00,
-            // alternate_group
+            0x00, 0x00, 0x00, 0x00, // duration
+            0x00, 0x00, 0x00, 0x00, // reserved
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // layer
+            0x00, 0x00, // alternate_group
             0x00, 0x00,
         ]);
 
@@ -305,13 +295,10 @@ impl MuxerState {
 
         tkhd_data.extend_from_slice(&[
             // reserved
-            0x00, 0x00,
-            // matrix (identity)
-            0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x40, 0x00, 0x00, 0x00,
+            0x00, 0x00, // matrix (identity)
+            0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00,
         ]);
 
         if is_video {
@@ -339,7 +326,13 @@ impl MuxerState {
         Ok(())
     }
 
-    fn write_mdia(&self, buf: &mut Vec<u8>, _track_id: u32, timescale: u32, is_video: bool) -> Result<(), String> {
+    fn write_mdia(
+        &self,
+        buf: &mut Vec<u8>,
+        _track_id: u32,
+        timescale: u32,
+        is_video: bool,
+    ) -> Result<(), String> {
         let mut mdia_data = Vec::new();
 
         // mdhd (Media Header)
@@ -361,10 +354,8 @@ impl MuxerState {
     fn write_mdhd(&self, buf: &mut Vec<u8>, timescale: u32) -> Result<(), String> {
         let mut mdhd_data = vec![
             // version(1) + flags(3)
-            0x00, 0x00, 0x00, 0x00,
-            // creation_time
-            0x00, 0x00, 0x00, 0x00,
-            // modification_time
+            0x00, 0x00, 0x00, 0x00, // creation_time
+            0x00, 0x00, 0x00, 0x00, // modification_time
             0x00, 0x00, 0x00, 0x00,
         ];
 
@@ -376,10 +367,8 @@ impl MuxerState {
 
         mdhd_data.extend_from_slice(&[
             // duration
-            0x00, 0x00, 0x00, 0x00,
-            // language (und = 0x55c4)
-            0x55, 0xc4,
-            // pre_defined
+            0x00, 0x00, 0x00, 0x00, // language (und = 0x55c4)
+            0x55, 0xc4, // pre_defined
             0x00, 0x00,
         ]);
 
@@ -392,12 +381,15 @@ impl MuxerState {
 
     fn write_hdlr(&self, buf: &mut Vec<u8>, is_video: bool) -> Result<(), String> {
         let handler_type = if is_video { b"vide" } else { b"soun" };
-        let name = if is_video { b"VideoHandler\0" } else { b"SoundHandler\0" };
+        let name = if is_video {
+            b"VideoHandler\0"
+        } else {
+            b"SoundHandler\0"
+        };
 
         let mut hdlr_data = vec![
             // version(1) + flags(3)
-            0x00, 0x00, 0x00, 0x00,
-            // pre_defined
+            0x00, 0x00, 0x00, 0x00, // pre_defined
             0x00, 0x00, 0x00, 0x00,
         ];
 
@@ -406,9 +398,7 @@ impl MuxerState {
 
         hdlr_data.extend_from_slice(&[
             // reserved
-            0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         ]);
 
         // name
@@ -447,10 +437,8 @@ impl MuxerState {
     fn write_vmhd(&self, buf: &mut Vec<u8>) -> Result<(), String> {
         let vmhd_data = [
             // version(1) + flags(3) - flags = 1
-            0x00, 0x00, 0x00, 0x01,
-            // graphicsmode
-            0x00, 0x00,
-            // opcolor (RGB)
+            0x00, 0x00, 0x00, 0x01, // graphicsmode
+            0x00, 0x00, // opcolor (RGB)
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         ];
 
@@ -464,10 +452,8 @@ impl MuxerState {
     fn write_smhd(&self, buf: &mut Vec<u8>) -> Result<(), String> {
         let smhd_data = [
             // version(1) + flags(3)
-            0x00, 0x00, 0x00, 0x00,
-            // balance
-            0x00, 0x00,
-            // reserved
+            0x00, 0x00, 0x00, 0x00, // balance
+            0x00, 0x00, // reserved
             0x00, 0x00,
         ];
 
@@ -484,8 +470,7 @@ impl MuxerState {
         // dref (Data Reference)
         let mut dref_data = vec![
             // version(1) + flags(3)
-            0x00, 0x00, 0x00, 0x00,
-            // entry_count
+            0x00, 0x00, 0x00, 0x00, // entry_count
             0x00, 0x00, 0x00, 0x01,
         ];
 
@@ -520,8 +505,7 @@ impl MuxerState {
         // stsd (Sample Description)
         let mut stsd_data = vec![
             // version(1) + flags(3)
-            0x00, 0x00, 0x00, 0x00,
-            // entry_count
+            0x00, 0x00, 0x00, 0x00, // entry_count
             0x00, 0x00, 0x00, 0x01,
         ];
 
@@ -540,7 +524,8 @@ impl MuxerState {
             sample_entry.extend_from_slice(&[
                 0x00, 0x00, // pre_defined
                 0x00, 0x00, // reserved
-                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, // pre_defined[12]
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, // pre_defined[12]
             ]);
 
             // width (2 bytes)
@@ -554,11 +539,9 @@ impl MuxerState {
                 0x00, 0x00, 0x00, 0x00, // reserved
                 0x00, 0x01, // frame_count = 1
                 // compressorname (32 bytes) - Pascal string
-                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-                0x00, 0x18, // depth = 24 (0x0018)
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00, 0x00, 0x00, 0x00, 0x18, // depth = 24 (0x0018)
                 0xFF, 0xFF, // pre_defined = -1
             ]);
 
@@ -571,11 +554,14 @@ impl MuxerState {
             }
 
             // Write sample entry with size
-            let entry_size = 8 + 8 + 70 + if self.config.video_codec_config.is_some() {
-                8 + self.config.video_codec_config.as_ref().unwrap().len()
-            } else {
-                0
-            };
+            let entry_size = 8
+                + 8
+                + 70
+                + if self.config.video_codec_config.is_some() {
+                    8 + self.config.video_codec_config.as_ref().unwrap().len()
+                } else {
+                    0
+                };
             stsd_data.extend_from_slice(&(entry_size as u32).to_be_bytes());
             stsd_data.extend_from_slice(b"avc1");
             stsd_data.extend_from_slice(&sample_entry);
@@ -604,7 +590,7 @@ impl MuxerState {
             ]);
 
             // samplerate (4 bytes) - 16.16 fixed point
-            sample_entry.extend_from_slice(&((self.config.audio_sample_rate as u32) << 16).to_be_bytes());
+            sample_entry.extend_from_slice(&(self.config.audio_sample_rate << 16).to_be_bytes());
 
             // Add esds box if config is available
             if let Some(ref config) = self.config.audio_codec_config {
@@ -615,11 +601,14 @@ impl MuxerState {
             }
 
             // Write sample entry with size
-            let entry_size = 8 + 8 + 20 + if self.config.audio_codec_config.is_some() {
-                8 + self.config.audio_codec_config.as_ref().unwrap().len()
-            } else {
-                0
-            };
+            let entry_size = 8
+                + 8
+                + 20
+                + if self.config.audio_codec_config.is_some() {
+                    8 + self.config.audio_codec_config.as_ref().unwrap().len()
+                } else {
+                    0
+                };
             stsd_data.extend_from_slice(&(entry_size as u32).to_be_bytes());
             stsd_data.extend_from_slice(b"mp4a");
             stsd_data.extend_from_slice(&sample_entry);
@@ -703,12 +692,9 @@ impl MuxerState {
 
         trex_data.extend_from_slice(&[
             // default_sample_description_index
-            0x00, 0x00, 0x00, 0x01,
-            // default_sample_duration
-            0x00, 0x00, 0x00, 0x00,
-            // default_sample_size
-            0x00, 0x00, 0x00, 0x00,
-            // default_sample_flags
+            0x00, 0x00, 0x00, 0x01, // default_sample_duration
+            0x00, 0x00, 0x00, 0x00, // default_sample_size
+            0x00, 0x00, 0x00, 0x00, // default_sample_flags
             0x00, 0x00, 0x00, 0x00,
         ]);
 
@@ -743,11 +729,20 @@ impl MuxerState {
         self.write_mfhd(&mut moof_data, self.video_sequence_number)?;
 
         // traf for video (track_id = 1)
-        self.write_traf(&mut moof_data, 1, timestamp, data_size, moof_size, is_keyframe)?;
+        self.write_traf(
+            &mut moof_data,
+            1,
+            timestamp,
+            data_size,
+            moof_size,
+            is_keyframe,
+        )?;
 
         let size = 8 + moof_data.len() as u32;
         self.write_box_header(size, b"moof")?;
-        self.buffer.write_all(&moof_data).map_err(|e| e.to_string())?;
+        self.buffer
+            .write_all(&moof_data)
+            .map_err(|e| e.to_string())?;
 
         Ok(())
     }
@@ -768,7 +763,9 @@ impl MuxerState {
 
         let size = 8 + moof_data.len() as u32;
         self.write_box_header(size, b"moof")?;
-        self.buffer.write_all(&moof_data).map_err(|e| e.to_string())?;
+        self.buffer
+            .write_all(&moof_data)
+            .map_err(|e| e.to_string())?;
 
         Ok(())
     }
@@ -776,7 +773,10 @@ impl MuxerState {
     fn write_mfhd(&self, buf: &mut Vec<u8>, sequence_number: u32) -> Result<(), String> {
         let mfhd_data = [
             // version(1) + flags(3)
-            0x00, 0x00, 0x00, 0x00,
+            0x00,
+            0x00,
+            0x00,
+            0x00,
             // sequence_number
             (sequence_number >> 24) as u8,
             (sequence_number >> 16) as u8,
@@ -823,7 +823,13 @@ impl MuxerState {
         let data_offset = moof_size + 8;
 
         // trun (Track Fragment Run)
-        self.write_trun(&mut traf_data, data_size, sample_duration, data_offset, is_keyframe)?;
+        self.write_trun(
+            &mut traf_data,
+            data_size,
+            sample_duration,
+            data_offset,
+            is_keyframe,
+        )?;
 
         let size = 8 + traf_data.len() as u32;
         self.write_box_header_to_buf(buf, size, b"traf")?;
@@ -860,7 +866,10 @@ impl MuxerState {
     fn write_tfdt(&self, buf: &mut Vec<u8>, base_media_decode_time: u64) -> Result<(), String> {
         let tfdt_data = [
             // version(1) + flags(3) - version 1 for 64-bit time
-            0x01, 0x00, 0x00, 0x00,
+            0x01,
+            0x00,
+            0x00,
+            0x00,
             // baseMediaDecodeTime (64-bit)
             (base_media_decode_time >> 56) as u8,
             (base_media_decode_time >> 48) as u8,
@@ -879,7 +888,14 @@ impl MuxerState {
         Ok(())
     }
 
-    fn write_trun(&self, buf: &mut Vec<u8>, sample_size: u32, sample_duration: u32, data_offset: u32, _is_keyframe: bool) -> Result<(), String> {
+    fn write_trun(
+        &self,
+        buf: &mut Vec<u8>,
+        sample_size: u32,
+        sample_duration: u32,
+        data_offset: u32,
+        _is_keyframe: bool,
+    ) -> Result<(), String> {
         // flags: data-offset-present (0x000001) + sample-duration-present (0x000100) + sample-size-present (0x000200)
         let flags = 0x000301;
 
@@ -940,7 +956,12 @@ impl MuxerState {
         Ok(())
     }
 
-    fn write_box_header_to_buf(&self, buf: &mut Vec<u8>, size: u32, box_type: &[u8; 4]) -> Result<(), String> {
+    fn write_box_header_to_buf(
+        &self,
+        buf: &mut Vec<u8>,
+        size: u32,
+        box_type: &[u8; 4],
+    ) -> Result<(), String> {
         // Write size (big-endian)
         buf.push((size >> 24) as u8);
         buf.push((size >> 16) as u8);
@@ -1021,7 +1042,9 @@ mod tests {
             let timestamp = i as u64 * 33333; // ~30fps
             let is_keyframe = i == 0; // First frame is keyframe
 
-            muxer.push_video_chunk(&test_data, timestamp, is_keyframe).unwrap();
+            muxer
+                .push_video_chunk(&test_data, timestamp, is_keyframe)
+                .unwrap();
             all_data.extend(muxer.get_fragment());
         }
 
