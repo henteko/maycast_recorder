@@ -26,6 +26,8 @@ export const Recorder = () => {
     current: number
     total: number
   }>({ isDownloading: false, current: 0, total: 0 })
+  const [recoverySession, setRecoverySession] = useState<SessionMetadata | null>(null)
+  const [showRecoveryModal, setShowRecoveryModal] = useState(false)
 
   const videoEncoderRef = useRef<VideoEncoder | null>(null)
   const audioEncoderRef = useRef<AudioEncoder | null>(null)
@@ -56,13 +58,23 @@ export const Recorder = () => {
     initWasm()
   }, [])
 
-  // Load saved sessions on mount
+  // Load saved sessions on mount and check for incomplete sessions
   useEffect(() => {
     const loadSessions = async () => {
       try {
         const sessions = await listAllSessions()
         setSavedSessions(sessions)
         console.log('📂 Loaded saved sessions:', sessions.length)
+
+        // Check for incomplete sessions (crash recovery)
+        const incompleteSessions = sessions.filter(s => !s.isCompleted && s.totalChunks > 0)
+        if (incompleteSessions.length > 0) {
+          // Show recovery modal for the most recent incomplete session
+          const mostRecent = incompleteSessions.sort((a, b) => b.startTime - a.startTime)[0]
+          console.log('🔄 Found incomplete session:', mostRecent.sessionId)
+          setRecoverySession(mostRecent)
+          setShowRecoveryModal(true)
+        }
       } catch (err) {
         console.error('❌ Failed to load sessions:', err)
       }
@@ -572,11 +584,107 @@ export const Recorder = () => {
     return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
   }
 
+  const handleRecoverSession = async () => {
+    if (!recoverySession) return
+
+    setShowRecoveryModal(false)
+
+    // Mark session as completed
+    try {
+      const storage = new ChunkStorage(recoverySession.sessionId)
+      await storage.completeSession()
+
+      // Reload sessions list
+      const sessions = await listAllSessions()
+      setSavedSessions(sessions)
+
+      console.log('✅ Session recovered:', recoverySession.sessionId)
+
+      // Optionally auto-download
+      if (confirm('セッションを復元しました。今すぐダウンロードしますか？')) {
+        await downloadSessionById(recoverySession.sessionId)
+      }
+    } catch (err) {
+      console.error('❌ Failed to recover session:', err)
+      alert('セッションの復元に失敗しました')
+    }
+
+    setRecoverySession(null)
+  }
+
+  const handleDiscardRecovery = async () => {
+    if (!recoverySession) return
+
+    if (!confirm('このセッションを削除してもよろしいですか？この操作は取り消せません。')) {
+      return
+    }
+
+    setShowRecoveryModal(false)
+
+    try {
+      const storage = new ChunkStorage(recoverySession.sessionId)
+      await storage.deleteSession()
+
+      // Reload sessions list
+      const sessions = await listAllSessions()
+      setSavedSessions(sessions)
+
+      console.log('🗑️ Recovery session discarded:', recoverySession.sessionId)
+    } catch (err) {
+      console.error('❌ Failed to discard session:', err)
+      alert('セッションの削除に失敗しました')
+    }
+
+    setRecoverySession(null)
+  }
+
   return (
     <div className="min-h-screen bg-gray-900 text-white p-8">
+      {/* Recovery Modal */}
+      {showRecoveryModal && recoverySession && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+          <div className="bg-gray-800 rounded-lg p-8 max-w-md w-full mx-4">
+            <h2 className="text-2xl font-bold mb-4">🔄 セッションの復元</h2>
+            <p className="text-gray-300 mb-6">
+              前回の収録が正常に完了していません。復元しますか？
+            </p>
+
+            <div className="bg-gray-700 p-4 rounded-lg mb-6">
+              <p className="text-sm text-gray-400">セッション情報</p>
+              <p className="text-lg mt-2">
+                {new Date(recoverySession.startTime).toLocaleString('ja-JP')}
+              </p>
+              <p className="text-sm text-gray-400 mt-2">
+                チャンク数: {recoverySession.totalChunks} / サイズ: {(recoverySession.totalSize / 1024 / 1024).toFixed(2)} MB
+              </p>
+              {recoverySession.endTime && (
+                <p className="text-sm text-gray-400 mt-1">
+                  録画時間: {formatElapsedTime(Math.floor((recoverySession.endTime - recoverySession.startTime) / 1000))}
+                </p>
+              )}
+            </div>
+
+            <div className="flex gap-4">
+              <button
+                onClick={handleRecoverSession}
+                className="flex-1 py-3 px-6 bg-blue-600 hover:bg-blue-700 rounded-lg font-semibold transition-colors"
+              >
+                ✅ 復元する
+              </button>
+              <button
+                onClick={handleDiscardRecovery}
+                className="flex-1 py-3 px-6 bg-red-600 hover:bg-red-700 rounded-lg font-semibold transition-colors"
+              >
+                🗑️ 破棄する
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="max-w-4xl mx-auto">
         <h1 className="text-4xl font-bold mb-2">Maycast Recorder</h1>
-        <p className="text-gray-400 mb-8">Phase 1A-5: OPFS Persistent Storage</p>
+        <p className="text-gray-400 mb-8">Phase 1B: Export & Recovery</p>
 
         {error && (
           <div className="bg-red-600 text-white p-4 rounded-lg mb-6">
