@@ -7,10 +7,13 @@ import type { SessionMetadata } from '../storage/types'
 import type { RecorderSettings, QualityPreset } from '../types/settings'
 import { loadSettings, saveSettings, QUALITY_PRESETS } from '../types/settings'
 
+type ScreenState = 'standby' | 'recording' | 'completed'
+
 export const Recorder = () => {
   const videoRef = useRef<HTMLVideoElement>(null)
   const { stream, error, startCapture, isCapturing } = useMediaStream()
 
+  const [screenState, setScreenState] = useState<ScreenState>('standby')
   const [isRecording, setIsRecording] = useState(false)
   const [stats, setStats] = useState<ChunkStats>({
     videoChunks: 0,
@@ -414,6 +417,7 @@ export const Recorder = () => {
     setIsRecording(true)
     isRecordingRef.current = true
     setRecordingStartTime(Date.now())
+    setScreenState('recording')
 
     // Process video frames
     const videoTrack = activeStream.getVideoTracks()[0]
@@ -499,6 +503,9 @@ export const Recorder = () => {
     // Reload sessions list
     const sessions = await listAllSessions()
     setSavedSessions(sessions)
+
+    // Move to completed screen
+    setScreenState('completed')
 
     console.log('⏹️ Recording stopped')
     console.log('📊 Final stats:', stats)
@@ -710,6 +717,40 @@ export const Recorder = () => {
     console.log('✅ Settings saved:', settings)
   }
 
+  const handleNewRecording = () => {
+    setScreenState('standby')
+    setSavedChunks(0)
+    setStats({
+      videoChunks: 0,
+      audioChunks: 0,
+      keyframes: 0,
+      totalSize: 0,
+    })
+  }
+
+  const handleDiscardRecording = async () => {
+    if (!sessionIdRef.current) return
+
+    if (!confirm('この録画を削除しますか？この操作は取り消せません。')) {
+      return
+    }
+
+    try {
+      const storage = new ChunkStorage(sessionIdRef.current)
+      await storage.deleteSession()
+
+      // Reload sessions list
+      const sessions = await listAllSessions()
+      setSavedSessions(sessions)
+
+      setScreenState('standby')
+      console.log('🗑️ Recording discarded:', sessionIdRef.current)
+    } catch (err) {
+      console.error('❌ Failed to discard recording:', err)
+      alert('録画の削除に失敗しました')
+    }
+  }
+
   return (
     <div className="min-h-screen bg-gray-900 text-white p-8">
       {/* Settings Modal */}
@@ -860,7 +901,11 @@ export const Recorder = () => {
             ⚙️
           </button>
         </div>
-        <p className="text-gray-400 mb-8">Phase 1B: Export & Recovery</p>
+        <p className="text-gray-400 mb-8">
+          {screenState === 'standby' && 'Phase 1B: 待機中'}
+          {screenState === 'recording' && '🔴 録画中'}
+          {screenState === 'completed' && '✅ 録画完了'}
+        </p>
 
         {error && (
           <div className="bg-red-600 text-white p-4 rounded-lg mb-6">
@@ -892,8 +937,16 @@ export const Recorder = () => {
           </div>
         </div>
 
+        {/* Recording Status */}
+        {screenState === 'recording' && (
+          <div className="bg-green-900 border border-green-600 p-3 rounded-lg mb-6 text-center">
+            <p className="text-green-200 font-semibold">🟢 Saving locally (OPFS active) - {savedChunks} chunks saved</p>
+          </div>
+        )}
+
         {/* Stats Display */}
-        <div className="grid grid-cols-5 gap-4 mb-6">
+        {screenState !== 'standby' && (
+          <div className="grid grid-cols-5 gap-4 mb-6">
           <div className="bg-gray-800 p-4 rounded-lg">
             <p className="text-gray-400 text-sm">Video Chunks</p>
             <p className="text-2xl font-bold">{stats.videoChunks}</p>
@@ -914,30 +967,41 @@ export const Recorder = () => {
             <p className="text-gray-400 text-sm">Total Size</p>
             <p className="text-2xl font-bold">{(stats.totalSize / 1024).toFixed(1)} KB</p>
           </div>
-        </div>
+          </div>
+        )}
 
         {/* Control Buttons */}
         <div className="space-y-4 mb-6">
-          <button
-            onClick={handleStartStop}
-            disabled={!wasmInitialized}
-            className={`w-full py-4 px-6 rounded-lg font-semibold text-lg transition-colors ${
-              isRecording
-                ? 'bg-red-600 hover:bg-red-700'
-                : wasmInitialized
-                ? 'bg-blue-600 hover:bg-blue-700'
-                : 'bg-gray-600 cursor-not-allowed'
-            }`}
-          >
-            {isRecording ? '⏹️ Stop Recording' : '🎬 Start Recording'}
-          </button>
+          {/* Standby / Recording Screen */}
+          {screenState !== 'completed' && (
+            <button
+              onClick={handleStartStop}
+              disabled={!wasmInitialized}
+              className={`w-full py-4 px-6 rounded-lg font-semibold text-lg transition-colors ${
+                isRecording
+                  ? 'bg-red-600 hover:bg-red-700'
+                  : wasmInitialized
+                  ? 'bg-blue-600 hover:bg-blue-700'
+                  : 'bg-gray-600 cursor-not-allowed'
+              }`}
+            >
+              {isRecording ? '⏹️ Stop Recording' : '🎬 Start Recording'}
+            </button>
+          )}
 
-          {savedChunks > 0 && (
-            <div className="space-y-2">
+          {/* Completed Screen */}
+          {screenState === 'completed' && savedChunks > 0 && (
+            <div className="space-y-3">
+              <div className="bg-gray-800 p-4 rounded-lg mb-4">
+                <p className="text-center text-gray-300">
+                  録画が完了しました！{savedChunks}個のチャンクがOPFSに保存されています。
+                </p>
+              </div>
+
               <button
                 onClick={downloadRecording}
                 disabled={downloadProgress.isDownloading}
-                className={`w-full py-3 px-6 rounded-lg font-semibold transition-colors ${
+                className={`w-full py-4 px-6 rounded-lg font-semibold text-lg transition-colors ${
                   downloadProgress.isDownloading
                     ? 'bg-gray-600 cursor-not-allowed'
                     : 'bg-green-600 hover:bg-green-700'
@@ -945,7 +1009,7 @@ export const Recorder = () => {
               >
                 {downloadProgress.isDownloading
                   ? `⏳ Downloading... ${downloadProgress.current}/${downloadProgress.total}`
-                  : `📥 Download Full Recording (${savedChunks} chunks saved in OPFS)`}
+                  : '📥 Download MP4'}
               </button>
 
               {downloadProgress.isDownloading && (
@@ -958,6 +1022,21 @@ export const Recorder = () => {
                   />
                 </div>
               )}
+
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  onClick={handleNewRecording}
+                  className="py-3 px-6 bg-blue-600 hover:bg-blue-700 rounded-lg font-semibold transition-colors"
+                >
+                  🎬 New Recording
+                </button>
+                <button
+                  onClick={handleDiscardRecording}
+                  className="py-3 px-6 bg-red-600 hover:bg-red-700 rounded-lg font-semibold transition-colors"
+                >
+                  🗑️ Discard
+                </button>
+              </div>
             </div>
           )}
         </div>
