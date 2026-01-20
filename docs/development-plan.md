@@ -12,10 +12,14 @@
 
 **Concept:**
 - WebCodecs → WASM Muxer → OPFS の基本パイプラインを確立
+- 各段階で独立してテスト・検証できるように細分化
 - 個別チャンクをダウンロードして、fMP4が正しく生成されているか検証可能にする
-- 最小限のUIで動作確認できる状態を目指す
 
-### 1A.1 Cargo Workspace セットアップ
+---
+
+### Phase 1A-1: 環境セットアップ
+
+**Goal:** プロジェクト基盤を構築し、基本的な動作確認
 
 ```text
 /maycast-recorder
@@ -32,52 +36,137 @@
 - [ ] common crateの作成（ChunkID, Metadata基本型）
 - [ ] wasm-core crateの作成（wasm-bindgen設定）
 - [ ] web-client scaffolding（Vite + React + Tailwind CSS）
+- [ ] WASM ビルドパイプライン設定（wasm-pack）
+- [ ] Vite から WASM をインポートできることを確認
+- [ ] **Taskfile.yml のセットアップ**
+  - 全ての開発コマンドをTaskfileに集約
+  - `task --list` で利用可能なコマンド一覧を表示
 
-### 1A.2 WebCodecs カメラキャプチャ実装
+**Taskfile コマンド例:**
+```yaml
+# task build:wasm     - WASM をビルド
+# task build:client   - Vite クライアントをビルド
+# task dev            - 開発サーバー起動（WASM自動リビルド + Vite）
+# task test:rust      - Rust単体テスト実行
+# task clean          - ビルド成果物削除
+```
+
+**Test:**
+- [ ] `task --list` でタスク一覧が表示される
+- [ ] `task build:wasm` が成功する（= `wasm-pack build` 相当）
+- [ ] `task dev` で開発サーバーが起動し、Hello World が表示される
+- [ ] ブラウザから WASM 関数を呼び出せる（例: `add(1, 2)` → `3`）
+
+---
+
+### Phase 1A-2: WebCodecs カメラキャプチャ単体
+
+**Goal:** カメラ映像・音声のエンコードまでを単体で動作させる
 
 **Tasks:**
 - [ ] `getUserMedia()` でカメラ/マイク取得
+- [ ] カメラプレビュー表示（video要素）
 - [ ] VideoEncoder初期化（H.264, 1秒ごとKeyframe強制）
 - [ ] AudioEncoder初期化（AAC）
 - [ ] EncodedVideoChunk/AudioChunk取得パイプライン
+- [ ] エンコード済みチャンクをコンソールに出力
 
-### 1A.3 Rust WASM Muxer 実装
+**UI:**
+- [ ] カメラプレビュー表示
+- [ ] 録画開始/停止ボタン
+- [ ] エンコードチャンク数のカウンター表示
+
+**Test:**
+- [ ] カメラ映像がプレビューに表示される
+- [ ] 録画開始時、EncodedVideoChunk がコンソールに出力される
+- [ ] 録画開始時、EncodedAudioChunk がコンソールに出力される
+- [ ] 1秒ごとにキーフレームが生成される（chunk.type === "key"）
+
+---
+
+### Phase 1A-3: Rust WASM Muxer 単体
+
+**Goal:** fMP4生成ロジックを Rust 単体でテスト可能にする
 
 **Dependencies:**
 - `mp4` crate（fMP4生成）
 - `wasm-bindgen`
 
 **Tasks:**
+- [ ] `MuxerState` 構造体定義
 - [ ] `init()`: fMP4ヘッダー（ftyp, moov）生成
-- [ ] `push_video_chunk(data: &[u8], timestamp: u64)`: moof + mdat生成
+- [ ] `push_video_chunk(data: &[u8], timestamp: u64, is_key: bool)`: moof + mdat生成
 - [ ] `push_audio_chunk(data: &[u8], timestamp: u64)`: 同上
 - [ ] `get_fragment() -> Vec<u8>`: 完成したfMP4断片を返す
+- [ ] Rust単体テスト作成（モックデータでfMP4生成）
 
-### 1A.4 OPFS 保存機能
+**Test:**
+- [ ] Rustの `cargo test` でfMP4生成ロジックが動作する
+- [ ] モックデータから生成されたfMP4を `mp4info` コマンドで検証できる
+- [ ] WASMビルド後、ブラウザから呼び出せる
+
+---
+
+### Phase 1A-4: WebCodecs + WASM 統合
+
+**Goal:** WebCodecs の出力を WASM Muxer に渡し、fMP4チャンクを生成
+
+**Tasks:**
+- [ ] EncodedVideoChunk → WASM `push_video_chunk()` 連携
+- [ ] EncodedAudioChunk → WASM `push_audio_chunk()` 連携
+- [ ] 定期的に `get_fragment()` を呼び出してfMP4断片取得
+- [ ] 生成されたfMP4チャンクをBlobに変換
+- [ ] Blobをコンソールに出力 or 一時的にダウンロード
+
+**UI:**
+- [ ] Phase 1A-2 のUIに加えて
+- [ ] 生成されたfMP4チャンク数の表示
+- [ ] 「最新チャンクをダウンロード」ボタン（テスト用）
+
+**Test:**
+- [ ] 録画中、定期的にfMP4チャンクが生成される
+- [ ] 生成されたチャンクをダウンロードして、VLC等で再生できる
+- [ ] 動画と音声が正しく同期している
+
+---
+
+### Phase 1A-5: OPFS 保存機能
+
+**Goal:** 生成されたfMP4チャンクをOPFSに保存・読み出し
 
 **Tasks:**
 - [ ] OPFS APIラッパー実装（TypeScript）
-- [ ] `writeChunk(sessionId, chunkId, data)` 実装
+- [ ] `writeChunk(sessionId, chunkId, data: Uint8Array)` 実装
+- [ ] `readChunk(sessionId, chunkId)` 実装
 - [ ] `listChunks(sessionId)` 実装（復旧用）
-- [ ] IndexedDBでメタデータ管理（chunk index, hash）
+- [ ] IndexedDBでメタデータ管理（chunk index, timestamp, size, blake3 hash）
+- [ ] Phase 1A-4 で生成したチャンクをOPFSに自動保存
 
-### 1A.5 個別チャンクダウンロード機能（テスト用）
+**UI:**
+- [ ] Phase 1A-4 のUIに加えて
+- [ ] OPFS保存状態インジケーター
+- [ ] 保存済みチャンク一覧表示
 
-**Goal:** fMP4チャンクが正しく生成されているかを検証
+**Test:**
+- [ ] 録画中、チャンクがOPFSに保存される
+- [ ] ブラウザをリロードしても、保存されたチャンクが残っている
+- [ ] `listChunks()` で保存済みチャンクが一覧表示される
+- [ ] IndexedDBにメタデータが正しく記録される
 
-**Note:** この機能は Phase 1B で削除予定
+---
+
+### Phase 1A-6: エンドツーエンド + チャンク検証
+
+**Goal:** 録画→OPFS保存→個別ダウンロードの全体フローを完成
 
 **Tasks:**
+- [ ] セッション管理機能（sessionId生成、セッション状態管理）
 - [ ] `downloadChunk(sessionId, chunkId)` 関数実装
-- [ ] 個別チャンクをBlobとしてダウンロード
-- [ ] ダウンロードしたチャンクがメディアプレイヤーで再生可能か確認
-- [ ] チャンク一覧表示UI（開発者向け）
+- [ ] OPFS からチャンクを読み出してダウンロード
+- [ ] 経過時間タイマー表示
+- [ ] 録画開始/停止の状態管理
 
-### 1A.6 基本UI実装
-
-**Goal:** 最小限の録画・停止・チャンク確認ができるUI
-
-**Tasks:**
+**UI:**
 - [ ] シンプルな録画開始ボタン
 - [ ] 停止ボタン
 - [ ] カメラプレビュー表示
@@ -85,11 +174,17 @@
 - [ ] 保存済みチャンク一覧表示（開発者向け）
 - [ ] 個別チャンクダウンロードボタン
 
+**Test:**
+- [ ] 10分の録画が成功し、fMP4チャンクがOPFSに正常に保存される
+- [ ] 個別チャンクをダウンロードして、VLC等のメディアプレイヤーで再生できる
+- [ ] チャンクのメタデータ（timestamp, size, hash）がIndexedDBに正しく保存される
+- [ ] 連続する複数のチャンクをダウンロードして、順次再生できる
+
 **Deliverable:**
-- **Phase 1A の完了条件**
-  - 録画を開始し、fMP4チャンクが OPFS に正常に保存される
-  - 個別チャンクをダウンロードして、VLC等のメディアプレイヤーで再生できる
-  - チャンクのメタデータ（timestamp, size, hash）が IndexedDB に保存される
+- **Phase 1A 全体の完了条件**
+  - 録画→fMP4チャンク生成→OPFS保存→個別ダウンロードの全フローが動作
+  - 個別チャンクが完全に再生可能（fMP4として正しく生成されている）
+  - ブラウザリロード後もデータが保持される
 
 ---
 
@@ -407,6 +502,10 @@
 3. **Documentation:** APIドキュメント、アーキテクチャ図を随時更新
 4. **Performance:** Phase 1からプロファイリング（WebCodecs, WASM, OPFS）
 5. **Security:** 入力検証、CORS、CSPを初期段階から考慮
+6. **Taskfile管理:** 全ての開発コマンドを `Taskfile.yml` に集約
+   - ビルド、テスト、開発サーバー起動など、全てのコマンドは `task` 経由で実行
+   - `task --list` で常に利用可能なコマンドを確認可能
+   - チーム全体で統一されたコマンド体系を維持
 
 ---
 
@@ -414,7 +513,12 @@
 
 | Phase | 成功指標 |
 |-------|---------|
-| Phase 1A | **コア録画機能 + チャンク検証完成**<br>• 10分の録画が成功し、OPFSに正常なfMP4チャンクが保存される<br>• 個別チャンクをダウンロードして、VLC等で再生できる<br>• チャンクのメタデータ（timestamp, size, hash）が正しく記録される |
+| Phase 1A-1 | **環境セットアップ完成**<br>• Cargo Workspace が正常にビルドできる<br>• WASM が正常にビルドでき、ブラウザから呼び出せる<br>• Vite dev server が起動し、基本的なReact UIが表示される |
+| Phase 1A-2 | **WebCodecs カメラキャプチャ完成**<br>• カメラ映像がプレビューに表示される<br>• EncodedVideoChunk/AudioChunk がコンソールに出力される<br>• 1秒ごとにキーフレームが生成される |
+| Phase 1A-3 | **WASM Muxer 単体完成**<br>• Rust単体テストでfMP4が生成できる<br>• 生成されたfMP4を `mp4info` で検証できる<br>• WASMビルド後、ブラウザから呼び出せる |
+| Phase 1A-4 | **WebCodecs + WASM 統合完成**<br>• 録画中、定期的にfMP4チャンクが生成される<br>• 生成されたチャンクをダウンロードして、VLC等で再生できる<br>• 動画と音声が正しく同期している |
+| Phase 1A-5 | **OPFS 保存機能完成**<br>• チャンクがOPFSに正常に保存される<br>• ブラウザリロード後もデータが保持される<br>• IndexedDBにメタデータが正しく記録される |
+| Phase 1A-6 | **Phase 1A 全体完成**<br>• 10分の録画が成功し、OPFSに正常なfMP4チャンクが保存される<br>• 個別チャンクをダウンロードして、VLC等で再生できる<br>• 連続する複数のチャンクを順次再生できる |
 | Phase 1B | **スタンドアロンモード完成**<br>• Phase 1A の個別チャンクダウンロード機能が削除されている<br>• チャンク結合により完全な.mp4ファイルがダウンロードできる<br>• ブラウザ強制終了後、リカバリーUIで復元できる<br>• 設定変更（デバイス、画質）が正常に機能する |
 | Phase 2 | クライアント→サーバーへのアップロードが100%成功する |
 | Phase 3 | ネットワーク切断・復旧シナリオで0バイトのデータ損失 |
@@ -429,7 +533,12 @@
 
 各フェーズの期間は開発体制により変動しますが、以下を目安とします。
 
-- **Phase 1A:** コア録画パイプラインの構築。fMP4チャンク生成の検証が最重要
+- **Phase 1A-1:** 環境構築。早期に完了させる
+- **Phase 1A-2:** WebCodecs の動作確認。独立してテスト可能
+- **Phase 1A-3:** Rust WASM Muxer の実装。単体テストで品質保証
+- **Phase 1A-4:** 統合テスト。fMP4チャンク生成の検証が最重要
+- **Phase 1A-5:** OPFS実装。永続化の検証
+- **Phase 1A-6:** エンドツーエンドテスト。全体フロー確認
 - **Phase 1B:** エクスポート・リカバリー・UI完成。Phase 1A より短期間で完了可能
 - **Phase 2-3:** 堅牢性の核心。妥協しない
 - **Phase 4:** Director Modeはプロダクトの差別化要因
@@ -440,7 +549,51 @@
 
 ## Next Steps
 
-1. **Phase 1A の詳細設計書作成**
-2. **技術スパイク:** WebCodecs + WASM + OPFS の統合検証
-3. **Repository初期化:** Cargo Workspace + Viteのセットアップ
-4. **fMP4 チャンク生成の動作確認:** 個別チャンクが正しく再生できることを検証
+1. **Phase 1A-1 から開始:** Cargo Workspace + Vite + WASM パイプライン構築
+   - **Taskfile.yml のセットアップを最優先で実施**
+   - 以降の全てのコマンドを `task` 経由で実行できるようにする
+2. **各サブフェーズを順次完了:** 独立してテスト可能なため、確実に進める
+3. **技術検証を早期に実施:**
+   - Phase 1A-2: WebCodecs が期待通りに動作するか
+   - Phase 1A-3: Rust で fMP4 が正しく生成できるか
+   - Phase 1A-4: 統合時の同期問題がないか
+4. **Phase 1A-6 完了時点で、fMP4チャンク生成の全体フローが検証完了**
+
+## 推奨される Taskfile コマンド体系
+
+プロジェクト全体で以下のようなタスク構造を推奨します。
+
+```bash
+# 開発
+task dev              # 開発サーバー起動（WASM自動リビルド + Vite HMR）
+task dev:client       # クライアントのみ起動
+task dev:wasm         # WASMのみWatch mode
+
+# ビルド
+task build            # 全体ビルド（WASM + クライアント）
+task build:wasm       # WASMビルド（wasm-pack）
+task build:client     # クライアントビルド（Vite）
+
+# テスト
+task test             # 全テスト実行
+task test:rust        # Rust単体テスト
+task test:wasm        # WASMテスト（ブラウザ環境）
+task test:e2e         # E2Eテスト（Phase 1A-6以降）
+
+# リンター・フォーマット
+task lint             # 全てのLint実行
+task lint:rust        # cargo clippy
+task lint:ts          # ESLint
+task fmt              # 全てのフォーマット実行
+task fmt:rust         # cargo fmt
+task fmt:ts           # Prettier
+
+# クリーン
+task clean            # 全ビルド成果物削除
+task clean:wasm       # WASM成果物削除
+task clean:client     # クライアント成果物削除
+
+# ユーティリティ
+task deps:install     # 全依存関係インストール
+task deps:update      # 依存関係更新
+```
