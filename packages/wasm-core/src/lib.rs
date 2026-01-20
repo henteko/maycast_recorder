@@ -10,9 +10,7 @@ use wasm_bindgen::prelude::*;
 /// This function should be called when the WASM module is first loaded
 #[wasm_bindgen(start)]
 pub fn init() {
-    // Set up console panic hook for better error messages in the browser
-    #[cfg(feature = "console_error_panic_hook")]
-    console_error_panic_hook::set_once();
+    // WASM module initialized
 }
 
 /// Simple test function to verify WASM is working
