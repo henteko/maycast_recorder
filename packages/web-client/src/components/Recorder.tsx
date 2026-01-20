@@ -2,6 +2,8 @@ import { useRef, useState, useEffect } from 'react'
 import { useMediaStream } from '../hooks/useMediaStream'
 import type { ChunkStats } from '../types/webcodecs'
 import init, { Muxer } from 'maycast-wasm-core'
+import { ChunkStorage, generateSessionId, listAllSessions } from '../storage/chunk-storage'
+import type { SessionMetadata } from '../storage/types'
 
 export const Recorder = () => {
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -14,8 +16,9 @@ export const Recorder = () => {
     keyframes: 0,
     totalSize: 0,
   })
-  const [fmp4Chunks, setFmp4Chunks] = useState<Uint8Array[]>([])
+  const [savedChunks, setSavedChunks] = useState(0) // OPFS保存済みチャンク数
   const [wasmInitialized, setWasmInitialized] = useState(false)
+  const [savedSessions, setSavedSessions] = useState<SessionMetadata[]>([])
 
   const videoEncoderRef = useRef<VideoEncoder | null>(null)
   const audioEncoderRef = useRef<AudioEncoder | null>(null)
@@ -29,6 +32,8 @@ export const Recorder = () => {
   const activeStreamRef = useRef<MediaStream | null>(null)
   const baseVideoTimestampRef = useRef<number | null>(null)
   const baseAudioTimestampRef = useRef<number | null>(null)
+  const chunkStorageRef = useRef<ChunkStorage | null>(null)
+  const sessionIdRef = useRef<string | null>(null)
 
   // Initialize WASM
   useEffect(() => {
@@ -44,6 +49,20 @@ export const Recorder = () => {
     initWasm()
   }, [])
 
+  // Load saved sessions on mount
+  useEffect(() => {
+    const loadSessions = async () => {
+      try {
+        const sessions = await listAllSessions()
+        setSavedSessions(sessions)
+        console.log('📂 Loaded saved sessions:', sessions.length)
+      } catch (err) {
+        console.error('❌ Failed to load sessions:', err)
+      }
+    }
+    loadSessions()
+  }, [])
+
   // Update video preview when stream changes
   useEffect(() => {
     if (videoRef.current && stream) {
@@ -54,7 +73,7 @@ export const Recorder = () => {
     }
   }, [stream])
 
-  const initializeMuxerWithConfigs = () => {
+  const initializeMuxerWithConfigs = async () => {
     if (!videoConfigRef.current || !audioConfigRef.current || !wasmInitialized || !activeStreamRef.current) {
       console.log('⏳ Waiting for codec configs...', {
         video: !!videoConfigRef.current,
@@ -90,6 +109,11 @@ export const Recorder = () => {
       initSegmentRef.current = initSegment
       muxerRef.current = muxer
       console.log('✅ Muxer initialized with codec configs, init segment size:', initSegment.length, 'bytes')
+
+      // Save init segment to OPFS
+      if (chunkStorageRef.current) {
+        await chunkStorageRef.current.saveInitSegment(initSegment)
+      }
     } catch (err) {
       console.error('❌ Failed to initialize Muxer:', err)
       return
@@ -143,12 +167,17 @@ export const Recorder = () => {
         chunk.copyTo(buffer)
 
         // Send to Muxer (only if initialized)
-        if (muxerRef.current) {
+        if (muxerRef.current && chunkStorageRef.current) {
           try {
             const fragment = muxerRef.current.push_video(buffer, relativeTimestamp, isKeyframe)
             if (fragment.length > 0) {
-              setFmp4Chunks(prev => [...prev, fragment])
-              console.log(`📦 fMP4 fragment generated: ${fragment.length} bytes`)
+              // Save to OPFS
+              chunkStorageRef.current.saveChunk(fragment, relativeTimestamp).then((chunkId) => {
+                setSavedChunks(prev => prev + 1)
+                console.log(`📦 fMP4 fragment saved to OPFS: #${chunkId}, ${fragment.length} bytes`)
+              }).catch((err) => {
+                console.error('❌ Failed to save chunk to OPFS:', err)
+              })
             }
           } catch (err) {
             console.error('❌ Muxer push_video error:', err)
@@ -204,12 +233,17 @@ export const Recorder = () => {
         chunk.copyTo(buffer)
 
         // Send to Muxer (only if initialized)
-        if (muxerRef.current) {
+        if (muxerRef.current && chunkStorageRef.current) {
           try {
             const fragment = muxerRef.current.push_audio(buffer, relativeTimestamp)
             if (fragment.length > 0) {
-              setFmp4Chunks(prev => [...prev, fragment])
-              console.log(`📦 fMP4 fragment generated: ${fragment.length} bytes`)
+              // Save to OPFS
+              chunkStorageRef.current.saveChunk(fragment, relativeTimestamp).then((chunkId) => {
+                setSavedChunks(prev => prev + 1)
+                console.log(`📦 fMP4 fragment saved to OPFS: #${chunkId}, ${fragment.length} bytes`)
+              }).catch((err) => {
+                console.error('❌ Failed to save chunk to OPFS:', err)
+              })
             }
           } catch (err) {
             console.error('❌ Muxer push_audio error:', err)
@@ -234,8 +268,22 @@ export const Recorder = () => {
   }
 
   const startRecording = async () => {
+    // Initialize new session
+    const sessionId = generateSessionId()
+    sessionIdRef.current = sessionId
+    const chunkStorage = new ChunkStorage(sessionId)
+    chunkStorageRef.current = chunkStorage
+
+    try {
+      await chunkStorage.initSession()
+    } catch (err) {
+      console.error('❌ Failed to initialize session:', err)
+      alert('Failed to initialize storage. Please check browser permissions.')
+      return
+    }
+
     // Reset data from previous recording
-    setFmp4Chunks([])
+    setSavedChunks(0)
     setStats({
       videoChunks: 0,
       audioChunks: 0,
@@ -341,78 +389,146 @@ export const Recorder = () => {
       audioEncoderRef.current = null
     }
 
+    // Complete session
+    if (chunkStorageRef.current) {
+      await chunkStorageRef.current.completeSession()
+    }
+
+    // Reload sessions list
+    const sessions = await listAllSessions()
+    setSavedSessions(sessions)
+
     console.log('⏹️ Recording stopped')
     console.log('📊 Final stats:', stats)
-    console.log('📦 fMP4 chunks:', fmp4Chunks.length)
+    console.log('💾 Saved chunks:', savedChunks)
   }
 
-  const downloadRecording = () => {
-    if (!initSegmentRef.current || fmp4Chunks.length === 0) {
+  const downloadRecording = async () => {
+    if (!chunkStorageRef.current || savedChunks === 0) {
       alert('No recording data available')
       return
     }
 
-    // Calculate total size
-    let totalSize = initSegmentRef.current.length
-    fmp4Chunks.forEach(chunk => {
-      totalSize += chunk.length
-    })
-
-    // Combine init segment and all chunks
-    const combinedData = new Uint8Array(totalSize)
-    let offset = 0
-
-    // Copy init segment
-    combinedData.set(initSegmentRef.current, offset)
-    offset += initSegmentRef.current.length
-
-    // Copy all chunks
-    fmp4Chunks.forEach(chunk => {
-      combinedData.set(chunk, offset)
-      offset += chunk.length
-    })
-
-    // Create blob and download
-    const blob = new Blob([combinedData], { type: 'video/mp4' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `recording-${Date.now()}.mp4`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
-
-    console.log('✅ Downloaded:', totalSize, 'bytes')
+    try {
+      await downloadSessionById(chunkStorageRef.current.sessionId)
+    } catch (err) {
+      console.error('❌ Download error:', err)
+      alert('Failed to download recording')
+    }
   }
 
-  const downloadLatestChunk = () => {
-    if (!initSegmentRef.current || fmp4Chunks.length === 0) {
-      alert('No chunks available')
+  const downloadSessionById = async (sessionId: string) => {
+    try {
+      const storage = new ChunkStorage(sessionId)
+
+      // Load init segment from OPFS
+      const initSegment = await storage.loadInitSegment()
+
+      // Load all chunks from OPFS
+      const chunkMetadata = await storage.listChunks()
+      const chunks: Uint8Array[] = []
+
+      for (const meta of chunkMetadata) {
+        const chunk = await storage.loadChunk(meta.chunkId)
+        chunks.push(chunk)
+      }
+
+      console.log(`📦 Loaded ${chunks.length} chunks from OPFS for session ${sessionId}`)
+
+      // Calculate total size
+      let totalSize = initSegment.length
+      chunks.forEach(chunk => {
+        totalSize += chunk.length
+      })
+
+      // Combine init segment and all chunks
+      const combinedData = new Uint8Array(totalSize)
+      let offset = 0
+
+      // Copy init segment
+      combinedData.set(initSegment, offset)
+      offset += initSegment.length
+
+      // Copy all chunks
+      chunks.forEach(chunk => {
+        combinedData.set(chunk, offset)
+        offset += chunk.length
+      })
+
+      // Create blob and download
+      const blob = new Blob([combinedData], { type: 'video/mp4' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `recording-${sessionId}.mp4`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+
+      console.log('✅ Downloaded:', totalSize, 'bytes')
+    } catch (err) {
+      console.error('❌ Download error:', err)
+      throw err
+    }
+  }
+
+  const deleteSession = async (sessionId: string) => {
+    if (!confirm('このセッションを削除しますか？')) {
       return
     }
 
-    const latestChunk = fmp4Chunks[fmp4Chunks.length - 1]
-    const totalSize = initSegmentRef.current.length + latestChunk.length
+    try {
+      const storage = new ChunkStorage(sessionId)
+      await storage.deleteSession()
 
-    // Combine init segment and latest chunk
-    const combinedData = new Uint8Array(totalSize)
-    combinedData.set(initSegmentRef.current, 0)
-    combinedData.set(latestChunk, initSegmentRef.current.length)
+      // Reload sessions list
+      const sessions = await listAllSessions()
+      setSavedSessions(sessions)
 
-    // Create blob and download
-    const blob = new Blob([combinedData], { type: 'video/mp4' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `chunk-${fmp4Chunks.length}-${Date.now()}.mp4`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
-
-    console.log('✅ Downloaded latest chunk:', totalSize, 'bytes')
+      console.log('🗑️ Session deleted:', sessionId)
+    } catch (err) {
+      console.error('❌ Failed to delete session:', err)
+      alert('Failed to delete session')
+    }
   }
+
+  const clearAllSessions = async () => {
+    if (!confirm(`すべてのセッション (${savedSessions.length}件) を削除しますか？この操作は取り消せません。`)) {
+      return
+    }
+
+    let successCount = 0
+    let failCount = 0
+    const errors: string[] = []
+
+    for (const session of savedSessions) {
+      try {
+        console.log('🗑️ Deleting session:', session.sessionId)
+        const storage = new ChunkStorage(session.sessionId)
+        await storage.deleteSession()
+        successCount++
+        console.log('✅ Session deleted successfully:', session.sessionId)
+      } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : String(err)
+        console.error('❌ Failed to delete session:', session.sessionId, err)
+        errors.push(`${session.sessionId}: ${errorMsg}`)
+        failCount++
+      }
+    }
+
+    // Reload sessions list
+    const sessions = await listAllSessions()
+    setSavedSessions(sessions)
+
+    if (errors.length > 0) {
+      console.error('削除エラーの詳細:', errors)
+      alert(`削除完了: 成功 ${successCount}件, 失敗 ${failCount}件\n\nエラー詳細はコンソールを確認してください`)
+    } else {
+      alert(`削除完了: 成功 ${successCount}件`)
+    }
+  }
+
 
   const handleStartStop = () => {
     if (isRecording) {
@@ -426,7 +542,7 @@ export const Recorder = () => {
     <div className="min-h-screen bg-gray-900 text-white p-8">
       <div className="max-w-4xl mx-auto">
         <h1 className="text-4xl font-bold mb-2">Maycast Recorder</h1>
-        <p className="text-gray-400 mb-8">Phase 1A-4: WebCodecs + WASM Integration</p>
+        <p className="text-gray-400 mb-8">Phase 1A-5: OPFS Persistent Storage</p>
 
         {error && (
           <div className="bg-red-600 text-white p-4 rounded-lg mb-6">
@@ -468,8 +584,8 @@ export const Recorder = () => {
             <p className="text-2xl font-bold">{stats.keyframes}</p>
           </div>
           <div className="bg-gray-800 p-4 rounded-lg">
-            <p className="text-gray-400 text-sm">fMP4 Chunks</p>
-            <p className="text-2xl font-bold">{fmp4Chunks.length}</p>
+            <p className="text-gray-400 text-sm">💾 Saved to OPFS</p>
+            <p className="text-2xl font-bold">{savedChunks}</p>
           </div>
           <div className="bg-gray-800 p-4 rounded-lg">
             <p className="text-gray-400 text-sm">Total Size</p>
@@ -493,23 +609,68 @@ export const Recorder = () => {
             {isRecording ? '⏹️ Stop Recording' : '🎬 Start Recording'}
           </button>
 
-          {fmp4Chunks.length > 0 && (
-            <div className="grid grid-cols-2 gap-4">
-              <button
-                onClick={downloadRecording}
-                className="py-3 px-6 bg-green-600 hover:bg-green-700 rounded-lg font-semibold transition-colors"
-              >
-                📥 Download Full Recording
-              </button>
-              <button
-                onClick={downloadLatestChunk}
-                className="py-3 px-6 bg-purple-600 hover:bg-purple-700 rounded-lg font-semibold transition-colors"
-              >
-                📦 Download Latest Chunk
-              </button>
-            </div>
+          {savedChunks > 0 && (
+            <button
+              onClick={downloadRecording}
+              className="w-full py-3 px-6 bg-green-600 hover:bg-green-700 rounded-lg font-semibold transition-colors"
+            >
+              📥 Download Full Recording ({savedChunks} chunks saved in OPFS)
+            </button>
           )}
         </div>
+
+        {/* Saved Sessions */}
+        {savedSessions.length > 0 && (
+          <div className="bg-gray-800 p-4 rounded-lg mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-sm text-gray-400">💾 保存済みセッション ({savedSessions.length}):</p>
+              <button
+                onClick={clearAllSessions}
+                className="px-3 py-1 bg-red-600 hover:bg-red-700 rounded text-xs transition-colors"
+              >
+                🗑️ すべて削除
+              </button>
+            </div>
+            <div className="space-y-2">
+              {savedSessions.map((session) => {
+                const startDate = session.startTime ? new Date(session.startTime) : null
+                const endDate = session.endTime ? new Date(session.endTime) : null
+                const isValidStart = startDate && !isNaN(startDate.getTime())
+                const isValidEnd = endDate && !isNaN(endDate.getTime())
+
+                return (
+                  <div key={session.sessionId} className="bg-gray-700 p-3 rounded flex items-center justify-between">
+                    <div className="flex-1">
+                      <p className="text-xs font-mono text-gray-400">{session.sessionId}</p>
+                      <p className="text-sm mt-1">
+                        {isValidStart ? startDate.toLocaleString('ja-JP') : '⚠️ Invalid Date'}
+                        {isValidEnd && ` - ${endDate.toLocaleString('ja-JP')}`}
+                      </p>
+                      <p className="text-xs text-gray-400 mt-1">
+                        チャンク数: {session.totalChunks || 0} / サイズ: {((session.totalSize || 0) / 1024 / 1024).toFixed(2)} MB
+                        {session.isCompleted ? ' / ✅ 完了' : ' / ⏸️ 録画中'}
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => downloadSessionById(session.sessionId)}
+                        className="px-3 py-1 bg-green-600 hover:bg-green-700 rounded text-sm transition-colors"
+                      >
+                        📥
+                      </button>
+                      <button
+                        onClick={() => deleteSession(session.sessionId)}
+                        className="px-3 py-1 bg-red-600 hover:bg-red-700 rounded text-sm transition-colors"
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Debug Info */}
         <div className="bg-gray-800 p-4 rounded-lg">
@@ -522,6 +683,9 @@ export const Recorder = () => {
             <li>Recording: {isRecording ? '✅' : '❌'}</li>
             <li>Video Encoder: {videoEncoderRef.current?.state || 'Not initialized'}</li>
             <li>Audio Encoder: {audioEncoderRef.current?.state || 'Not initialized'}</li>
+            <li>Session ID: {sessionIdRef.current || 'None'}</li>
+            <li>OPFS Storage: {chunkStorageRef.current ? '✅' : '❌'}</li>
+            <li>Saved Chunks: {savedChunks}</li>
           </ul>
         </div>
       </div>
