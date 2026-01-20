@@ -21,6 +21,11 @@ export const Recorder = () => {
   const [savedSessions, setSavedSessions] = useState<SessionMetadata[]>([])
   const [recordingStartTime, setRecordingStartTime] = useState<number | null>(null)
   const [elapsedTime, setElapsedTime] = useState(0) // 経過時間（秒）
+  const [downloadProgress, setDownloadProgress] = useState<{
+    isDownloading: boolean
+    current: number
+    total: number
+  }>({ isDownloading: false, current: 0, total: 0 })
 
   const videoEncoderRef = useRef<VideoEncoder | null>(null)
   const audioEncoderRef = useRef<AudioEncoder | null>(null)
@@ -440,42 +445,41 @@ export const Recorder = () => {
     try {
       const storage = new ChunkStorage(sessionId)
 
-      // Load init segment from OPFS
-      const initSegment = await storage.loadInitSegment()
-
-      // Load all chunks from OPFS
+      // Get chunk metadata
       const chunkMetadata = await storage.listChunks()
-      const chunks: Uint8Array[] = []
+      const totalChunks = chunkMetadata.length + 1 // +1 for init segment
+      console.log(`📦 Preparing to load ${chunkMetadata.length} chunks from OPFS for session ${sessionId}`)
 
-      for (const meta of chunkMetadata) {
+      // Start download progress
+      setDownloadProgress({ isDownloading: true, current: 0, total: totalChunks })
+
+      // Load chunks as Blobs (memory efficient - each Uint8Array is GC'd after Blob conversion)
+      const blobs: Blob[] = []
+
+      // Load init segment
+      const initSegment = await storage.loadInitSegment()
+      blobs.push(new Blob([initSegment]))
+      setDownloadProgress({ isDownloading: true, current: 1, total: totalChunks })
+      console.log(`📤 Loaded init segment: ${initSegment.length} bytes`)
+
+      // Load all chunks with progress updates
+      for (let i = 0; i < chunkMetadata.length; i++) {
+        const meta = chunkMetadata[i]
         const chunk = await storage.loadChunk(meta.chunkId)
-        chunks.push(chunk)
+        blobs.push(new Blob([chunk]))
+        // Original Uint8Array 'chunk' is now eligible for GC
+
+        const currentProgress = i + 2 // +1 for init segment, +1 for current chunk
+        setDownloadProgress({ isDownloading: true, current: currentProgress, total: totalChunks })
+        console.log(`📤 Loaded chunk #${meta.chunkId}: ${chunk.length} bytes (${currentProgress}/${totalChunks})`)
       }
 
-      console.log(`📦 Loaded ${chunks.length} chunks from OPFS for session ${sessionId}`)
+      console.log('✅ All chunks loaded, combining blobs...')
 
-      // Calculate total size
-      let totalSize = initSegment.length
-      chunks.forEach(chunk => {
-        totalSize += chunk.length
-      })
+      // Combine all blobs into one (memory efficient)
+      const blob = new Blob(blobs, { type: 'video/mp4' })
 
-      // Combine init segment and all chunks
-      const combinedData = new Uint8Array(totalSize)
-      let offset = 0
-
-      // Copy init segment
-      combinedData.set(initSegment, offset)
-      offset += initSegment.length
-
-      // Copy all chunks
-      chunks.forEach(chunk => {
-        combinedData.set(chunk, offset)
-        offset += chunk.length
-      })
-
-      // Create blob and download
-      const blob = new Blob([combinedData], { type: 'video/mp4' })
+      // Download the blob
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
@@ -485,9 +489,13 @@ export const Recorder = () => {
       document.body.removeChild(a)
       URL.revokeObjectURL(url)
 
-      console.log('✅ Downloaded:', totalSize, 'bytes')
+      console.log('✅ Downloaded:', blob.size, 'bytes')
+
+      // Reset download progress
+      setDownloadProgress({ isDownloading: false, current: 0, total: 0 })
     } catch (err) {
       console.error('❌ Download error:', err)
+      setDownloadProgress({ isDownloading: false, current: 0, total: 0 })
       throw err
     }
   }
@@ -641,12 +649,32 @@ export const Recorder = () => {
           </button>
 
           {savedChunks > 0 && (
-            <button
-              onClick={downloadRecording}
-              className="w-full py-3 px-6 bg-green-600 hover:bg-green-700 rounded-lg font-semibold transition-colors"
-            >
-              📥 Download Full Recording ({savedChunks} chunks saved in OPFS)
-            </button>
+            <div className="space-y-2">
+              <button
+                onClick={downloadRecording}
+                disabled={downloadProgress.isDownloading}
+                className={`w-full py-3 px-6 rounded-lg font-semibold transition-colors ${
+                  downloadProgress.isDownloading
+                    ? 'bg-gray-600 cursor-not-allowed'
+                    : 'bg-green-600 hover:bg-green-700'
+                }`}
+              >
+                {downloadProgress.isDownloading
+                  ? `⏳ Downloading... ${downloadProgress.current}/${downloadProgress.total}`
+                  : `📥 Download Full Recording (${savedChunks} chunks saved in OPFS)`}
+              </button>
+
+              {downloadProgress.isDownloading && (
+                <div className="w-full bg-gray-700 rounded-full h-2">
+                  <div
+                    className="bg-green-600 h-2 rounded-full transition-all duration-300"
+                    style={{
+                      width: `${(downloadProgress.current / downloadProgress.total) * 100}%`
+                    }}
+                  />
+                </div>
+              )}
+            </div>
           )}
         </div>
 
@@ -685,13 +713,23 @@ export const Recorder = () => {
                     <div className="flex gap-2">
                       <button
                         onClick={() => downloadSessionById(session.sessionId)}
-                        className="px-3 py-1 bg-green-600 hover:bg-green-700 rounded text-sm transition-colors"
+                        disabled={downloadProgress.isDownloading}
+                        className={`px-3 py-1 rounded text-sm transition-colors ${
+                          downloadProgress.isDownloading
+                            ? 'bg-gray-600 cursor-not-allowed'
+                            : 'bg-green-600 hover:bg-green-700'
+                        }`}
                       >
                         📥
                       </button>
                       <button
                         onClick={() => deleteSession(session.sessionId)}
-                        className="px-3 py-1 bg-red-600 hover:bg-red-700 rounded text-sm transition-colors"
+                        disabled={downloadProgress.isDownloading}
+                        className={`px-3 py-1 rounded text-sm transition-colors ${
+                          downloadProgress.isDownloading
+                            ? 'bg-gray-600 cursor-not-allowed'
+                            : 'bg-red-600 hover:bg-red-700'
+                        }`}
                       >
                         🗑️
                       </button>
