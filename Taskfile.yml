@@ -1,0 +1,163 @@
+version: '3'
+
+vars:
+  WASM_PKG_DIR: packages/wasm-core/pkg
+  CLIENT_DIR: packages/web-client
+
+tasks:
+  # Development tasks
+  dev:
+    desc: Start development server with WASM auto-rebuild
+    deps: [build:wasm]
+    dir: '{{.CLIENT_DIR}}'
+    cmds:
+      - npm run dev
+
+  dev:client:
+    desc: Start client development server only (without WASM rebuild)
+    dir: '{{.CLIENT_DIR}}'
+    cmds:
+      - npm run dev
+
+  dev:wasm:
+    desc: Build WASM in watch mode
+    dir: packages/wasm-core
+    cmds:
+      - cargo watch -i pkg -s "wasm-pack build --target web --out-dir pkg"
+
+  # Build tasks
+  build:
+    desc: Build everything (WASM + client)
+    cmds:
+      - task: build:wasm
+      - task: build:client
+
+  build:wasm:
+    desc: Build WASM module using wasm-pack
+    dir: packages/wasm-core
+    cmds:
+      - wasm-pack build --target web --out-dir pkg
+    sources:
+      - src/**/*.rs
+      - Cargo.toml
+    generates:
+      - pkg/*.wasm
+      - pkg/*.js
+      - pkg/*.ts
+
+  build:client:
+    desc: Build client for production
+    dir: '{{.CLIENT_DIR}}'
+    deps: [build:wasm]
+    cmds:
+      - npm run build
+
+  # Test tasks
+  test:
+    desc: Run all tests
+    cmds:
+      - task: test:rust
+      - task: test:wasm
+
+  test:rust:
+    desc: Run Rust unit tests
+    cmds:
+      - cargo test --workspace
+
+  test:wasm:
+    desc: Run WASM tests in headless browser
+    dir: packages/wasm-core
+    cmds:
+      - wasm-pack test --headless --chrome
+
+  test:e2e:
+    desc: Run E2E tests (Phase 1A-6+)
+    cmds:
+      - echo "E2E tests not yet implemented (Phase 1A-6+)"
+
+  # Linting and formatting
+  lint:
+    desc: Run all linters
+    cmds:
+      - task: lint:rust
+      - task: lint:ts
+
+  lint:rust:
+    desc: Run cargo clippy
+    cmds:
+      - cargo clippy --workspace --all-targets -- -D warnings
+
+  lint:ts:
+    desc: Run ESLint on TypeScript files
+    dir: '{{.CLIENT_DIR}}'
+    cmds:
+      - npm run lint
+
+  fmt:
+    desc: Format all code
+    cmds:
+      - task: fmt:rust
+      - task: fmt:ts
+
+  fmt:rust:
+    desc: Format Rust code
+    cmds:
+      - cargo fmt --all
+
+  fmt:ts:
+    desc: Format TypeScript code
+    dir: '{{.CLIENT_DIR}}'
+    cmds:
+      - npm run format || echo "Add format script to package.json if needed"
+
+  # Dependency management
+  deps:install:
+    desc: Install all dependencies
+    cmds:
+      - echo "Installing Rust dependencies..."
+      - cargo fetch
+      - echo "Installing Node dependencies..."
+      - cd {{.CLIENT_DIR}} && npm install
+
+  deps:update:
+    desc: Update all dependencies
+    cmds:
+      - cargo update
+      - cd {{.CLIENT_DIR}} && npm update
+
+  # Clean tasks
+  clean:
+    desc: Clean all build artifacts
+    cmds:
+      - task: clean:wasm
+      - task: clean:client
+      - cargo clean
+
+  clean:wasm:
+    desc: Clean WASM build artifacts
+    cmds:
+      - rm -rf packages/wasm-core/pkg
+      - rm -rf packages/wasm-core/target
+
+  clean:client:
+    desc: Clean client build artifacts
+    dir: '{{.CLIENT_DIR}}'
+    cmds:
+      - rm -rf dist
+      - rm -rf node_modules
+
+  # Utility tasks
+  check:
+    desc: Check if everything compiles without building
+    cmds:
+      - cargo check --workspace
+
+  doctor:
+    desc: Check if all required tools are installed
+    cmds:
+      - echo "Checking required tools..."
+      - command -v cargo || echo "❌ cargo not found"
+      - command -v wasm-pack || echo "❌ wasm-pack not found (install with 'cargo install wasm-pack')"
+      - command -v node || echo "❌ node not found"
+      - command -v npm || echo "❌ npm not found"
+      - echo "✅ All checks complete"
