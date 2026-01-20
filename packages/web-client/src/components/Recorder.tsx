@@ -4,6 +4,8 @@ import type { ChunkStats } from '../types/webcodecs'
 import init, { Muxer } from 'maycast-wasm-core'
 import { ChunkStorage, generateSessionId, listAllSessions } from '../storage/chunk-storage'
 import type { SessionMetadata } from '../storage/types'
+import type { RecorderSettings, QualityPreset } from '../types/settings'
+import { loadSettings, saveSettings, QUALITY_PRESETS } from '../types/settings'
 
 export const Recorder = () => {
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -28,6 +30,10 @@ export const Recorder = () => {
   }>({ isDownloading: false, current: 0, total: 0 })
   const [recoverySession, setRecoverySession] = useState<SessionMetadata | null>(null)
   const [showRecoveryModal, setShowRecoveryModal] = useState(false)
+  const [showSettingsModal, setShowSettingsModal] = useState(false)
+  const [settings, setSettings] = useState<RecorderSettings>(loadSettings())
+  const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([])
+  const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([])
 
   const videoEncoderRef = useRef<VideoEncoder | null>(null)
   const audioEncoderRef = useRef<AudioEncoder | null>(null)
@@ -56,6 +62,26 @@ export const Recorder = () => {
       }
     }
     initWasm()
+  }, [])
+
+  // Enumerate devices on mount
+  useEffect(() => {
+    const enumerateDevices = async () => {
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices()
+        const videoInputs = devices.filter(d => d.kind === 'videoinput')
+        const audioInputs = devices.filter(d => d.kind === 'audioinput')
+
+        setVideoDevices(videoInputs)
+        setAudioDevices(audioInputs)
+
+        console.log('📹 Video devices:', videoInputs.length)
+        console.log('🎤 Audio devices:', audioInputs.length)
+      } catch (err) {
+        console.error('❌ Failed to enumerate devices:', err)
+      }
+    }
+    enumerateDevices()
   }, [])
 
   // Load saved sessions on mount and check for incomplete sessions
@@ -122,16 +148,22 @@ export const Recorder = () => {
     const audioTrack = activeStreamRef.current.getAudioTracks()[0]
     const audioSettings = audioTrack?.getSettings()
 
+    // Get quality config from settings
+    const qualityConfig = QUALITY_PRESETS[settings.qualityPreset]
+
     console.log('🎤 Audio track settings:', audioSettings)
     console.log('📹 Initializing Muxer with configs:', {
       videoConfig: videoConfigRef.current.length,
-      audioConfig: audioConfigRef.current.length
+      audioConfig: audioConfigRef.current.length,
+      width: qualityConfig.width,
+      height: qualityConfig.height,
+      preset: settings.qualityPreset
     })
 
-    // Initialize Muxer with codec configurations
+    // Initialize Muxer with codec configurations from settings
     const muxer = Muxer.with_config(
-      1280, // video_width
-      720,  // video_height
+      qualityConfig.width,  // video_width from settings
+      qualityConfig.height, // video_height from settings
       audioSettings?.sampleRate || 48000, // audio_sample_rate
       audioSettings?.channelCount || 1,   // audio_channels
       Array.from(videoConfigRef.current), // video_config
@@ -166,13 +198,16 @@ export const Recorder = () => {
 
     console.log('🎤 Audio track settings:', audioSettings)
 
+    // Get quality config from settings
+    const qualityConfig = QUALITY_PRESETS[settings.qualityPreset]
+
     // Initialize VideoEncoder
     const videoConfig = {
       codec: 'avc1.42001f', // H.264 Baseline Profile Level 3.1
-      width: 1280,
-      height: 720,
-      bitrate: 2_000_000, // 2 Mbps
-      framerate: 30,
+      width: qualityConfig.width,
+      height: qualityConfig.height,
+      bitrate: qualityConfig.bitrate,
+      framerate: qualityConfig.framerate,
     }
 
     videoEncoderRef.current = new VideoEncoder({
@@ -302,6 +337,29 @@ export const Recorder = () => {
   }
 
   const startRecording = async () => {
+    // Clean up any existing encoders/muxer first
+    if (videoEncoderRef.current) {
+      try {
+        if (videoEncoderRef.current.state !== 'closed') {
+          videoEncoderRef.current.close()
+        }
+      } catch (err) {
+        console.warn('Failed to close video encoder:', err)
+      }
+      videoEncoderRef.current = null
+    }
+
+    if (audioEncoderRef.current) {
+      try {
+        if (audioEncoderRef.current.state !== 'closed') {
+          audioEncoderRef.current.close()
+        }
+      } catch (err) {
+        console.warn('Failed to close audio encoder:', err)
+      }
+      audioEncoderRef.current = null
+    }
+
     // Initialize new session
     const sessionId = generateSessionId()
     sessionIdRef.current = sessionId
@@ -316,7 +374,7 @@ export const Recorder = () => {
       return
     }
 
-    // Reset data from previous recording
+    // Reset all data from previous recording
     setSavedChunks(0)
     setStats({
       videoChunks: 0,
@@ -332,11 +390,18 @@ export const Recorder = () => {
     baseVideoTimestampRef.current = null
     baseAudioTimestampRef.current = null
 
-    let activeStream = stream
+    console.log('🎬 Starting recording with settings:', settings)
 
-    if (!isCapturing) {
-      activeStream = await startCapture()
-    }
+    // Always get a fresh stream with current settings
+    // This ensures settings changes are applied
+    const qualityConfig = QUALITY_PRESETS[settings.qualityPreset]
+    const activeStream = await startCapture({
+      videoDeviceId: settings.videoDeviceId,
+      audioDeviceId: settings.audioDeviceId,
+      width: qualityConfig.width,
+      height: qualityConfig.height,
+      frameRate: qualityConfig.framerate,
+    })
 
     if (!activeStream) {
       console.error('No stream available')
@@ -358,6 +423,7 @@ export const Recorder = () => {
       const reader = videoProcessorRef.current.readable.getReader()
 
       let frameCount = 0
+      const qualityConfig = QUALITY_PRESETS[settings.qualityPreset]
       const processVideoFrame = async () => {
         while (isRecordingRef.current) {
           const result = await reader.read()
@@ -366,8 +432,8 @@ export const Recorder = () => {
           const frame = result.value
           if (videoEncoderRef.current && videoEncoderRef.current.state === 'configured') {
             frameCount++
-            // Force keyframe every 30 frames (1 second at 30fps)
-            const needsKeyframe = frameCount % 30 === 0
+            // Force keyframe based on quality preset
+            const needsKeyframe = frameCount % qualityConfig.keyframeInterval === 0
 
             videoEncoderRef.current.encode(frame, { keyFrame: needsKeyframe })
           }
@@ -638,8 +704,109 @@ export const Recorder = () => {
     setRecoverySession(null)
   }
 
+  const handleSaveSettings = () => {
+    saveSettings(settings)
+    setShowSettingsModal(false)
+    console.log('✅ Settings saved:', settings)
+  }
+
   return (
     <div className="min-h-screen bg-gray-900 text-white p-8">
+      {/* Settings Modal */}
+      {showSettingsModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+          <div className="bg-gray-800 rounded-lg p-8 max-w-md w-full mx-4">
+            <h2 className="text-2xl font-bold mb-6">⚙️ 設定</h2>
+
+            {/* Video Device Selection */}
+            <div className="mb-6">
+              <label className="block text-sm text-gray-400 mb-2">カメラ</label>
+              <select
+                value={settings.videoDeviceId || ''}
+                onChange={(e) => setSettings({ ...settings, videoDeviceId: e.target.value || undefined })}
+                className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg"
+              >
+                <option value="">デフォルト</option>
+                {videoDevices.map(device => (
+                  <option key={device.deviceId} value={device.deviceId}>
+                    {device.label || `カメラ ${device.deviceId.slice(0, 8)}`}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Audio Device Selection */}
+            <div className="mb-6">
+              <label className="block text-sm text-gray-400 mb-2">マイク</label>
+              <select
+                value={settings.audioDeviceId || ''}
+                onChange={(e) => setSettings({ ...settings, audioDeviceId: e.target.value || undefined })}
+                className="w-full bg-gray-700 text-white px-4 py-2 rounded-lg"
+              >
+                <option value="">デフォルト</option>
+                {audioDevices.map(device => (
+                  <option key={device.deviceId} value={device.deviceId}>
+                    {device.label || `マイク ${device.deviceId.slice(0, 8)}`}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Quality Preset Selection */}
+            <div className="mb-6">
+              <label className="block text-sm text-gray-400 mb-2">画質プリセット</label>
+              <div className="space-y-2">
+                <label className="flex items-center p-3 bg-gray-700 rounded-lg cursor-pointer hover:bg-gray-600">
+                  <input
+                    type="radio"
+                    name="quality"
+                    value="stability"
+                    checked={settings.qualityPreset === 'stability'}
+                    onChange={(e) => setSettings({ ...settings, qualityPreset: e.target.value as QualityPreset })}
+                    className="mr-3"
+                  />
+                  <div className="flex-1">
+                    <p className="font-semibold">Stability Mode（安定優先）</p>
+                    <p className="text-sm text-gray-400">720p / 2Mbps / 1秒ごとキーフレーム</p>
+                  </div>
+                </label>
+
+                <label className="flex items-center p-3 bg-gray-700 rounded-lg cursor-pointer hover:bg-gray-600">
+                  <input
+                    type="radio"
+                    name="quality"
+                    value="quality"
+                    checked={settings.qualityPreset === 'quality'}
+                    onChange={(e) => setSettings({ ...settings, qualityPreset: e.target.value as QualityPreset })}
+                    className="mr-3"
+                  />
+                  <div className="flex-1">
+                    <p className="font-semibold">Quality Mode（高画質）</p>
+                    <p className="text-sm text-gray-400">1080p / 5Mbps / 3秒ごとキーフレーム</p>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            {/* Buttons */}
+            <div className="flex gap-4">
+              <button
+                onClick={() => setShowSettingsModal(false)}
+                className="flex-1 py-3 px-6 bg-gray-600 hover:bg-gray-700 rounded-lg font-semibold transition-colors"
+              >
+                キャンセル
+              </button>
+              <button
+                onClick={handleSaveSettings}
+                className="flex-1 py-3 px-6 bg-blue-600 hover:bg-blue-700 rounded-lg font-semibold transition-colors"
+              >
+                保存
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Recovery Modal */}
       {showRecoveryModal && recoverySession && (
         <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
@@ -683,7 +850,16 @@ export const Recorder = () => {
       )}
 
       <div className="max-w-4xl mx-auto">
-        <h1 className="text-4xl font-bold mb-2">Maycast Recorder</h1>
+        <div className="flex items-center justify-between mb-2">
+          <h1 className="text-4xl font-bold">Maycast Recorder</h1>
+          <button
+            onClick={() => setShowSettingsModal(true)}
+            className="p-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+            title="設定"
+          >
+            ⚙️
+          </button>
+        </div>
         <p className="text-gray-400 mb-8">Phase 1B: Export & Recovery</p>
 
         {error && (
