@@ -19,6 +19,8 @@ export const Recorder = () => {
   const [savedChunks, setSavedChunks] = useState(0) // OPFS保存済みチャンク数
   const [wasmInitialized, setWasmInitialized] = useState(false)
   const [savedSessions, setSavedSessions] = useState<SessionMetadata[]>([])
+  const [recordingStartTime, setRecordingStartTime] = useState<number | null>(null)
+  const [elapsedTime, setElapsedTime] = useState(0) // 経過時間（秒）
 
   const videoEncoderRef = useRef<VideoEncoder | null>(null)
   const audioEncoderRef = useRef<AudioEncoder | null>(null)
@@ -62,6 +64,21 @@ export const Recorder = () => {
     }
     loadSessions()
   }, [])
+
+  // Update elapsed time during recording
+  useEffect(() => {
+    if (!recordingStartTime) {
+      setElapsedTime(0)
+      return
+    }
+
+    const timer = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - recordingStartTime) / 1000)
+      setElapsedTime(elapsed)
+    }, 1000)
+
+    return () => clearInterval(timer)
+  }, [recordingStartTime])
 
   // Update video preview when stream changes
   useEffect(() => {
@@ -314,6 +331,7 @@ export const Recorder = () => {
     // Set recording state before starting processors
     setIsRecording(true)
     isRecordingRef.current = true
+    setRecordingStartTime(Date.now())
 
     // Process video frames
     const videoTrack = activeStream.getVideoTracks()[0]
@@ -376,6 +394,7 @@ export const Recorder = () => {
   const stopRecording = async () => {
     setIsRecording(false)
     isRecordingRef.current = false
+    setRecordingStartTime(null)
 
     if (videoEncoderRef.current) {
       await videoEncoderRef.current.flush()
@@ -538,6 +557,13 @@ export const Recorder = () => {
     }
   }
 
+  const formatElapsedTime = (seconds: number): string => {
+    const hours = Math.floor(seconds / 3600)
+    const minutes = Math.floor((seconds % 3600) / 60)
+    const secs = seconds % 60
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+  }
+
   return (
     <div className="min-h-screen bg-gray-900 text-white p-8">
       <div className="max-w-4xl mx-auto">
@@ -561,9 +587,14 @@ export const Recorder = () => {
               playsInline
             />
             {isRecording && (
-              <div className="absolute top-4 left-4 flex items-center gap-2 bg-red-600 px-3 py-1 rounded-full">
-                <div className="w-3 h-3 bg-white rounded-full animate-pulse" />
-                <span className="text-sm font-semibold">REC</span>
+              <div className="absolute top-4 left-4 right-4 flex items-center justify-between">
+                <div className="flex items-center gap-2 bg-red-600 px-3 py-1 rounded-full">
+                  <div className="w-3 h-3 bg-white rounded-full animate-pulse" />
+                  <span className="text-sm font-semibold">REC</span>
+                </div>
+                <div className="bg-black bg-opacity-70 px-4 py-2 rounded-lg">
+                  <span className="text-2xl font-mono font-bold">{formatElapsedTime(elapsedTime)}</span>
+                </div>
               </div>
             )}
           </div>
