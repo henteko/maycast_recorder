@@ -26,6 +26,9 @@ web-sys = "0.3"
 blake3 = "1.5"
 uuid = { version = "1.0", features = ["v4", "serde", "js"] }
 
+# Media processing
+mp4 = "0.14"
+
 [profile.release]
 opt-level = "z"     # Optimize for size
 lto = true          # Enable Link Time Optimization

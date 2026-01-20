@@ -26,8 +26,11 @@ serde_json.workspace = true
 # Utilities
 blake3.workspace = true
 
+# Media processing
+mp4.workspace = true
+
 [dev-dependencies]
 wasm-bindgen-test = "0.3"
 
 [package.metadata.wasm-pack.profile.release]
-wasm-opt = ["-O4", "--enable-bulk-memory"]
+wasm-opt = ["-O4", "--enable-bulk-memory", "--enable-nontrapping-float-to-int"]
