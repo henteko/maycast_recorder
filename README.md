@@ -6,12 +6,13 @@ A WebCodecs-based video/audio recorder with robust OPFS storage and optional ser
 
 ```
 /maycast-recorder
-├── Cargo.toml           # Workspace root
+├── Cargo.toml           # Rust Workspace root (WASM modules)
 ├── Taskfile.yml         # Task automation (all dev commands)
 ├── /packages
-│   ├── /common          # Shared Rust types (ChunkID, Metadata)
+│   ├── /common          # Shared TypeScript types (ChunkID, Metadata)
 │   ├── /wasm-core       # Rust -> WASM Muxing (fMP4 generation)
-│   └── /web-client      # TypeScript/React Frontend
+│   ├── /web-client      # TypeScript/React Frontend
+│   └── /server          # TypeScript/Express Backend (Phase 2+)
 └── /docs                # Documentation
 ```
 
@@ -97,11 +98,18 @@ task --list
 
 ## Technology Stack
 
+### Client-Side
 - **Frontend**: React 18 + TypeScript + Vite + Tailwind CSS
 - **WASM**: Rust + wasm-bindgen + wasm-pack
 - **Video/Audio Encoding**: WebCodecs API
 - **Storage**: OPFS (Origin Private File System) + IndexedDB
 - **Muxing**: mp4 crate (fMP4 generation in WASM)
+
+### Server-Side (Phase 2+)
+- **Backend**: TypeScript + Express
+- **Storage**: Local filesystem (dev) / S3/R2 (production)
+- **Real-time**: WebSocket (ws package)
+- **Testing**: Jest or Vitest
 
 ## Next Steps
 

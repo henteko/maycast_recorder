@@ -79,20 +79,20 @@ Maycast Recorderは、2つの動作モードを持ちます。
 
 ---
 
-## 4. 技術アーキテクチャ：The "Full Rust" Stack
+## 4. 技術アーキテクチャ：Hybrid Stack
 
-クライアント（WASM）とサーバー（Backend）を **Rust** で統一。型安全性を共有し、堅牢性と開発効率を最大化します。
+クライアント側の高パフォーマンス処理は **Rust (WASM)** で実装し、サーバー側は **TypeScript + Express** で開発効率を最大化します。
 
 ### A. Repository Structure (Monorepo)
 
-`Cargo Workspace` を採用し、通信プロトコルやデータ型を一元管理します。
+型安全性を維持しながら、各コンポーネントに最適な技術を選択します。
 
 ```text
 /maycast-recorder
-├── /common        # [Shared] ChunkID, Manifest, WebSocket Message型定義
+├── /common        # [Shared] ChunkID, Manifest, WebSocket Message型定義（TypeScript）
 ├── /wasm-core     # [Client] Muxingロジック, Audio Analysis (Rust -> WASM)
-├── /server        # [Server] Axum API Server, Storage Drivers (Rust)
-└── /web-client    # [UI] TypeScript + React/Svelte (WebCodecs制御)
+├── /server        # [Server] Express API Server, Storage Drivers (TypeScript)
+└── /web-client    # [UI] TypeScript + React (WebCodecs制御)
 
 ```
 
@@ -116,10 +116,10 @@ Maycast Recorderは、2つの動作モードを持ちます。
 
 ### C. Server-Side (Backend)
 
-* **Framework:** **Rust (Axum + Tokio)**
-* **Storage Strategy:** **`object_store` Crate**
-* **Dev Mode:** ローカルファイルシステム (`./data/`)
-* **SaaS Mode:** Cloudflare R2 / AWS S3
+* **Framework:** **TypeScript + Express**
+* **Storage Strategy:** **抽象化されたStorage Layer**
+* **Dev Mode:** ローカルファイルシステム (`./storage/`) - Node.js fs/promises使用
+* **SaaS Mode:** Cloudflare R2 / AWS S3 - AWS SDK v3使用
 * 環境変数一つで保存先を切り替え。サーバーはステートレス（ディスクを持たない）構成。
 
 

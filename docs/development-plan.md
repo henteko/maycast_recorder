@@ -280,6 +280,143 @@
 
 ---
 
+## Phase 1.5: TypeScript移行・構造最適化 🎯
+
+**Goal:** Phase 2のサーバー実装に備えて、型定義をTypeScriptに統一し、プロジェクト構成を最適化
+
+**Concept:**
+- commonパッケージをRustからTypeScriptに移行
+- クライアント・サーバー間で型定義を共有可能にする
+- プロジェクト構造を最終形態に近づける
+
+---
+
+### Phase 1.5-1: 共通型定義のTypeScript移行
+
+**Goal:** RustのcommonパッケージをTypeScriptに書き直し、型安全性を維持
+
+**Tasks:**
+- [ ] `packages/common-types`（TypeScriptパッケージ）を新規作成
+- [ ] package.json設定（name: @maycast/common-types）
+- [ ] TypeScript設定（tsconfig.json）
+  - declaration: true（.d.tsファイル生成）
+  - composite: true（プロジェクト参照用）
+- [ ] 以下の型定義をTypeScriptに移植:
+  - [ ] `ChunkId` - チャンクの一意識別子
+  - [ ] `ChunkMetadata` - チャンクのメタデータ
+  - [ ] `RecordingMetadata` - 録画全体のメタデータ
+  - [ ] `SessionId` - セッションの一意識別子（UUID使用）
+  - [ ] `SessionState` - セッションの状態（enum）
+- [ ] WebSocketメッセージ型定義を追加
+  - [ ] `ChunkUploaded`
+  - [ ] `UploadProgress`
+  - [ ] `StateChanged`
+- [ ] エクスポート設定（index.ts）
+
+**Test:**
+- [ ] `npm run build` でビルドが成功する
+- [ ] .d.tsファイルが正しく生成される
+- [ ] web-clientから型をインポートできる
+
+**Deliverable:**
+- TypeScriptベースの共通型定義パッケージ
+- 型定義ファイル（.d.ts）が生成される
+
+---
+
+### Phase 1.5-2: プロジェクト構成の最適化
+
+**Goal:** パッケージ構成を見直し、依存関係を整理
+
+**Project Structure (変更後):**
+```text
+/maycast-recorder
+├── Cargo.toml           # WASM専用Workspace
+├── Taskfile.yml
+├── package.json         # Root package.json（npm workspace）
+├── /packages
+│   ├── /common-types    # TypeScript共通型定義（新規）
+│   ├── /wasm-core       # Rust -> WASM Muxing（変更なし）
+│   ├── /web-client      # TypeScript Frontend（依存関係更新）
+│   └── /server          # 将来追加（Phase 2A-1）
+└── /docs
+```
+
+**Tasks:**
+- [ ] ルートpackage.json作成（npm workspaces設定）
+- [ ] workspacesフィールド追加
+  ```json
+  {
+    "workspaces": [
+      "packages/common-types",
+      "packages/web-client",
+      "packages/server"
+    ]
+  }
+  ```
+- [ ] web-clientのpackage.jsonを更新
+  - [ ] `@maycast/common-types`を依存関係に追加
+  - [ ] インポートパスを修正
+- [ ] Rustのcommonパッケージを削除
+  - [ ] `packages/common/`ディレクトリ削除
+  - [ ] Cargo.tomlのworkspace membersから削除
+- [ ] Taskfile.ymlを更新
+  - [ ] `task build:common` 追加（common-typesのビルド）
+  - [ ] `task build` を更新（common-types → wasm → client の順）
+
+**Test:**
+- [ ] `task build` が成功する
+- [ ] web-clientから`@maycast/common-types`をインポートできる
+- [ ] TypeScriptの型チェックが正常に動作する
+- [ ] WASMビルドに影響がない
+
+**Deliverable:**
+- 最適化されたモノレポ構成
+- TypeScriptとRustの明確な責任分離
+
+---
+
+### Phase 1.5-3: 既存コードの移行とテスト
+
+**Goal:** web-client内の型参照を新しいcommon-typesに切り替え、動作確認
+
+**Tasks:**
+- [ ] web-client内の型定義を削除
+  - [ ] ローカルで定義していたChunkId等を削除
+  - [ ] `@maycast/common-types`からインポートに変更
+- [ ] OPFSストレージ層の型を統一
+  - [ ] ChunkMetadataの使用箇所を更新
+  - [ ] SessionStateの使用箇所を更新
+- [ ] IndexedDBスキーマの型定義を更新
+- [ ] 全ファイルでTypeScriptの型チェックを実行
+  - [ ] `tsc --noEmit`でエラーがないことを確認
+
+**Test:**
+- [ ] Phase 1で実装した全機能が正常に動作する
+  - [ ] 録画開始・停止
+  - [ ] OPFSへのチャンク保存
+  - [ ] エクスポート機能
+  - [ ] クラッシュリカバリー
+- [ ] TypeScriptのビルドが成功する
+- [ ] ブラウザでの動作確認
+
+**Deliverable:**
+- common-typesを使用した完全なPhase 1実装
+- Phase 2への準備完了
+
+---
+
+**Overall Phase 1.5 Deliverable:**
+- **TypeScript統一型定義システム**
+  - クライアント・サーバー間で型を共有可能
+  - RustのcommonパッケージからTypeScriptへの完全移行
+  - npm workspacesによる一元管理
+- **Phase 2への準備完了**
+  - サーバー実装時に型定義をそのまま使用可能
+  - 型の二重管理を回避
+
+---
+
 ## Phase 2: サーバー側基盤構築 🎯
 
 **Goal:** ローカルファイルシステムへのChunk Upload APIを実装し、クライアント→サーバーのアップロードパイプラインを確立
@@ -293,7 +430,7 @@
 
 ### Phase 2A-1: サーバー環境セットアップ
 
-**Goal:** Axumベースのサーバー基盤を構築し、基本的な動作確認
+**Goal:** TypeScript + Expressベースのサーバー基盤を構築し、基本的な動作確認
 
 **Project Structure:**
 ```text
@@ -302,19 +439,23 @@
 │   ├── /common          # 既存（Phase 1で作成済み）
 │   ├── /wasm-core       # 既存（Phase 1で作成済み）
 │   ├── /web-client      # 既存（Phase 1で作成済み）
-│   └── /server          # 新規作成（Axum サーバー）
+│   └── /server          # 新規作成（TypeScript + Express サーバー）
 └── Taskfile.yml
 ```
 
 **Tasks:**
-- [ ] `server` crateの作成（Cargo.toml設定）
-- [ ] Axum + Tokio 依存関係追加
-- [ ] 基本的なmain.rs実装（サーバー起動ロジック）
+- [ ] `server` パッケージの作成（package.json設定）
+- [ ] TypeScript + Express の依存関係追加
+  - express, @types/express
+  - typescript, ts-node, nodemon
+  - dotenv, cors, morgan (ロギング)
+- [ ] TypeScript設定（tsconfig.json）
+- [ ] 基本的なserver.ts実装（サーバー起動ロジック）
 - [ ] `/health` エンドポイント実装
-- [ ] 環境変数設定（ポート番号、ログレベル）
+- [ ] 環境変数設定（.env: PORT, LOG_LEVEL）
 - [ ] Taskfile.yml にサーバー関連タスク追加
-  - `task dev:server` - サーバー起動
-  - `task build:server` - サーバービルド
+  - `task dev:server` - サーバー起動（nodemon）
+  - `task build:server` - TypeScriptコンパイル
   - `task test:server` - サーバーテスト
 
 **Test:**
@@ -324,7 +465,7 @@
 - [ ] ログが正常に出力される
 
 **Deliverable:**
-- 動作するAxumサーバーの基盤
+- 動作するExpressサーバーの基盤
 - `/health` エンドポイントでヘルスチェック可能
 
 ---
@@ -334,28 +475,28 @@
 **Goal:** ファイルシステムへのチャンク保存・読み出し機能を単体で実装
 
 **Dependencies:**
-- `tokio::fs` (非同期ファイルIO)
-- `blake3` (ハッシュ検証用)
+- `fs/promises` (非同期ファイルIO)
+- `blake3` (ハッシュ検証用、npmパッケージ）
 
 **Tasks:**
-- [ ] `storage` モジュール作成
-- [ ] `StorageBackend` trait定義
-  - `put_chunk(session_id, chunk_id, data: &[u8]) -> Result<()>`
-  - `get_chunk(session_id, chunk_id) -> Result<Vec<u8>>`
-  - `list_chunks(session_id) -> Result<Vec<ChunkId>>`
-  - `delete_chunk(session_id, chunk_id) -> Result<()>`
-- [ ] `LocalFileSystemStorage` 実装
+- [ ] `storage` モジュール作成（src/storage/）
+- [ ] `StorageBackend` インターフェース定義
+  - `putChunk(sessionId: string, chunkId: string, data: Buffer): Promise<void>`
+  - `getChunk(sessionId: string, chunkId: string): Promise<Buffer>`
+  - `listChunks(sessionId: string): Promise<string[]>`
+  - `deleteChunk(sessionId: string, chunkId: string): Promise<void>`
+- [ ] `LocalFileSystemStorage` クラス実装
   - ファイルパス: `./storage/{session_id}/{chunk_id}.fmp4`
-  - ディレクトリ自動作成
-- [ ] Rust単体テスト作成
+  - ディレクトリ自動作成（fs.mkdir with recursive）
+- [ ] ユニットテスト作成（Jest or Vitest）
   - チャンク書き込み→読み出し→削除のテスト
   - 存在しないチャンクの読み出しエラーハンドリング
 
 **Test:**
-- [ ] `cargo test --package server` で全テストが成功する
+- [ ] `task test:server` で全テストが成功する
 - [ ] テストデータでチャンクを書き込み、ファイルシステムに保存される
 - [ ] 保存されたチャンクを読み出して、元のデータと一致する
-- [ ] `list_chunks()` で保存されたチャンク一覧を取得できる
+- [ ] `listChunks()` で保存されたチャンク一覧を取得できる
 
 **Deliverable:**
 - ローカルファイルシステムストレージの完全な実装
@@ -369,12 +510,12 @@
 
 **Tasks:**
 - [ ] `POST /api/sessions/:session_id/chunks/:chunk_id` エンドポイント実装
-- [ ] リクエストボディからバイナリデータ取得
-- [ ] `StorageBackend::put_chunk()` を呼び出して保存
+- [ ] リクエストボディからバイナリデータ取得（express.raw() middleware使用）
+- [ ] `StorageBackend.putChunk()` を呼び出して保存
 - [ ] レスポンス返却（201 Created）
 - [ ] エラーハンドリング（400 Bad Request, 500 Internal Server Error）
 - [ ] `GET /api/sessions/:session_id/chunks/:chunk_id` エンドポイント実装（検証用）
-- [ ] 簡易的なロギング追加
+- [ ] 簡易的なロギング追加（morgan）
 
 **Test:**
 - [ ] curlでテストチャンクをアップロード
@@ -433,10 +574,11 @@
 
 **Tasks:**
 - [ ] クライアント側でチャンクのBlake3ハッシュ計算
+  - blake3 WebAssemblyパッケージを使用
 - [ ] アップロードリクエストにハッシュを含める
   - ヘッダー: `X-Chunk-Hash: <blake3-hash>`
-- [ ] サーバー側でハッシュ検証
-  - 受信データのハッシュを計算
+- [ ] サーバー側でハッシュ検証（TypeScript）
+  - blake3 npmパッケージでハッシュ計算
   - クライアントから送信されたハッシュと比較
   - 不一致の場合は `400 Bad Request` を返す
 - [ ] 冪等性実装
@@ -462,13 +604,15 @@
 
 **Tasks:**
 - [ ] サーバー側WebSocket実装
+  - `ws` パッケージを使用
   - `/ws/sessions/:session_id` エンドポイント
-  - 接続管理（接続中のクライアント一覧）
+  - 接続管理（接続中のクライアント一覧をMap管理）
   - Ping/Pong keep-alive実装
 - [ ] クライアント側WebSocket接続実装
+  - ブラウザ標準WebSocket API使用
   - 自動再接続ロジック
   - 切断検知
-- [ ] WebSocketメッセージ定義（common crateに型追加）
+- [ ] WebSocketメッセージ型定義（TypeScript型定義を共有）
   - `ChunkUploaded { chunk_id, timestamp }`
   - `UploadProgress { uploaded, total }`
 - [ ] サーバー側からアップロード状態をブロードキャスト
@@ -702,6 +846,7 @@
 | Phase 1A-5 | **OPFS 保存機能完成**<br>• チャンクがOPFSに正常に保存される<br>• ブラウザリロード後もデータが保持される<br>• IndexedDBにメタデータが正しく記録される |
 | Phase 1A-6 | **Phase 1A 全体完成**<br>• 10分の録画が成功し、OPFSに正常なfMP4チャンクが保存される<br>• 個別チャンクをダウンロードして、VLC等で再生できる<br>• 連続する複数のチャンクを順次再生できる |
 | Phase 1B | **スタンドアロンモード完成**<br>• Phase 1A の個別チャンクダウンロード機能が削除されている<br>• チャンク結合により完全な.mp4ファイルがダウンロードできる<br>• ブラウザ強制終了後、リカバリーUIで復元できる<br>• 設定変更（デバイス、画質）が正常に機能する |
+| Phase 1.5 | **TypeScript移行・構造最適化完成**<br>• commonパッケージがTypeScriptに移行されている<br>• npm workspacesで一元管理されている<br>• web-clientから`@maycast/common-types`をインポートできる<br>• Phase 1の全機能が引き続き正常に動作する |
 | Phase 2A-1 | **サーバー環境セットアップ完成**<br>• `task build:server` が成功する<br>• `task dev:server` でサーバーが起動する<br>• `/health` エンドポイントが正常に動作する |
 | Phase 2A-2 | **ローカルストレージ基盤完成**<br>• Rust単体テストで全テストが成功する<br>• チャンクの書き込み・読み出し・削除が正常に動作する<br>• `list_chunks()` でチャンク一覧を取得できる |
 | Phase 2A-3 | **Chunk Upload API 基本実装完成**<br>• curlでチャンクをアップロードできる<br>• アップロードしたチャンクがファイルシステムに保存される<br>• GETエンドポイントでチャンクを取得できる |
@@ -727,7 +872,8 @@
 - **Phase 1A-5:** OPFS実装。永続化の検証
 - **Phase 1A-6:** エンドツーエンドテスト。全体フロー確認
 - **Phase 1B:** エクスポート・リカバリー・UI完成。Phase 1A より短期間で完了可能
-- **Phase 2A-1:** サーバー環境構築。Axum基盤の確立
+- **Phase 1.5:** 構造最適化。Phase 2への準備として型定義をTypeScriptに統一
+- **Phase 2A-1:** サーバー環境構築。Express基盤の確立
 - **Phase 2A-2:** ストレージ基盤。単体テストで品質保証
 - **Phase 2A-3:** Upload API実装。curlでテスト可能な状態を早期に作る
 - **Phase 2A-4:** クライアント統合。エンドツーエンドでの動作確認
@@ -755,16 +901,20 @@
    - チャンク結合によるMP4エクスポート
    - クラッシュリカバリー機能
    - プロダクションレディなUI
-6. **Phase 2A-1 から開始:** サーバー側基盤構築
-   - Axum + Tokio のセットアップ
+6. **Phase 1.5 で構造を最適化:**
+   - commonパッケージをTypeScriptに移行
+   - npm workspacesでモノレポ管理
+   - Phase 2への準備完了
+7. **Phase 2A-1 から開始:** サーバー側基盤構築
+   - TypeScript + Express のセットアップ
    - Taskfile.yml にサーバー関連タスク追加
-7. **Phase 2 の各サブフェーズを順次完了:**
+8. **Phase 2 の各サブフェーズを順次完了:**
    - Phase 2A-2: ストレージ基盤を単体テストで検証
    - Phase 2A-3: Upload APIをcurlでテスト可能にする
    - Phase 2A-4: クライアント統合でエンドツーエンド確認
    - Phase 2A-5: データ整合性を保証
    - Phase 2A-6: リアルタイム通信基盤を確立
-8. **Phase 2A-6 完了時点で、クライアント→サーバーアップロードの全体フローが検証完了**
+9. **Phase 2A-6 完了時点で、クライアント→サーバーアップロードの全体フローが検証完了**
 
 ## 推奨される Taskfile コマンド体系
 
