@@ -111,13 +111,32 @@ task --list
 - **Real-time**: WebSocket (ws package)
 - **Testing**: Jest or Vitest
 
+## Modes
+
+### Standalone Mode (`/solo`)
+- **Phase 1**: Serverless, OPFS-only, offline-capable
+- No login required, complete privacy
+- Download recordings as MP4
+
+### Remote Mode (`/remote`)
+- **Phase 2**: Server sync, session management
+- Real-time chunk upload during recording
+- Dual storage (OPFS backup + server)
+- Network failure resilient
+
+### Director Mode (Future)
+- **Phase 4**: Room-based multi-guest orchestration
+- Director creates Room, distributes Guest URLs
+- Admin controls all recordings in Room
+- Real-time sync verification across all guests
+
 ## Next Steps
 
-- **Phase 1A-2**: WebCodecs camera capture
-- **Phase 1A-3**: Rust WASM muxer implementation
-- **Phase 1A-4**: WebCodecs + WASM integration
-- **Phase 1A-5**: OPFS storage
-- **Phase 1A-6**: End-to-end chunk validation
+- **Phase 1**: Standalone Mode implementation
+- **Phase 1.5**: TypeScript type migration
+- **Phase 2**: Remote Mode implementation
+- **Phase 3**: Robustness features (manifest, resume upload)
+- **Phase 4**: Director Mode
 
 See [docs/development-plan.md](docs/development-plan.md) for the full roadmap.
 

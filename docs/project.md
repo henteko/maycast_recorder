@@ -38,9 +38,9 @@ Maycast Recorderは、ゲストに録画ボタンを押させません。**「�
 
 ---
 
-## 3. モード定義：Solo vs Director
+## 3. モード定義：Standalone vs Remote vs Director
 
-Maycast Recorderは、2つの動作モードを持ちます。
+Maycast Recorderは、3つの動作モードを持ちます。
 
 ### A. Solo Mode（スタンドアロンモード）
 
@@ -65,17 +65,62 @@ Maycast Recorderは、2つの動作モードを持ちます。
 * 録画エンジンのバグ出しが単独で可能
 * サーバー実装なしでプロダクトとしてリリース可能
 
-### B. Director Mode（リモート管理モード）
+### B. Remote Mode（リモートモード）
 
-**Concept:** 管理者が複数ゲストを一括制御
+**Concept:** サーバーと連携する1人用録画モード（Phase 2で実装）
 
 * WebSocket経由でリアルタイム同期
-* サーバー（S3/R2）へのチャンクアップロード
-* 複数人の同時収録に対応
+* サーバー（ローカルFS/S3/R2）へのチャンクアップロード
+* セッション管理機能
+* OPFS + サーバーの二重保存で堅牢性を確保
 
-**ワークフロー:** 「2. ユーザーワークフロー：Director Mode」参照
+**特徴:**
+* **サーバー連携録画**: 録画中にチャンクを随時サーバーにアップロード
+* **セッション管理**: サーバーが発行するセッションIDで録画を管理
+* **ネットワーク耐性**: サーバー接続が切れても録画継続（OPFS保存）
+* **シングルユーザー専用**: Director Modeの基盤となる機能
 
-**開発優先度:** Phase 2以降
+**技術的差異:**
+* **Storage:** OPFS（バックアップ） + サーバー（メイン）
+* **Network:** HTTP API + WebSocket（リアルタイム通知）
+* **Session:** サーバー側でセッションライフサイクル管理
+
+**URL:** `/remote`
+
+**開発優先度:** **Phase 2**
+
+---
+
+### C. Director Mode（Room管理モード）
+
+**Concept:** 管理者（Director）が複数ゲストを一括制御（Phase 4で実装）
+
+* **Room機能**: 複数Recordingを束ねて管理
+* Director画面でRoom作成、Guest URLを配布
+* ゲストはURLにアクセスして録画参加
+* 管理者が全ゲストの録画を一括開始・停止
+* Stop & Flushプロトコルで全ゲスト同期確認
+
+**ワークフロー:**
+1. Director: Room作成 → Guest URL発行
+2. Guests: Guest URLにアクセス → 待機
+3. Director: 「Start Recording All」クリック
+4. Guests: 一斉に録画開始（自動）
+5. Director: 「Stop Recording All」クリック
+6. Guests: 録画停止 → 未送信チャンク完了待機
+7. Director: 全ゲストSynced確認 → Room完了
+
+**技術的特徴:**
+* **Storage:** Room単位でRecordingを管理
+  - `./storage/rooms/{room_id}/{recording_id}/chunk-*.fmp4`
+* **WebSocket:** Room単位でリアルタイム状態同期
+* **一括制御:** Director指示を全Guestにブロードキャスト
+
+**URL:**
+- `/director` - Director画面
+- `/guest/{room_id}` - Guest画面
+
+**開発優先度:** **Phase 4**
 
 ---
 
