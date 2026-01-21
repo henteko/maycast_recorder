@@ -1,1 +1,21 @@
 @import "tailwindcss";
+
+@theme {
+  /* Maycast Color Palette - Dark "Obsidian" UI */
+
+  /* Base Colors */
+  --color-maycast-bg: #0F172A;       /* Obsidian - Main Background */
+  --color-maycast-panel: #1E293B;    /* Charcoal - Panel/Card Background */
+  --color-maycast-border: #334155;   /* Graphite - Borders */
+  --color-maycast-text: #F8FAFC;     /* Mist - Main Text */
+  --color-maycast-subtext: #94A3B8;  /* Slate-400 - Secondary Text */
+
+  /* Brand Colors */
+  --color-maycast-primary: #06B6D4;  /* May Cyan - Primary Brand Color */
+  --color-maycast-rust: #F97316;     /* Rust Orange - Accent */
+
+  /* Status Colors */
+  --color-maycast-rec: #EF4444;      /* Crimson - Recording State */
+  --color-maycast-safe: #10B981;     /* Neon Mint - Success/Safe State */
+  --color-maycast-warn: #F59E0B;     /* Amber - Warning State */
+}

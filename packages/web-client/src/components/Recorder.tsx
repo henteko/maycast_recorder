@@ -765,7 +765,7 @@ export const Recorder = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 text-white p-8">
+    <div className="min-h-screen bg-maycast-bg text-maycast-text p-8">
       {/* Settings Modal */}
       {showSettingsModal && (
         <div
@@ -773,21 +773,21 @@ export const Recorder = () => {
           onClick={() => setShowSettingsModal(false)}
         >
           <div
-            className="bg-gradient-to-br from-slate-800/95 to-slate-900/95 backdrop-blur-xl border border-slate-600/50 rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl"
+            className="bg-maycast-panel/95 backdrop-blur-xl border border-maycast-border/50 rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-3 mb-6">
-              <CogIcon className="w-7 h-7 text-blue-400" />
-              <h2 className="text-2xl font-bold text-white">設定</h2>
+              <CogIcon className="w-7 h-7 text-maycast-primary" />
+              <h2 className="text-2xl font-bold text-maycast-text">設定</h2>
             </div>
 
             {/* Video Device Selection */}
             <div className="mb-6">
-              <label className="block text-sm text-gray-300 mb-2 font-semibold">カメラ</label>
+              <label className="block text-sm text-maycast-subtext mb-2 font-semibold">カメラ</label>
               <select
                 value={settings.videoDeviceId || ''}
                 onChange={(e) => setSettings({ ...settings, videoDeviceId: e.target.value || undefined })}
-                className="w-full bg-white text-gray-900 px-4 py-3 rounded-xl border-2 border-slate-600 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/50 font-medium cursor-pointer"
+                className="w-full bg-white text-gray-900 px-4 py-3 rounded-xl border-2 border-maycast-border focus:border-maycast-primary focus:outline-none focus:ring-2 focus:ring-maycast-primary/50 font-medium cursor-pointer"
               >
                 <option value="">デフォルト</option>
                 {videoDevices.map(device => (
@@ -800,11 +800,11 @@ export const Recorder = () => {
 
             {/* Audio Device Selection */}
             <div className="mb-6">
-              <label className="block text-sm text-gray-300 mb-2 font-semibold">マイク</label>
+              <label className="block text-sm text-maycast-subtext mb-2 font-semibold">マイク</label>
               <select
                 value={settings.audioDeviceId || ''}
                 onChange={(e) => setSettings({ ...settings, audioDeviceId: e.target.value || undefined })}
-                className="w-full bg-white text-gray-900 px-4 py-3 rounded-xl border-2 border-slate-600 focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/50 font-medium cursor-pointer"
+                className="w-full bg-white text-gray-900 px-4 py-3 rounded-xl border-2 border-maycast-border focus:border-maycast-primary focus:outline-none focus:ring-2 focus:ring-maycast-primary/50 font-medium cursor-pointer"
               >
                 <option value="">デフォルト</option>
                 {audioDevices.map(device => (
@@ -817,9 +817,9 @@ export const Recorder = () => {
 
             {/* Quality Preset Selection */}
             <div className="mb-6">
-              <label className="block text-sm text-gray-300 mb-2 font-semibold">画質プリセット</label>
+              <label className="block text-sm text-maycast-subtext mb-2 font-semibold">画質プリセット</label>
               <div className="space-y-3">
-                <label className="flex items-center p-4 bg-white rounded-xl cursor-pointer hover:bg-gray-50 border-2 border-slate-600 hover:border-blue-400 transition-all">
+                <label className="flex items-center p-4 bg-white rounded-xl cursor-pointer hover:bg-gray-50 border-2 border-maycast-border hover:border-maycast-primary transition-all">
                   <input
                     type="radio"
                     name="quality"
@@ -834,7 +834,7 @@ export const Recorder = () => {
                   </div>
                 </label>
 
-                <label className="flex items-center p-4 bg-white rounded-xl cursor-pointer hover:bg-gray-50 border-2 border-slate-600 hover:border-blue-400 transition-all">
+                <label className="flex items-center p-4 bg-white rounded-xl cursor-pointer hover:bg-gray-50 border-2 border-maycast-border hover:border-maycast-primary transition-all">
                   <input
                     type="radio"
                     name="quality"
@@ -855,13 +855,13 @@ export const Recorder = () => {
             <div className="flex gap-4">
               <button
                 onClick={() => setShowSettingsModal(false)}
-                className="flex-1 py-3 px-6 bg-white hover:bg-gray-100 rounded-xl font-bold transition-all border-2 border-slate-600 text-gray-900 cursor-pointer"
+                className="flex-1 py-3 px-6 bg-white hover:bg-gray-100 rounded-xl font-bold transition-all border-2 border-maycast-border text-gray-900 cursor-pointer"
               >
                 キャンセル
               </button>
               <button
                 onClick={handleSaveSettings}
-                className="flex-1 py-3 px-6 bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 rounded-xl font-bold transition-all shadow-lg text-white cursor-pointer"
+                className="flex-1 py-3 px-6 bg-maycast-primary hover:bg-maycast-primary/80 rounded-xl font-bold transition-all shadow-lg text-white cursor-pointer"
               >
                 保存
               </button>
@@ -877,18 +877,18 @@ export const Recorder = () => {
           onClick={() => setShowRecoveryModal(false)}
         >
           <div
-            className="bg-gradient-to-br from-slate-800/95 to-slate-900/95 backdrop-blur-xl border border-slate-600/50 rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl"
+            className="bg-maycast-panel/95 backdrop-blur-xl border border-maycast-border/50 rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center gap-3 mb-4">
-              <ArrowPathIcon className="w-7 h-7 text-blue-400" />
-              <h2 className="text-2xl font-bold text-white">セッションの復元</h2>
+              <ArrowPathIcon className="w-7 h-7 text-maycast-primary" />
+              <h2 className="text-2xl font-bold text-maycast-text">セッションの復元</h2>
             </div>
-            <p className="text-gray-200 mb-6">
+            <p className="text-maycast-subtext mb-6">
               前回の収録が正常に完了していません。復元しますか？
             </p>
 
-            <div className="bg-white p-4 rounded-xl mb-6 border-2 border-slate-600">
+            <div className="bg-white p-4 rounded-xl mb-6 border-2 border-maycast-border">
               <p className="text-sm text-gray-600 font-semibold mb-2">セッション情報</p>
               <p className="text-lg text-gray-900 font-bold mt-2">
                 {new Date(recoverySession.startTime).toLocaleString('ja-JP')}
@@ -906,14 +906,14 @@ export const Recorder = () => {
             <div className="flex gap-4">
               <button
                 onClick={handleRecoverSession}
-                className="flex-1 py-3 px-6 bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 rounded-xl font-bold transition-all shadow-lg flex items-center justify-center gap-2 text-white cursor-pointer"
+                className="flex-1 py-3 px-6 bg-maycast-primary hover:bg-maycast-primary/80 rounded-xl font-bold transition-all shadow-lg flex items-center justify-center gap-2 text-white cursor-pointer"
               >
                 <CheckIcon className="w-5 h-5" />
                 復元する
               </button>
               <button
                 onClick={handleDiscardRecovery}
-                className="flex-1 py-3 px-6 bg-white hover:bg-gray-100 rounded-xl font-bold transition-all border-2 border-red-400 flex items-center justify-center gap-2 text-gray-900 cursor-pointer"
+                className="flex-1 py-3 px-6 bg-white hover:bg-gray-100 rounded-xl font-bold transition-all border-2 border-maycast-rec flex items-center justify-center gap-2 text-gray-900 cursor-pointer"
               >
                 <TrashIcon className="w-5 h-5" />
                 破棄する
@@ -930,18 +930,18 @@ export const Recorder = () => {
           onClick={() => setShowSessionsModal(false)}
         >
           <div
-            className="bg-gradient-to-br from-slate-800/95 to-slate-900/95 backdrop-blur-xl border border-slate-600/50 rounded-2xl p-8 max-w-3xl w-full mx-4 shadow-2xl max-h-[80vh] overflow-hidden flex flex-col"
+            className="bg-maycast-panel/95 backdrop-blur-xl border border-maycast-border/50 rounded-2xl p-8 max-w-3xl w-full mx-4 shadow-2xl max-h-[80vh] overflow-hidden flex flex-col"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-6">
               <div className="flex items-center gap-3">
-                <ServerStackIcon className="w-7 h-7 text-blue-400" />
-                <h2 className="text-2xl font-bold text-white">保存済みセッション <span className="text-blue-300">({savedSessions.length})</span></h2>
+                <ServerStackIcon className="w-7 h-7 text-maycast-primary" />
+                <h2 className="text-2xl font-bold text-maycast-text">保存済みセッション <span className="text-maycast-primary">({savedSessions.length})</span></h2>
               </div>
               {savedSessions.length > 0 && (
                 <button
                   onClick={clearAllSessions}
-                  className="px-4 py-2 bg-red-500/20 hover:bg-red-500/30 rounded-xl text-sm font-semibold transition-all border border-red-400/50 flex items-center gap-2 text-white cursor-pointer"
+                  className="px-4 py-2 bg-maycast-rec/20 hover:bg-maycast-rec/30 rounded-xl text-sm font-semibold transition-all border border-maycast-rec/50 flex items-center gap-2 text-white cursor-pointer"
                 >
                   <TrashIcon className="w-4 h-4" />
                   すべて削除
@@ -950,7 +950,7 @@ export const Recorder = () => {
             </div>
 
             {savedSessions.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 text-gray-400">
+              <div className="flex flex-col items-center justify-center py-12 text-maycast-subtext">
                 <ServerStackIcon className="w-16 h-16 mb-4 opacity-50" />
                 <p className="text-lg">保存済みセッションはありません</p>
               </div>
@@ -961,14 +961,14 @@ export const Recorder = () => {
                   const isValidStart = startDate && !isNaN(startDate.getTime())
 
                   return (
-                    <div key={session.sessionId} className="bg-gradient-to-r from-slate-700/30 to-slate-800/30 backdrop-blur-sm p-4 rounded-xl flex items-center justify-between border border-slate-600/40 hover:border-slate-500/60 transition-all">
+                    <div key={session.sessionId} className="bg-maycast-panel/30 backdrop-blur-sm p-4 rounded-xl flex items-center justify-between border border-maycast-border/40 hover:border-maycast-border/60 transition-all">
                       <div className="flex-1">
                         <div className="flex items-center gap-3 mb-2">
-                          <p className="text-sm text-gray-200 font-medium">
+                          <p className="text-sm text-maycast-text font-medium">
                             {isValidStart ? startDate.toLocaleString('ja-JP') : 'Invalid Date'}
                           </p>
                           {session.isCompleted ? (
-                            <span className="flex items-center gap-1 px-2 py-1 bg-green-500/20 text-green-300 text-xs font-semibold rounded-lg border border-green-500/30">
+                            <span className="flex items-center gap-1 px-2 py-1 bg-maycast-safe/20 text-maycast-safe text-xs font-semibold rounded-lg border border-maycast-safe/30">
                               <CheckIcon className="w-3 h-3" />
                               完了
                             </span>
@@ -979,7 +979,7 @@ export const Recorder = () => {
                             </span>
                           )}
                         </div>
-                        <div className="flex items-center gap-4 text-xs text-gray-400">
+                        <div className="flex items-center gap-4 text-xs text-maycast-subtext">
                           <span className="flex items-center gap-1">
                             <ServerStackIcon className="w-3 h-3" />
                             {session.totalChunks || 0} chunks
@@ -994,7 +994,7 @@ export const Recorder = () => {
                           className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
                             downloadProgress.isDownloading
                               ? 'bg-gray-600 cursor-not-allowed opacity-50'
-                              : 'bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 shadow-lg cursor-pointer'
+                              : 'bg-maycast-safe hover:bg-maycast-safe/80 shadow-lg cursor-pointer'
                           }`}
                           title="ダウンロード"
                         >
@@ -1006,7 +1006,7 @@ export const Recorder = () => {
                           className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
                             downloadProgress.isDownloading
                               ? 'bg-gray-600 cursor-not-allowed opacity-50'
-                              : 'bg-red-500/20 hover:bg-red-500/30 border border-red-400/50 cursor-pointer'
+                              : 'bg-maycast-rec/20 hover:bg-maycast-rec/30 border border-maycast-rec/50 cursor-pointer'
                           }`}
                           title="削除"
                         >
@@ -1025,15 +1025,15 @@ export const Recorder = () => {
       <div className="max-w-6xl mx-auto">
         <div className="flex items-center justify-between mb-3">
           <div>
-            <h1 className="text-6xl font-bold bg-gradient-to-r from-blue-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">Maycast Recorder</h1>
+            <h1 className="text-6xl font-bold text-maycast-primary tracking-tight">Maycast Recorder</h1>
           </div>
           <div className="flex items-center gap-3">
             <button
               onClick={() => setShowSessionsModal(true)}
-              className="p-3 bg-gradient-to-br from-slate-700/50 to-slate-800/50 backdrop-blur-md hover:from-slate-600/50 hover:to-slate-700/50 rounded-xl transition-all border border-slate-600/50 shadow-xl relative cursor-pointer"
+              className="p-3 bg-maycast-panel/50 backdrop-blur-md hover:bg-maycast-panel/70 rounded-xl transition-all border border-maycast-border/50 shadow-xl relative cursor-pointer"
               title="保存済みセッション"
             >
-              <ServerStackIcon className="w-7 h-7 text-white" />
+              <ServerStackIcon className="w-7 h-7 text-maycast-text" />
               {savedSessions.length > 0 && (
                 <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
                   {savedSessions.length}
@@ -1042,47 +1042,47 @@ export const Recorder = () => {
             </button>
             <button
               onClick={() => setShowSettingsModal(true)}
-              className="p-3 bg-gradient-to-br from-slate-700/50 to-slate-800/50 backdrop-blur-md hover:from-slate-600/50 hover:to-slate-700/50 rounded-xl transition-all border border-slate-600/50 shadow-xl cursor-pointer"
+              className="p-3 bg-maycast-panel/50 backdrop-blur-md hover:bg-maycast-panel/70 rounded-xl transition-all border border-maycast-border/50 shadow-xl cursor-pointer"
               title="設定"
             >
-              <CogIcon className="w-7 h-7 text-white" />
+              <CogIcon className="w-7 h-7 text-maycast-text" />
             </button>
           </div>
         </div>
         <div className="flex items-center gap-3 mb-10">
           {screenState === 'standby' && (
-            <div className="flex items-center gap-2 px-4 py-2 bg-blue-500/20 backdrop-blur-sm rounded-full border border-blue-400/30">
-              <div className="w-2 h-2 bg-blue-400 rounded-full" />
-              <span className="text-blue-200 font-semibold">待機中</span>
+            <div className="flex items-center gap-2 px-4 py-2 bg-maycast-primary/20 backdrop-blur-sm rounded-full border border-maycast-primary/30">
+              <div className="w-2 h-2 bg-maycast-primary rounded-full" />
+              <span className="text-maycast-primary/80 font-semibold">待機中</span>
             </div>
           )}
           {screenState === 'recording' && (
-            <div className="flex items-center gap-2 px-4 py-2 bg-red-500/20 backdrop-blur-sm rounded-full border border-red-400/30">
+            <div className="flex items-center gap-2 px-4 py-2 bg-maycast-rec/20 backdrop-blur-sm rounded-full border border-maycast-rec/30">
               <div className="relative">
-                <div className="w-2 h-2 bg-red-400 rounded-full animate-pulse" />
-                <div className="absolute inset-0 w-2 h-2 bg-red-400 rounded-full animate-ping opacity-75" />
+                <div className="w-2 h-2 bg-maycast-rec rounded-full animate-pulse" />
+                <div className="absolute inset-0 w-2 h-2 bg-maycast-rec rounded-full animate-ping opacity-75" />
               </div>
-              <span className="text-red-200 font-semibold">録画中</span>
+              <span className="text-maycast-rec/80 font-semibold">録画中</span>
             </div>
           )}
           {screenState === 'completed' && (
-            <div className="flex items-center gap-2 px-4 py-2 bg-green-500/20 backdrop-blur-sm rounded-full border border-green-400/30">
-              <CheckIcon className="w-4 h-4 text-green-400" />
-              <span className="text-green-200 font-semibold">録画完了</span>
+            <div className="flex items-center gap-2 px-4 py-2 bg-maycast-safe/20 backdrop-blur-sm rounded-full border border-maycast-safe/30">
+              <CheckIcon className="w-4 h-4 text-maycast-safe" />
+              <span className="text-maycast-safe/80 font-semibold">録画完了</span>
             </div>
           )}
         </div>
 
         {error && (
-          <div className="bg-red-600 text-white p-4 rounded-lg mb-6">
-            <p className="font-semibold">Error:</p>
+          <div className="bg-maycast-rec/20 border border-maycast-rec/50 text-maycast-text p-4 rounded-xl mb-6">
+            <p className="font-semibold text-maycast-rec">Error:</p>
             <p>{error}</p>
           </div>
         )}
 
         {/* Camera Preview */}
         <div className="mb-10">
-          <div className="relative bg-black rounded-3xl overflow-hidden shadow-2xl border border-slate-700/50" style={{ aspectRatio: '16/9' }}>
+          <div className="relative bg-black rounded-3xl overflow-hidden shadow-2xl border border-maycast-border/50" style={{ aspectRatio: '16/9' }}>
             <video
               ref={videoRef}
               className="w-full h-full object-contain"
@@ -1091,7 +1091,7 @@ export const Recorder = () => {
             />
             {isRecording && (
               <div className="absolute top-6 left-6 right-6 flex items-center justify-between">
-                <div className="flex items-center gap-3 bg-red-500 bg-opacity-95 backdrop-blur-sm px-5 py-3 rounded-full shadow-2xl border-2 border-red-400">
+                <div className="flex items-center gap-3 bg-maycast-rec bg-opacity-95 backdrop-blur-sm px-5 py-3 rounded-full shadow-2xl border-2 border-maycast-rec/80">
                   <div className="relative">
                     <div className="w-3 h-3 bg-white rounded-full animate-pulse" />
                     <div className="absolute inset-0 w-3 h-3 bg-white rounded-full animate-ping opacity-75" />
@@ -1109,13 +1109,13 @@ export const Recorder = () => {
 
         {/* Recording Status */}
         {screenState === 'recording' && (
-          <div className="bg-gradient-to-r from-green-500/30 to-emerald-500/30 backdrop-blur-md border border-green-400/50 p-5 rounded-2xl mb-8 shadow-xl">
+          <div className="bg-maycast-safe/30 backdrop-blur-md border border-maycast-safe/50 p-5 rounded-2xl mb-8 shadow-xl">
             <div className="flex items-center justify-center gap-3">
               <div className="relative">
-                <div className="w-4 h-4 bg-green-400 rounded-full animate-pulse" />
-                <div className="absolute inset-0 w-4 h-4 bg-green-400 rounded-full animate-ping opacity-75" />
+                <div className="w-4 h-4 bg-maycast-safe rounded-full animate-pulse" />
+                <div className="absolute inset-0 w-4 h-4 bg-maycast-safe rounded-full animate-ping opacity-75" />
               </div>
-              <ServerStackIcon className="w-6 h-6 text-green-200" />
+              <ServerStackIcon className="w-6 h-6 text-maycast-safe/80" />
               <p className="text-white font-semibold text-lg">ローカルに保存中 (OPFS) - {savedChunks} chunks</p>
             </div>
           </div>
@@ -1124,30 +1124,30 @@ export const Recorder = () => {
         {/* Stats Display */}
         {screenState !== 'standby' && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-8">
-            <div className="bg-gradient-to-br from-blue-500/20 to-cyan-500/20 backdrop-blur-md p-6 rounded-2xl border border-blue-400/30 shadow-xl">
+            <div className="bg-maycast-primary/20 backdrop-blur-md p-6 rounded-2xl border border-maycast-primary/30 shadow-xl">
               <div className="flex items-center gap-2 mb-3">
-                <VideoCameraIcon className="w-5 h-5 text-blue-300" />
-                <p className="text-blue-200 text-sm font-semibold">Video Chunks</p>
+                <VideoCameraIcon className="w-5 h-5 text-maycast-primary" />
+                <p className="text-maycast-primary/80 text-sm font-semibold">Video Chunks</p>
               </div>
-              <p className="text-4xl font-bold text-white">{stats.videoChunks}</p>
+              <p className="text-4xl font-bold text-maycast-text">{stats.videoChunks}</p>
             </div>
-            <div className="bg-gradient-to-br from-purple-500/20 to-pink-500/20 backdrop-blur-md p-6 rounded-2xl border border-purple-400/30 shadow-xl">
+            <div className="bg-maycast-rust/20 backdrop-blur-md p-6 rounded-2xl border border-maycast-rust/30 shadow-xl">
               <div className="flex items-center gap-2 mb-3">
-                <MicrophoneIcon className="w-5 h-5 text-purple-300" />
-                <p className="text-purple-200 text-sm font-semibold">Audio Chunks</p>
+                <MicrophoneIcon className="w-5 h-5 text-maycast-rust" />
+                <p className="text-maycast-rust/80 text-sm font-semibold">Audio Chunks</p>
               </div>
-              <p className="text-4xl font-bold text-white">{stats.audioChunks}</p>
+              <p className="text-4xl font-bold text-maycast-text">{stats.audioChunks}</p>
             </div>
-            <div className="bg-gradient-to-br from-green-500/20 to-emerald-500/20 backdrop-blur-md p-6 rounded-2xl border border-green-400/30 shadow-xl">
+            <div className="bg-maycast-safe/20 backdrop-blur-md p-6 rounded-2xl border border-maycast-safe/30 shadow-xl">
               <div className="flex items-center gap-2 mb-3">
-                <ServerStackIcon className="w-5 h-5 text-green-300" />
-                <p className="text-green-200 text-sm font-semibold">Saved to OPFS</p>
+                <ServerStackIcon className="w-5 h-5 text-maycast-safe" />
+                <p className="text-maycast-safe/80 text-sm font-semibold">Saved to OPFS</p>
               </div>
-              <p className="text-4xl font-bold text-white">{savedChunks}</p>
+              <p className="text-4xl font-bold text-maycast-text">{savedChunks}</p>
             </div>
-            <div className="bg-gradient-to-br from-indigo-500/20 to-blue-500/20 backdrop-blur-md p-6 rounded-2xl border border-indigo-400/30 shadow-xl">
-              <p className="text-indigo-200 text-sm font-semibold mb-3">Total Size</p>
-              <p className="text-4xl font-bold text-white">{(stats.totalSize / 1024 / 1024).toFixed(2)} <span className="text-2xl text-gray-300">MB</span></p>
+            <div className="bg-maycast-primary/20 backdrop-blur-md p-6 rounded-2xl border border-maycast-primary/30 shadow-xl">
+              <p className="text-maycast-primary/80 text-sm font-semibold mb-3">Total Size</p>
+              <p className="text-4xl font-bold text-maycast-text">{(stats.totalSize / 1024 / 1024).toFixed(2)} <span className="text-2xl text-maycast-subtext">MB</span></p>
             </div>
           </div>
         )}
@@ -1161,10 +1161,10 @@ export const Recorder = () => {
               disabled={!wasmInitialized}
               className={`w-full py-6 px-8 rounded-2xl font-bold text-xl transition-all shadow-2xl transform hover:scale-[1.02] flex items-center justify-center gap-3 ${
                 isRecording
-                  ? 'bg-gradient-to-r from-red-500 to-pink-500 hover:from-red-600 hover:to-pink-600 cursor-pointer'
+                  ? 'bg-maycast-rec hover:bg-maycast-rec/80 cursor-pointer text-white'
                   : wasmInitialized
-                  ? 'bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 cursor-pointer'
-                  : 'bg-gray-600 cursor-not-allowed opacity-50'
+                  ? 'bg-transparent border-2 border-maycast-text hover:bg-maycast-text/10 cursor-pointer text-maycast-text'
+                  : 'bg-gray-600 cursor-not-allowed opacity-50 text-white'
               }`}
             >
               {isRecording ? (
@@ -1184,10 +1184,10 @@ export const Recorder = () => {
           {/* Completed Screen */}
           {screenState === 'completed' && savedChunks > 0 && (
             <div className="space-y-5">
-              <div className="bg-gradient-to-r from-green-500/30 to-emerald-500/30 backdrop-blur-md p-6 rounded-2xl border border-green-400/50 shadow-xl">
+              <div className="bg-maycast-safe/30 backdrop-blur-md p-6 rounded-2xl border border-maycast-safe/50 shadow-xl">
                 <div className="flex items-center justify-center gap-3">
-                  <div className="p-2 bg-green-400/20 rounded-full">
-                    <CheckIcon className="w-6 h-6 text-green-300" />
+                  <div className="p-2 bg-maycast-safe/20 rounded-full">
+                    <CheckIcon className="w-6 h-6 text-maycast-safe" />
                   </div>
                   <p className="text-center text-white font-semibold text-lg">
                     録画が完了しました！{savedChunks}個のチャンクがOPFSに保存されています。
@@ -1201,7 +1201,7 @@ export const Recorder = () => {
                 className={`w-full py-5 px-8 rounded-2xl font-bold text-xl transition-all shadow-2xl transform hover:scale-[1.02] flex items-center justify-center gap-3 ${
                   downloadProgress.isDownloading
                     ? 'bg-gray-600 cursor-not-allowed opacity-50'
-                    : 'bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 cursor-pointer'
+                    : 'bg-maycast-safe hover:bg-maycast-safe/80 cursor-pointer'
                 }`}
               >
                 {downloadProgress.isDownloading ? (
@@ -1218,9 +1218,9 @@ export const Recorder = () => {
               </button>
 
               {downloadProgress.isDownloading && (
-                <div className="w-full bg-slate-700/50 rounded-full h-4 overflow-hidden shadow-inner">
+                <div className="w-full bg-maycast-panel/50 rounded-full h-4 overflow-hidden shadow-inner">
                   <div
-                    className="bg-gradient-to-r from-green-400 to-emerald-400 h-4 rounded-full transition-all duration-300 shadow-lg relative overflow-hidden"
+                    className="bg-maycast-safe h-4 rounded-full transition-all duration-300 shadow-lg relative overflow-hidden"
                     style={{
                       width: `${(downloadProgress.current / downloadProgress.total) * 100}%`
                     }}
@@ -1233,14 +1233,14 @@ export const Recorder = () => {
               <div className="grid grid-cols-2 gap-4">
                 <button
                   onClick={handleNewRecording}
-                  className="py-4 px-6 bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 rounded-2xl font-bold transition-all shadow-lg transform hover:scale-[1.02] flex items-center justify-center gap-2 cursor-pointer"
+                  className="py-4 px-6 bg-maycast-primary hover:bg-maycast-primary/80 rounded-2xl font-bold transition-all shadow-lg transform hover:scale-[1.02] flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <PlayIcon className="w-5 h-5" />
                   新しい録画
                 </button>
                 <button
                   onClick={handleDiscardRecording}
-                  className="py-4 px-6 bg-red-500/20 hover:bg-red-500/30 rounded-2xl font-bold transition-all border border-red-400/50 transform hover:scale-[1.02] flex items-center justify-center gap-2 cursor-pointer"
+                  className="py-4 px-6 bg-maycast-rec/20 hover:bg-maycast-rec/30 rounded-2xl font-bold transition-all border border-maycast-rec/50 transform hover:scale-[1.02] flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <TrashIcon className="w-5 h-5" />
                   破棄
