@@ -280,44 +280,226 @@
 
 ---
 
-## Phase 2: サーバー側基盤構築
+## Phase 2: サーバー側基盤構築 🎯
 
-**Goal:** ローカルファイルシステムへのChunk Upload APIを実装
+**Goal:** ローカルファイルシステムへのChunk Upload APIを実装し、クライアント→サーバーのアップロードパイプラインを確立
 
-### 2.1 Axum サーバー構築
+**Concept:**
+- サーバー側の各機能を独立してテスト可能な状態で実装
+- Phase 1で録画したチャンクをサーバーにアップロードする全体フローを段階的に構築
+- 各サブフェーズで独立した成果物を生成し、検証可能にする
 
-**Tasks:**
-- [ ] server crateの作成
-- [ ] Axum + Tokio セットアップ
-- [ ] `/health` エンドポイント
+---
 
-### 2.2 Storage Layer 実装
+### Phase 2A-1: サーバー環境セットアップ
 
-**Dependencies:**
-- `object_store` crate
+**Goal:** Axumベースのサーバー基盤を構築し、基本的な動作確認
 
-**Tasks:**
-- [ ] LocalFileSystem Storageドライバー実装
-- [ ] `put_chunk(session_id, chunk_id, data)` API
-- [ ] `get_chunk(session_id, chunk_id)` API
-- [ ] `list_chunks(session_id)` API
-
-### 2.3 Chunk Upload API
-
-**Tasks:**
-- [ ] `POST /api/sessions/:id/chunks/:chunk_id` エンドポイント
-- [ ] Blake3ハッシュ検証
-- [ ] 重複アップロード検出（冪等性）
-
-### 2.4 WebSocket 基盤
+**Project Structure:**
+```text
+/maycast-recorder
+├── /packages
+│   ├── /common          # 既存（Phase 1で作成済み）
+│   ├── /wasm-core       # 既存（Phase 1で作成済み）
+│   ├── /web-client      # 既存（Phase 1で作成済み）
+│   └── /server          # 新規作成（Axum サーバー）
+└── Taskfile.yml
+```
 
 **Tasks:**
-- [ ] WebSocket接続管理
-- [ ] Ping/Pong keep-alive
-- [ ] 切断・再接続ハンドリング
+- [ ] `server` crateの作成（Cargo.toml設定）
+- [ ] Axum + Tokio 依存関係追加
+- [ ] 基本的なmain.rs実装（サーバー起動ロジック）
+- [ ] `/health` エンドポイント実装
+- [ ] 環境変数設定（ポート番号、ログレベル）
+- [ ] Taskfile.yml にサーバー関連タスク追加
+  - `task dev:server` - サーバー起動
+  - `task build:server` - サーバービルド
+  - `task test:server` - サーバーテスト
+
+**Test:**
+- [ ] `task build:server` が成功する
+- [ ] `task dev:server` でサーバーが起動する（例: http://localhost:3000）
+- [ ] `curl http://localhost:3000/health` で `{"status": "ok"}` が返る
+- [ ] ログが正常に出力される
 
 **Deliverable:**
-- クライアントからサーバーへのChunkアップロードが動作
+- 動作するAxumサーバーの基盤
+- `/health` エンドポイントでヘルスチェック可能
+
+---
+
+### Phase 2A-2: ローカルストレージ基盤
+
+**Goal:** ファイルシステムへのチャンク保存・読み出し機能を単体で実装
+
+**Dependencies:**
+- `tokio::fs` (非同期ファイルIO)
+- `blake3` (ハッシュ検証用)
+
+**Tasks:**
+- [ ] `storage` モジュール作成
+- [ ] `StorageBackend` trait定義
+  - `put_chunk(session_id, chunk_id, data: &[u8]) -> Result<()>`
+  - `get_chunk(session_id, chunk_id) -> Result<Vec<u8>>`
+  - `list_chunks(session_id) -> Result<Vec<ChunkId>>`
+  - `delete_chunk(session_id, chunk_id) -> Result<()>`
+- [ ] `LocalFileSystemStorage` 実装
+  - ファイルパス: `./storage/{session_id}/{chunk_id}.fmp4`
+  - ディレクトリ自動作成
+- [ ] Rust単体テスト作成
+  - チャンク書き込み→読み出し→削除のテスト
+  - 存在しないチャンクの読み出しエラーハンドリング
+
+**Test:**
+- [ ] `cargo test --package server` で全テストが成功する
+- [ ] テストデータでチャンクを書き込み、ファイルシステムに保存される
+- [ ] 保存されたチャンクを読み出して、元のデータと一致する
+- [ ] `list_chunks()` で保存されたチャンク一覧を取得できる
+
+**Deliverable:**
+- ローカルファイルシステムストレージの完全な実装
+- 単体テストでストレージ機能が検証済み
+
+---
+
+### Phase 2A-3: Chunk Upload API 基本実装
+
+**Goal:** チャンクアップロード用のHTTP APIを実装（検証なし、シンプル版）
+
+**Tasks:**
+- [ ] `POST /api/sessions/:session_id/chunks/:chunk_id` エンドポイント実装
+- [ ] リクエストボディからバイナリデータ取得
+- [ ] `StorageBackend::put_chunk()` を呼び出して保存
+- [ ] レスポンス返却（201 Created）
+- [ ] エラーハンドリング（400 Bad Request, 500 Internal Server Error）
+- [ ] `GET /api/sessions/:session_id/chunks/:chunk_id` エンドポイント実装（検証用）
+- [ ] 簡易的なロギング追加
+
+**Test:**
+- [ ] curlでテストチャンクをアップロード
+  ```bash
+  curl -X POST http://localhost:3000/api/sessions/test-session/chunks/chunk-001 \
+    --data-binary @test-chunk.fmp4 \
+    -H "Content-Type: application/octet-stream"
+  ```
+- [ ] アップロードしたチャンクが `./storage/test-session/chunk-001.fmp4` に保存される
+- [ ] `GET /api/sessions/test-session/chunks/chunk-001` で保存されたデータを取得できる
+- [ ] 保存されたファイルとアップロードしたファイルが一致する
+
+**Deliverable:**
+- 動作するChunk Upload API
+- curlやPostmanで手動テスト可能
+
+---
+
+### Phase 2A-4: クライアント側アップロード統合
+
+**Goal:** Phase 1で保存したOPFSチャンクをサーバーにアップロードする機能を実装
+
+**Tasks:**
+- [ ] web-client側にアップロードロジック追加
+- [ ] `uploadChunk(sessionId, chunkId, data: Uint8Array)` 関数実装
+  - `fetch()` APIでPOSTリクエスト送信
+- [ ] Phase 1のOPFSチャンクを読み出してアップロード
+- [ ] アップロード状態管理
+  - 未送信 / 送信中 / 送信完了 / 送信失敗
+- [ ] アップロード進捗表示UI
+  - 送信済みチャンク数 / 総チャンク数
+  - 「Upload to Server」ボタン
+- [ ] CORS設定（サーバー側）
+
+**UI:**
+- [ ] Phase 1の完了画面に「Upload to Server」ボタン追加
+- [ ] アップロード進捗バー表示
+- [ ] 成功/失敗のステータス表示
+
+**Test:**
+- [ ] Phase 1で録画したセッションを選択
+- [ ] 「Upload to Server」ボタンをクリック
+- [ ] 全チャンクがサーバーにアップロードされる
+- [ ] サーバーの `./storage/{session_id}/` ディレクトリにチャンクが保存される
+- [ ] アップロード進捗バーが正しく更新される
+
+**Deliverable:**
+- クライアント→サーバーのエンドツーエンドアップロード機能
+- UIでアップロード操作可能
+
+---
+
+### Phase 2A-5: ハッシュ検証・冪等性実装
+
+**Goal:** データ整合性とアップロードの冪等性を保証
+
+**Tasks:**
+- [ ] クライアント側でチャンクのBlake3ハッシュ計算
+- [ ] アップロードリクエストにハッシュを含める
+  - ヘッダー: `X-Chunk-Hash: <blake3-hash>`
+- [ ] サーバー側でハッシュ検証
+  - 受信データのハッシュを計算
+  - クライアントから送信されたハッシュと比較
+  - 不一致の場合は `400 Bad Request` を返す
+- [ ] 冪等性実装
+  - 既に存在するチャンクの場合、ハッシュ比較して同一なら `200 OK` を返す
+  - ハッシュが異なる場合は `409 Conflict` を返す
+- [ ] IndexedDBにアップロード済みチャンクのハッシュを記録
+
+**Test:**
+- [ ] チャンクをアップロード→成功
+- [ ] 同じチャンクを再度アップロード→`200 OK`（冪等性確認）
+- [ ] ハッシュを改ざんしてアップロード→`400 Bad Request`
+- [ ] ネットワークエラーで途中失敗→再送信で正常にアップロード完了
+
+**Deliverable:**
+- データ整合性が保証されたアップロード機能
+- 再送時の安全性確保
+
+---
+
+### Phase 2A-6: WebSocket 基盤実装
+
+**Goal:** リアルタイム通信基盤を構築し、アップロード状態をサーバーからクライアントに通知
+
+**Tasks:**
+- [ ] サーバー側WebSocket実装
+  - `/ws/sessions/:session_id` エンドポイント
+  - 接続管理（接続中のクライアント一覧）
+  - Ping/Pong keep-alive実装
+- [ ] クライアント側WebSocket接続実装
+  - 自動再接続ロジック
+  - 切断検知
+- [ ] WebSocketメッセージ定義（common crateに型追加）
+  - `ChunkUploaded { chunk_id, timestamp }`
+  - `UploadProgress { uploaded, total }`
+- [ ] サーバー側からアップロード状態をブロードキャスト
+- [ ] クライアント側でリアルタイムUI更新
+
+**UI:**
+- [ ] WebSocket接続状態インジケーター
+  - 🟢 接続中
+  - 🔴 切断中
+  - 🟡 再接続中
+
+**Test:**
+- [ ] WebSocket接続が確立される
+- [ ] チャンクアップロード時、WebSocketでリアルタイム通知が届く
+- [ ] サーバーを再起動→クライアントが自動再接続する
+- [ ] Ping/Pong keep-aliveが動作する（接続維持）
+- [ ] ネットワーク切断→再接続→状態同期が正常に動作する
+
+**Deliverable:**
+- WebSocketベースのリアルタイム通信基盤
+- アップロード状態のリアルタイム同期
+
+---
+
+**Overall Phase 2 (2A-1 ~ 2A-6) Deliverable:**
+- **完全なクライアント→サーバーアップロードシステム**
+  - Phase 1で録画したチャンクをサーバーにアップロード
+  - ハッシュ検証によるデータ整合性保証
+  - 冪等性により安全な再送が可能
+  - WebSocketによるリアルタイム状態同期
+  - ローカルファイルシステムにチャンクが正常に保存される
 
 ---
 
@@ -520,7 +702,12 @@
 | Phase 1A-5 | **OPFS 保存機能完成**<br>• チャンクがOPFSに正常に保存される<br>• ブラウザリロード後もデータが保持される<br>• IndexedDBにメタデータが正しく記録される |
 | Phase 1A-6 | **Phase 1A 全体完成**<br>• 10分の録画が成功し、OPFSに正常なfMP4チャンクが保存される<br>• 個別チャンクをダウンロードして、VLC等で再生できる<br>• 連続する複数のチャンクを順次再生できる |
 | Phase 1B | **スタンドアロンモード完成**<br>• Phase 1A の個別チャンクダウンロード機能が削除されている<br>• チャンク結合により完全な.mp4ファイルがダウンロードできる<br>• ブラウザ強制終了後、リカバリーUIで復元できる<br>• 設定変更（デバイス、画質）が正常に機能する |
-| Phase 2 | クライアント→サーバーへのアップロードが100%成功する |
+| Phase 2A-1 | **サーバー環境セットアップ完成**<br>• `task build:server` が成功する<br>• `task dev:server` でサーバーが起動する<br>• `/health` エンドポイントが正常に動作する |
+| Phase 2A-2 | **ローカルストレージ基盤完成**<br>• Rust単体テストで全テストが成功する<br>• チャンクの書き込み・読み出し・削除が正常に動作する<br>• `list_chunks()` でチャンク一覧を取得できる |
+| Phase 2A-3 | **Chunk Upload API 基本実装完成**<br>• curlでチャンクをアップロードできる<br>• アップロードしたチャンクがファイルシステムに保存される<br>• GETエンドポイントでチャンクを取得できる |
+| Phase 2A-4 | **クライアント側アップロード統合完成**<br>• Phase 1で録画したチャンクをサーバーにアップロードできる<br>• アップロード進捗がUIに表示される<br>• 全チャンクが正常にサーバーに保存される |
+| Phase 2A-5 | **ハッシュ検証・冪等性実装完成**<br>• Blake3ハッシュ検証が動作する<br>• 同じチャンクを再度アップロードしても正常に処理される（冪等性）<br>• ハッシュ改ざん時にエラーが返る |
+| Phase 2A-6 | **WebSocket 基盤実装完成**<br>• WebSocket接続が確立される<br>• チャンクアップロード時にリアルタイム通知が届く<br>• サーバー再起動後、クライアントが自動再接続する<br>• Ping/Pong keep-aliveが動作する |
 | Phase 3 | ネットワーク切断・復旧シナリオで0バイトのデータ損失 |
 | Phase 4 | 3人のゲストを同時制御し、全員が「Synced」状態に到達 |
 | Phase 5 | 高負荷時でも収録停止が発生しない |
@@ -540,7 +727,13 @@
 - **Phase 1A-5:** OPFS実装。永続化の検証
 - **Phase 1A-6:** エンドツーエンドテスト。全体フロー確認
 - **Phase 1B:** エクスポート・リカバリー・UI完成。Phase 1A より短期間で完了可能
-- **Phase 2-3:** 堅牢性の核心。妥協しない
+- **Phase 2A-1:** サーバー環境構築。Axum基盤の確立
+- **Phase 2A-2:** ストレージ基盤。単体テストで品質保証
+- **Phase 2A-3:** Upload API実装。curlでテスト可能な状態を早期に作る
+- **Phase 2A-4:** クライアント統合。エンドツーエンドでの動作確認
+- **Phase 2A-5:** ハッシュ検証・冪等性。データ整合性の保証
+- **Phase 2A-6:** WebSocket基盤。リアルタイム通信の確立
+- **Phase 3:** 堅牢性の核心。妥協しない
 - **Phase 4:** Director Modeはプロダクトの差別化要因
 - **Phase 5-6:** UXの洗練。ユーザーテストを繰り返す
 - **Phase 7:** ビジネス要件に応じて調整
@@ -553,11 +746,25 @@
    - **Taskfile.yml のセットアップを最優先で実施**
    - 以降の全てのコマンドを `task` 経由で実行できるようにする
 2. **各サブフェーズを順次完了:** 独立してテスト可能なため、確実に進める
-3. **技術検証を早期に実施:**
+3. **Phase 1 の技術検証を早期に実施:**
    - Phase 1A-2: WebCodecs が期待通りに動作するか
    - Phase 1A-3: Rust で fMP4 が正しく生成できるか
    - Phase 1A-4: 統合時の同期問題がないか
 4. **Phase 1A-6 完了時点で、fMP4チャンク生成の全体フローが検証完了**
+5. **Phase 1B でスタンドアロンモードを完成:**
+   - チャンク結合によるMP4エクスポート
+   - クラッシュリカバリー機能
+   - プロダクションレディなUI
+6. **Phase 2A-1 から開始:** サーバー側基盤構築
+   - Axum + Tokio のセットアップ
+   - Taskfile.yml にサーバー関連タスク追加
+7. **Phase 2 の各サブフェーズを順次完了:**
+   - Phase 2A-2: ストレージ基盤を単体テストで検証
+   - Phase 2A-3: Upload APIをcurlでテスト可能にする
+   - Phase 2A-4: クライアント統合でエンドツーエンド確認
+   - Phase 2A-5: データ整合性を保証
+   - Phase 2A-6: リアルタイム通信基盤を確立
+8. **Phase 2A-6 完了時点で、クライアント→サーバーアップロードの全体フローが検証完了**
 
 ## 推奨される Taskfile コマンド体系
 
