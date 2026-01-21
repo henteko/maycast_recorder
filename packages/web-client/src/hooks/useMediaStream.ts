@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from 'react'
 
-interface MediaStreamOptions {
+export interface MediaStreamOptions {
   videoDeviceId?: string
   audioDeviceId?: string
   width?: number

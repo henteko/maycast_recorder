@@ -42,7 +42,7 @@ export async function writeChunk(
   const writable = await fileHandle.createWritable()
 
   try {
-    await writable.write(data)
+    await writable.write(data as FileSystemWriteChunkType)
     await writable.close()
   } catch (err) {
     await writable.abort()
@@ -75,6 +75,7 @@ export async function listChunks(sessionId: string): Promise<number[]> {
     const sessionDir = await getSessionDir(sessionId)
     const chunkIds: number[] = []
 
+    // @ts-expect-error - FileSystemDirectoryHandle.values() is experimental
     for await (const entry of sessionDir.values()) {
       if (entry.kind === 'file' && entry.name.startsWith('chunk-')) {
         // ファイル名からチャンクIDを抽出 (chunk-00000001.fmp4 -> 1)
@@ -119,6 +120,7 @@ export async function listSessions(): Promise<string[]> {
   const root = await getRoot()
   const sessions: string[] = []
 
+  // @ts-expect-error - FileSystemDirectoryHandle.values() is experimental
   for await (const entry of root.values()) {
     if (entry.kind === 'directory') {
       sessions.push(entry.name)
@@ -140,7 +142,7 @@ export async function writeInitSegment(
   const writable = await fileHandle.createWritable()
 
   try {
-    await writable.write(data)
+    await writable.write(data as FileSystemWriteChunkType)
     await writable.close()
   } catch (err) {
     await writable.abort()

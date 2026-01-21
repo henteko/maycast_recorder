@@ -1,0 +1,250 @@
+import { useRef, useCallback } from 'react'
+import type { ChunkStorage } from '../storage/chunk-storage'
+import type { ChunkStats } from '../types/webcodecs'
+import { QUALITY_PRESETS } from '../types/settings'
+import type { RecorderSettings } from '../types/settings'
+
+interface UseEncodersProps {
+  wasmInitialized: boolean
+  settings: RecorderSettings
+  onStatsUpdate: (updater: (prev: ChunkStats) => ChunkStats) => void
+  onChunkSaved: () => void
+}
+
+export const useEncoders = ({ wasmInitialized, settings, onStatsUpdate, onChunkSaved }: UseEncodersProps) => {
+  const videoEncoderRef = useRef<VideoEncoder | null>(null)
+  const audioEncoderRef = useRef<AudioEncoder | null>(null)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const muxerRef = useRef<any | null>(null)
+  const initSegmentRef = useRef<Uint8Array | null>(null)
+  const videoConfigRef = useRef<Uint8Array | null>(null)
+  const audioConfigRef = useRef<Uint8Array | null>(null)
+  const activeStreamRef = useRef<MediaStream | null>(null)
+  const baseVideoTimestampRef = useRef<number | null>(null)
+  const baseAudioTimestampRef = useRef<number | null>(null)
+  const chunkStorageRef = useRef<ChunkStorage | null>(null)
+
+  const initializeMuxerWithConfigs = useCallback(async () => {
+    if (!videoConfigRef.current || !audioConfigRef.current || !wasmInitialized || !activeStreamRef.current) {
+      console.log('⏳ Waiting for codec configs...', {
+        video: !!videoConfigRef.current,
+        audio: !!audioConfigRef.current,
+        wasm: wasmInitialized,
+        stream: !!activeStreamRef.current
+      })
+      return
+    }
+
+    const audioTrack = activeStreamRef.current.getAudioTracks()[0]
+    const audioSettings = audioTrack?.getSettings()
+    const qualityConfig = QUALITY_PRESETS[settings.qualityPreset]
+
+    console.log('🎤 Audio track settings:', audioSettings)
+    console.log('📹 Initializing Muxer with configs:', {
+      videoConfig: videoConfigRef.current.length,
+      audioConfig: audioConfigRef.current.length,
+      width: qualityConfig.width,
+      height: qualityConfig.height,
+      preset: settings.qualityPreset
+    })
+
+    // @ts-expect-error - Dynamic import from WASM
+    const { Muxer } = await import('maycast-wasm-core')
+
+    const muxer = Muxer.with_config(
+      qualityConfig.width,
+      qualityConfig.height,
+      audioSettings?.sampleRate || 48000,
+      audioSettings?.channelCount || 1,
+      Array.from(videoConfigRef.current),
+      Array.from(audioConfigRef.current)
+    )
+
+    try {
+      const initSegment = muxer.initialize()
+      initSegmentRef.current = initSegment
+      muxerRef.current = muxer
+      console.log('✅ Muxer initialized with codec configs, init segment size:', initSegment.length, 'bytes')
+
+      if (chunkStorageRef.current) {
+        await chunkStorageRef.current.saveInitSegment(initSegment)
+      }
+    } catch (err) {
+      console.error('❌ Failed to initialize Muxer:', err)
+    }
+  }, [wasmInitialized, settings.qualityPreset])
+
+  const initializeEncoders = useCallback((activeStream: MediaStream) => {
+    if (!activeStream || !wasmInitialized) return
+
+    activeStreamRef.current = activeStream
+
+    const audioTrack = activeStream.getAudioTracks()[0]
+    const audioSettings = audioTrack?.getSettings()
+    const qualityConfig = QUALITY_PRESETS[settings.qualityPreset]
+
+    console.log('🎤 Audio track settings:', audioSettings)
+
+    // Initialize VideoEncoder
+    const videoConfig = {
+      codec: 'avc1.42001f',
+      width: qualityConfig.width,
+      height: qualityConfig.height,
+      bitrate: qualityConfig.bitrate,
+      framerate: qualityConfig.framerate,
+    }
+
+    videoEncoderRef.current = new VideoEncoder({
+      output: (chunk, metadata) => {
+        if (metadata?.decoderConfig?.description && !videoConfigRef.current) {
+          videoConfigRef.current = new Uint8Array(metadata.decoderConfig.description as ArrayBuffer)
+          console.log('✅ Video decoder config captured:', videoConfigRef.current.length, 'bytes')
+          initializeMuxerWithConfigs()
+        }
+
+        if (baseVideoTimestampRef.current === null) {
+          baseVideoTimestampRef.current = chunk.timestamp
+          console.log('📹 Base video timestamp set:', chunk.timestamp)
+        }
+
+        const isKeyframe = chunk.type === 'key'
+        const relativeTimestamp = chunk.timestamp - baseVideoTimestampRef.current
+        const buffer = new Uint8Array(chunk.byteLength)
+        chunk.copyTo(buffer)
+
+        if (muxerRef.current && chunkStorageRef.current) {
+          try {
+            const fragment = muxerRef.current.push_video(buffer, relativeTimestamp, isKeyframe)
+            if (fragment.length > 0) {
+              chunkStorageRef.current.saveChunk(fragment, relativeTimestamp).then((chunkId) => {
+                onChunkSaved()
+                console.log(`📦 fMP4 fragment saved to OPFS: #${chunkId}, ${fragment.length} bytes`)
+              }).catch((err) => {
+                console.error('❌ Failed to save chunk to OPFS:', err)
+              })
+            }
+          } catch (err) {
+            console.error('❌ Muxer push_video error:', err)
+          }
+        }
+
+        onStatsUpdate(prev => ({
+          ...prev,
+          videoChunks: prev.videoChunks + 1,
+          keyframes: isKeyframe ? prev.keyframes + 1 : prev.keyframes,
+          totalSize: prev.totalSize + chunk.byteLength,
+        }))
+
+        console.log(`📹 VideoChunk: type=${chunk.type}, timestamp=${chunk.timestamp}µs (relative: ${relativeTimestamp}µs), size=${chunk.byteLength}B`, metadata)
+      },
+      error: (err) => {
+        console.error('❌ VideoEncoder error:', err)
+      },
+    })
+
+    videoEncoderRef.current.configure(videoConfig)
+    console.log('✅ VideoEncoder configured:', videoConfig)
+
+    // Initialize AudioEncoder
+    const audioConfig = {
+      codec: 'mp4a.40.2',
+      sampleRate: audioSettings?.sampleRate || 48000,
+      numberOfChannels: audioSettings?.channelCount || 1,
+      bitrate: 128_000,
+    }
+
+    audioEncoderRef.current = new AudioEncoder({
+      output: (chunk, metadata) => {
+        if (metadata?.decoderConfig?.description && !audioConfigRef.current) {
+          audioConfigRef.current = new Uint8Array(metadata.decoderConfig.description as ArrayBuffer)
+          console.log('✅ Audio decoder config captured:', audioConfigRef.current.length, 'bytes')
+          initializeMuxerWithConfigs()
+        }
+
+        if (baseAudioTimestampRef.current === null) {
+          baseAudioTimestampRef.current = chunk.timestamp
+          console.log('🎤 Base audio timestamp set:', chunk.timestamp)
+        }
+
+        const relativeTimestamp = chunk.timestamp - baseAudioTimestampRef.current
+        const buffer = new Uint8Array(chunk.byteLength)
+        chunk.copyTo(buffer)
+
+        if (muxerRef.current && chunkStorageRef.current) {
+          try {
+            const fragment = muxerRef.current.push_audio(buffer, relativeTimestamp)
+            if (fragment.length > 0) {
+              chunkStorageRef.current.saveChunk(fragment, relativeTimestamp).then((chunkId) => {
+                onChunkSaved()
+                console.log(`📦 fMP4 fragment saved to OPFS: #${chunkId}, ${fragment.length} bytes`)
+              }).catch((err) => {
+                console.error('❌ Failed to save chunk to OPFS:', err)
+              })
+            }
+          } catch (err) {
+            console.error('❌ Muxer push_audio error:', err)
+          }
+        }
+
+        onStatsUpdate(prev => ({
+          ...prev,
+          audioChunks: prev.audioChunks + 1,
+          totalSize: prev.totalSize + chunk.byteLength,
+        }))
+
+        console.log(`🎤 AudioChunk: timestamp=${chunk.timestamp}µs (relative: ${relativeTimestamp}µs), size=${chunk.byteLength}B`, metadata)
+      },
+      error: (err) => {
+        console.error('❌ AudioEncoder error:', err)
+      },
+    })
+
+    audioEncoderRef.current.configure(audioConfig)
+    console.log('✅ AudioEncoder configured:', audioConfig)
+  }, [wasmInitialized, settings.qualityPreset, initializeMuxerWithConfigs, onStatsUpdate, onChunkSaved])
+
+  const closeEncoders = useCallback(async () => {
+    if (videoEncoderRef.current) {
+      try {
+        if (videoEncoderRef.current.state !== 'closed') {
+          await videoEncoderRef.current.flush()
+          videoEncoderRef.current.close()
+        }
+      } catch (err) {
+        console.warn('Failed to close video encoder:', err)
+      }
+      videoEncoderRef.current = null
+    }
+
+    if (audioEncoderRef.current) {
+      try {
+        if (audioEncoderRef.current.state !== 'closed') {
+          await audioEncoderRef.current.flush()
+          audioEncoderRef.current.close()
+        }
+      } catch (err) {
+        console.warn('Failed to close audio encoder:', err)
+      }
+      audioEncoderRef.current = null
+    }
+  }, [])
+
+  const resetEncoders = useCallback(() => {
+    videoConfigRef.current = null
+    audioConfigRef.current = null
+    muxerRef.current = null
+    initSegmentRef.current = null
+    activeStreamRef.current = null
+    baseVideoTimestampRef.current = null
+    baseAudioTimestampRef.current = null
+  }, [])
+
+  return {
+    videoEncoderRef,
+    audioEncoderRef,
+    chunkStorageRef,
+    initializeEncoders,
+    closeEncoders,
+    resetEncoders,
+  }
+}
