@@ -2,13 +2,14 @@ version: '3'
 
 vars:
   WASM_PKG_DIR: packages/wasm-core/pkg
+  COMMON_TYPES_DIR: packages/common-types
   CLIENT_DIR: packages/web-client
 
 tasks:
   # Development tasks
   dev:
     desc: Start development server with WASM auto-rebuild
-    deps: [build:wasm]
+    deps: [build:common-types, build:wasm]
     dir: '{{.CLIENT_DIR}}'
     cmds:
       - npm run dev
@@ -27,10 +28,23 @@ tasks:
 
   # Build tasks
   build:
-    desc: Build everything (WASM + client)
+    desc: Build everything (common-types + WASM + client)
     cmds:
+      - task: build:common-types
       - task: build:wasm
       - task: build:client
+
+  build:common-types:
+    desc: Build common TypeScript type definitions
+    dir: '{{.COMMON_TYPES_DIR}}'
+    cmds:
+      - npm run build
+    sources:
+      - src/**/*.ts
+      - tsconfig.json
+    generates:
+      - dist/**/*.d.ts
+      - dist/**/*.js
 
   build:wasm:
     desc: Build WASM module using wasm-pack
@@ -48,7 +62,7 @@ tasks:
   build:client:
     desc: Build client for production
     dir: '{{.CLIENT_DIR}}'
-    deps: [build:wasm]
+    deps: [build:common-types, build:wasm]
     cmds:
       - npm run build
 
@@ -116,22 +130,29 @@ tasks:
     cmds:
       - echo "Installing Rust dependencies..."
       - cargo fetch
-      - echo "Installing Node dependencies..."
-      - cd {{.CLIENT_DIR}} && npm install
+      - echo "Installing Node dependencies (npm workspaces)..."
+      - npm install
 
   deps:update:
     desc: Update all dependencies
     cmds:
       - cargo update
-      - cd {{.CLIENT_DIR}} && npm update
+      - npm update
 
   # Clean tasks
   clean:
     desc: Clean all build artifacts
     cmds:
+      - task: clean:common-types
       - task: clean:wasm
       - task: clean:client
       - cargo clean
+
+  clean:common-types:
+    desc: Clean common-types build artifacts
+    dir: '{{.COMMON_TYPES_DIR}}'
+    cmds:
+      - npm run clean || rm -rf dist
 
   clean:wasm:
     desc: Clean WASM build artifacts

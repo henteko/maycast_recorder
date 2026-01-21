@@ -1,6 +1,19 @@
 import { useState, useEffect } from 'react';
 import type { SystemHealth } from '../components/organisms/SidebarFooter';
 
+// Network Information API types
+interface NetworkInformation extends EventTarget {
+  effectiveType?: '2g' | '3g' | '4g' | 'slow-2g';
+  addEventListener(type: 'change', listener: () => void): void;
+  removeEventListener(type: 'change', listener: () => void): void;
+}
+
+interface NavigatorWithConnection extends Navigator {
+  connection?: NetworkInformation;
+  mozConnection?: NetworkInformation;
+  webkitConnection?: NetworkInformation;
+}
+
 export const useSystemHealth = (): SystemHealth => {
   const [cpuLoad, setCpuLoad] = useState(0);
   const [opfsUsed, setOpfsUsed] = useState(0);
@@ -10,7 +23,6 @@ export const useSystemHealth = (): SystemHealth => {
   // Monitor CPU Load (estimated using performance metrics)
   useEffect(() => {
     let lastTime = performance.now();
-    let taskCount = 0;
 
     const measureCPU = () => {
       const currentTime = performance.now();
@@ -23,7 +35,6 @@ export const useSystemHealth = (): SystemHealth => {
 
       setCpuLoad(estimatedLoad);
       lastTime = currentTime;
-      taskCount++;
     };
 
     // Check every 2 seconds
@@ -62,7 +73,9 @@ export const useSystemHealth = (): SystemHealth => {
       }
 
       // Check connection quality if available
-      const connection = (navigator as any).connection || (navigator as any).mozConnection || (navigator as any).webkitConnection;
+      const connection = (navigator as NavigatorWithConnection).connection ||
+                        (navigator as NavigatorWithConnection).mozConnection ||
+                        (navigator as NavigatorWithConnection).webkitConnection;
 
       if (connection?.effectiveType) {
         const effectiveType = connection.effectiveType;
@@ -82,7 +95,9 @@ export const useSystemHealth = (): SystemHealth => {
     window.addEventListener('offline', updateNetworkStatus);
 
     // Also listen to connection change events if available
-    const connection = (navigator as any).connection || (navigator as any).mozConnection || (navigator as any).webkitConnection;
+    const connection = (navigator as NavigatorWithConnection).connection ||
+                      (navigator as NavigatorWithConnection).mozConnection ||
+                      (navigator as NavigatorWithConnection).webkitConnection;
     if (connection) {
       connection.addEventListener('change', updateNetworkStatus);
     }

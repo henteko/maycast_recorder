@@ -9,8 +9,6 @@ license.workspace = true
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-maycast-common = { path = "../common" }
-
 # WASM bindings
 wasm-bindgen.workspace = true
 wasm-bindgen-futures.workspace = true

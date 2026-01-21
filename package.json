@@ -1,4 +1,13 @@
 {
+  "name": "maycast-recorder",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build:common-types": "npm run build --workspace=@maycast/common-types",
+    "build:web-client": "npm run build --workspace=web-client"
+  },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.18"
   }
