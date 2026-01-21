@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { ChunkStorage } from '../storage/chunk-storage'
 
-interface DownloadProgress {
+export interface DownloadProgress {
   isDownloading: boolean
   current: number
   total: number

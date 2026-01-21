@@ -1,14 +1,13 @@
-import { VideoCameraIcon, MicrophoneIcon, ServerStackIcon } from '@heroicons/react/24/solid'
+import { VideoCameraIcon, MicrophoneIcon } from '@heroicons/react/24/solid'
 import type { ChunkStats } from '../../types/webcodecs'
 
 interface StatsPanelProps {
   stats: ChunkStats
-  savedChunks: number
 }
 
-export const StatsPanel = ({ stats, savedChunks }: StatsPanelProps) => {
+export const StatsPanel = ({ stats }: StatsPanelProps) => {
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-8">
+    <div className="grid grid-cols-3 gap-6 mb-8">
       <div className="bg-maycast-primary/20 backdrop-blur-md p-6 rounded-2xl border border-maycast-primary/30 shadow-xl">
         <div className="flex items-center gap-2 mb-3">
           <VideoCameraIcon className="w-5 h-5 text-maycast-primary" />
@@ -22,13 +21,6 @@ export const StatsPanel = ({ stats, savedChunks }: StatsPanelProps) => {
           <p className="text-maycast-rust/80 text-sm font-semibold">Audio Chunks</p>
         </div>
         <p className="text-4xl font-bold text-maycast-text">{stats.audioChunks}</p>
-      </div>
-      <div className="bg-maycast-safe/20 backdrop-blur-md p-6 rounded-2xl border border-maycast-safe/30 shadow-xl">
-        <div className="flex items-center gap-2 mb-3">
-          <ServerStackIcon className="w-5 h-5 text-maycast-safe" />
-          <p className="text-maycast-safe/80 text-sm font-semibold">Saved to OPFS</p>
-        </div>
-        <p className="text-4xl font-bold text-maycast-text">{savedChunks}</p>
       </div>
       <div className="bg-maycast-primary/20 backdrop-blur-md p-6 rounded-2xl border border-maycast-primary/30 shadow-xl">
         <p className="text-maycast-primary/80 text-sm font-semibold mb-3">Total Size</p>

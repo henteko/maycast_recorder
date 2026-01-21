@@ -1,4 +1,4 @@
-import { PlayIcon, StopIcon, ArrowDownTrayIcon, TrashIcon, ArrowPathIcon, CheckIcon, ServerStackIcon } from '@heroicons/react/24/solid'
+import { PlayIcon, ArrowDownTrayIcon, TrashIcon, ArrowPathIcon, CheckIcon, ServerStackIcon } from '@heroicons/react/24/solid'
 import { Button } from '../atoms/Button'
 import { ProgressBar } from '../atoms/ProgressBar'
 
@@ -6,15 +6,12 @@ type ScreenState = 'standby' | 'recording' | 'completed'
 
 interface ControlPanelProps {
   screenState: ScreenState
-  isRecording: boolean
-  wasmInitialized: boolean
   savedChunks: number
   downloadProgress: {
     isDownloading: boolean
     current: number
     total: number
   }
-  onStartStop: () => void
   onDownload: () => void
   onNewRecording: () => void
   onDiscard: () => void
@@ -22,11 +19,8 @@ interface ControlPanelProps {
 
 export const ControlPanel = ({
   screenState,
-  isRecording,
-  wasmInitialized,
   savedChunks,
   downloadProgress,
-  onStartStop,
   onDownload,
   onNewRecording,
   onDiscard,
@@ -35,7 +29,7 @@ export const ControlPanel = ({
     <div className="space-y-5 mb-8">
       {/* Recording Status Message */}
       {screenState === 'recording' && (
-        <div className="bg-maycast-safe/30 backdrop-blur-md border border-maycast-safe/50 p-5 rounded-2xl mb-8 shadow-xl">
+        <div className="bg-maycast-safe/30 backdrop-blur-md border border-maycast-safe/50 p-5 rounded-2xl shadow-xl">
           <div className="flex items-center justify-center gap-3">
             <div className="relative">
               <div className="w-4 h-4 bg-maycast-safe rounded-full animate-pulse" />
@@ -45,33 +39,6 @@ export const ControlPanel = ({
             <p className="text-white font-semibold text-lg">ローカルに保存中 (OPFS) - {savedChunks} chunks</p>
           </div>
         </div>
-      )}
-
-      {/* Standby / Recording Screen */}
-      {screenState !== 'completed' && (
-        <button
-          onClick={onStartStop}
-          disabled={!wasmInitialized}
-          className={`w-full py-6 px-8 rounded-2xl font-bold text-xl transition-all shadow-2xl transform hover:scale-[1.02] flex items-center justify-center gap-3 ${
-            isRecording
-              ? 'bg-maycast-rec hover:bg-maycast-rec/80 cursor-pointer text-white'
-              : wasmInitialized
-              ? 'bg-transparent border-2 border-maycast-text hover:bg-maycast-text/10 cursor-pointer text-maycast-text'
-              : 'bg-gray-600 cursor-not-allowed opacity-50 text-white'
-          }`}
-        >
-          {isRecording ? (
-            <>
-              <StopIcon className="w-7 h-7" />
-              録画を停止
-            </>
-          ) : (
-            <>
-              <PlayIcon className="w-7 h-7" />
-              録画を開始
-            </>
-          )}
-        </button>
       )}
 
       {/* Completed Screen */}

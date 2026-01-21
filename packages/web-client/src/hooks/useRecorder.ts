@@ -16,7 +16,7 @@ interface UseRecorderProps {
   resetEncoders: () => void
   startCapture: (options?: MediaStreamOptions) => Promise<MediaStream | null>
   settings: RecorderSettings
-  onSessionComplete: () => Promise<void>
+  onSessionComplete?: () => void | Promise<void>
 }
 
 export const useRecorder = ({
@@ -173,7 +173,9 @@ export const useRecorder = ({
       await chunkStorageRef.current.completeSession()
     }
 
-    await onSessionComplete()
+    if (onSessionComplete) {
+      await onSessionComplete()
+    }
 
     setScreenState('completed')
 
@@ -203,7 +205,9 @@ export const useRecorder = ({
     try {
       const storage = new ChunkStorage(sessionIdRef.current)
       await storage.deleteSession()
-      await onSessionComplete()
+      if (onSessionComplete) {
+        await onSessionComplete()
+      }
       setScreenState('standby')
       console.log('🗑️ Recording discarded:', sessionIdRef.current)
     } catch (err) {
