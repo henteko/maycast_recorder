@@ -38,7 +38,7 @@ export interface RecordingMetadata {
 }
 
 /**
- * Recording information (Phase 2 and later)
+ * Recording information
  */
 export interface Recording {
   /** Unique recording identifier */
@@ -47,11 +47,20 @@ export interface Recording {
   /** Current recording state */
   state: RecordingState;
 
-  /** Recording metadata */
-  metadata: RecordingMetadata;
+  /** Recording metadata (optional for Phase 1 compatibility) */
+  metadata?: RecordingMetadata;
 
-  /** Number of chunks uploaded */
+  /** Number of chunks */
   chunkCount: number;
+
+  /** Total size of all chunks in bytes */
+  totalSize: number;
+
+  /** Recording start time (Unix timestamp ms) */
+  startTime: number;
+
+  /** Recording end time (Unix timestamp ms, optional) */
+  endTime?: number;
 
   /** Creation timestamp (ISO 8601) */
   createdAt: string;

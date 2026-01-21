@@ -1,24 +1,24 @@
-import { ArrowPathIcon, CheckIcon, TrashIcon } from '@heroicons/react/24/solid'
-import type { SessionMetadata } from '../../storage/types'
+import { ArrowPathIcon, CheckIcon, TrashIcon } from '@heroicons/react/24/solid';
+import type { Recording } from '@maycast/common-types';
 
 interface RecoveryModalProps {
-  isOpen: boolean
-  onClose: () => void
-  session: SessionMetadata | null
-  onRecover: () => void
-  onDiscard: () => void
-  formatElapsedTime: (seconds: number) => string
+  isOpen: boolean;
+  onClose: () => void;
+  recording: Recording | null;
+  onRecover: () => void;
+  onDiscard: () => void;
+  formatElapsedTime: (seconds: number) => string;
 }
 
 export const RecoveryModal = ({
   isOpen,
   onClose,
-  session,
+  recording,
   onRecover,
   onDiscard,
   formatElapsedTime,
 }: RecoveryModalProps) => {
-  if (!isOpen || !session) return null
+  if (!isOpen || !recording) return null
 
   return (
     <div
@@ -40,14 +40,14 @@ export const RecoveryModal = ({
         <div className="bg-white p-4 rounded-xl mb-6 border-2 border-maycast-border">
           <p className="text-sm text-gray-600 font-semibold mb-2">セッション情報</p>
           <p className="text-lg text-gray-900 font-bold mt-2">
-            {new Date(session.startTime).toLocaleString('ja-JP')}
+            {new Date(recording.startTime).toLocaleString('ja-JP')}
           </p>
           <p className="text-sm text-gray-700 mt-2">
-            チャンク数: {session.totalChunks} / サイズ: {(session.totalSize / 1024 / 1024).toFixed(2)} MB
+            チャンク数: {recording.chunkCount} / サイズ: {(recording.totalSize / 1024 / 1024).toFixed(2)} MB
           </p>
-          {session.endTime && (
+          {recording.endTime && (
             <p className="text-sm text-gray-700 mt-1">
-              録画時間: {formatElapsedTime(Math.floor((session.endTime - session.startTime) / 1000))}
+              録画時間: {formatElapsedTime(Math.floor((recording.endTime - recording.startTime) / 1000))}
             </p>
           )}
         </div>

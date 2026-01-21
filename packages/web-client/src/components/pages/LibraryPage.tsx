@@ -1,18 +1,18 @@
 import React from 'react';
 import { ServerStackIcon, TrashIcon } from '@heroicons/react/24/solid';
 import { SessionItem } from '../molecules/SessionItem';
-import type { SessionMetadata } from '../../storage/types';
+import type { Recording, RecordingId } from '@maycast/common-types';
 
 interface LibraryPageProps {
-  sessions: SessionMetadata[];
-  onDownload: (sessionId: string) => Promise<void>;
-  onDelete: (sessionId: string) => Promise<void>;
+  recordings: Recording[];
+  onDownload: (recordingId: RecordingId) => Promise<void>;
+  onDelete: (recordingId: RecordingId) => Promise<void>;
   onClearAll: () => Promise<void>;
   isDownloading: boolean;
 }
 
 export const LibraryPage: React.FC<LibraryPageProps> = ({
-  sessions,
+  recordings,
   onDownload,
   onDelete,
   onClearAll,
@@ -25,10 +25,10 @@ export const LibraryPage: React.FC<LibraryPageProps> = ({
         <div className="flex items-center gap-3">
           <ServerStackIcon className="w-7 h-7 text-maycast-primary" />
           <h1 className="text-2xl font-bold text-maycast-text">
-            保存済みセッション <span className="text-maycast-primary">({sessions.length})</span>
+            保存済み録画 <span className="text-maycast-primary">({recordings.length})</span>
           </h1>
         </div>
-        {sessions.length > 0 && (
+        {recordings.length > 0 && (
           <button
             onClick={onClearAll}
             className="px-4 py-2 bg-maycast-rec/20 hover:bg-maycast-rec/30 rounded-xl text-sm font-semibold transition-all border border-maycast-rec/50 flex items-center gap-2 text-white cursor-pointer shadow-lg"
@@ -41,21 +41,21 @@ export const LibraryPage: React.FC<LibraryPageProps> = ({
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto px-8 py-6">
-        {sessions.length === 0 ? (
+        {recordings.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full">
             <div className="bg-maycast-panel/30 backdrop-blur-md p-12 rounded-2xl border border-maycast-border/40 shadow-xl">
               <div className="flex flex-col items-center text-maycast-subtext">
                 <ServerStackIcon className="w-20 h-20 mb-4 opacity-50" />
-                <p className="text-lg font-medium">保存済みセッションはありません</p>
+                <p className="text-lg font-medium">保存済み録画はありません</p>
               </div>
             </div>
           </div>
         ) : (
           <div className="space-y-4 max-w-4xl mx-auto">
-            {sessions.map((session) => (
+            {recordings.map((recording) => (
               <SessionItem
-                key={session.sessionId}
-                session={session}
+                key={recording.id}
+                recording={recording}
                 onDownload={onDownload}
                 onDelete={onDelete}
                 isDownloading={isDownloading}

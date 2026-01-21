@@ -1,128 +1,139 @@
-import { useState, useEffect, useCallback } from 'react'
-import { ChunkStorage, listAllSessions } from '../storage/chunk-storage'
-import type { SessionMetadata } from '../storage/types'
+import { useState, useEffect, useCallback } from 'react';
+import { ChunkStorage, listAllRecordings } from '../storage/chunk-storage';
+import type { Recording, RecordingId } from '@maycast/common-types';
 
 export const useSessionManager = () => {
-  const [savedSessions, setSavedSessions] = useState<SessionMetadata[]>([])
-  const [recoverySession, setRecoverySession] = useState<SessionMetadata | null>(null)
-  const [showRecoveryModal, setShowRecoveryModal] = useState(false)
+  const [savedRecordings, setSavedRecordings] = useState<Recording[]>([]);
+  const [recoveryRecording, setRecoveryRecording] = useState<Recording | null>(null);
+  const [showRecoveryModal, setShowRecoveryModal] = useState(false);
 
-  const loadSessions = useCallback(async () => {
+  const loadRecordings = useCallback(async () => {
     try {
-      const sessions = await listAllSessions()
-      setSavedSessions(sessions)
-      console.log('📂 Loaded saved sessions:', sessions.length)
+      const recordings = await listAllRecordings();
+      setSavedRecordings(recordings);
+      console.log('📂 Loaded saved recordings:', recordings.length);
 
-      // Check for incomplete sessions (crash recovery)
-      const incompleteSessions = sessions.filter(s => !s.isCompleted && s.totalChunks > 0)
-      if (incompleteSessions.length > 0) {
-        const mostRecent = incompleteSessions.sort((a, b) => b.startTime - a.startTime)[0]
-        console.log('🔄 Found incomplete session:', mostRecent.sessionId)
-        setRecoverySession(mostRecent)
-        setShowRecoveryModal(true)
+      // Check for incomplete recordings (crash recovery)
+      const incompleteRecordings = recordings.filter(
+        r => r.state !== 'synced' && r.chunkCount > 0
+      );
+      if (incompleteRecordings.length > 0) {
+        const mostRecent = incompleteRecordings.sort((a, b) => b.startTime - a.startTime)[0];
+        console.log('🔄 Found incomplete recording:', mostRecent.id);
+        setRecoveryRecording(mostRecent);
+        setShowRecoveryModal(true);
       }
     } catch (err) {
-      console.error('❌ Failed to load sessions:', err)
+      console.error('❌ Failed to load recordings:', err);
     }
-  }, [])
+  }, []);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    loadSessions()
-  }, [loadSessions])
+    loadRecordings();
+  }, [loadRecordings]);
 
-  const deleteSession = async (sessionId: string) => {
-    if (!confirm('このセッションを削除しますか？')) {
-      return
+  const deleteRecording = async (recordingId: RecordingId) => {
+    if (!confirm('この録画を削除しますか？')) {
+      return;
     }
 
     try {
-      const storage = new ChunkStorage(sessionId)
-      await storage.deleteSession()
-      await loadSessions()
-      console.log('🗑️ Session deleted:', sessionId)
+      const storage = new ChunkStorage(recordingId);
+      await storage.deleteSession();
+      await loadRecordings();
+      console.log('🗑️ Recording deleted:', recordingId);
     } catch (err) {
-      console.error('❌ Failed to delete session:', err)
-      alert('Failed to delete session')
+      console.error('❌ Failed to delete recording:', err);
+      alert('Failed to delete recording');
     }
-  }
+  };
 
-  const clearAllSessions = async () => {
-    if (!confirm(`すべてのセッション (${savedSessions.length}件) を削除しますか？この操作は取り消せません。`)) {
-      return
+  const clearAllRecordings = async () => {
+    if (!confirm(`すべての録画 (${savedRecordings.length}件) を削除しますか？この操作は取り消せません。`)) {
+      return;
     }
 
-    let successCount = 0
-    let failCount = 0
-    const errors: string[] = []
+    let successCount = 0;
+    let failCount = 0;
+    const errors: string[] = [];
 
-    for (const session of savedSessions) {
+    for (const recording of savedRecordings) {
       try {
-        console.log('🗑️ Deleting session:', session.sessionId)
-        const storage = new ChunkStorage(session.sessionId)
-        await storage.deleteSession()
-        successCount++
-        console.log('✅ Session deleted successfully:', session.sessionId)
+        console.log('🗑️ Deleting recording:', recording.id);
+        const storage = new ChunkStorage(recording.id);
+        await storage.deleteSession();
+        successCount++;
+        console.log('✅ Recording deleted successfully:', recording.id);
       } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : String(err)
-        console.error('❌ Failed to delete session:', session.sessionId, err)
-        errors.push(`${session.sessionId}: ${errorMsg}`)
-        failCount++
+        const errorMsg = err instanceof Error ? err.message : String(err);
+        console.error('❌ Failed to delete recording:', recording.id, err);
+        errors.push(`${recording.id}: ${errorMsg}`);
+        failCount++;
       }
     }
 
-    await loadSessions()
+    await loadRecordings();
 
     if (errors.length > 0) {
-      console.error('削除エラーの詳細:', errors)
-      alert(`削除完了: 成功 ${successCount}件, 失敗 ${failCount}件\n\nエラー詳細はコンソールを確認してください`)
+      console.error('削除エラーの詳細:', errors);
+      alert(`削除完了: 成功 ${successCount}件, 失敗 ${failCount}件\n\nエラー詳細はコンソールを確認してください`);
     } else {
-      alert(`削除完了: 成功 ${successCount}件`)
+      alert(`削除完了: 成功 ${successCount}件`);
     }
   }
 
-  const recoverSession = async (sessionId: string) => {
+  const recoverRecording = async (recordingId: RecordingId) => {
     try {
-      const storage = new ChunkStorage(sessionId)
-      await storage.completeSession()
-      await loadSessions()
-      console.log('✅ Session recovered:', sessionId)
-      return true
+      const storage = new ChunkStorage(recordingId);
+      await storage.completeSession();
+      await loadRecordings();
+      console.log('✅ Recording recovered:', recordingId);
+      return true;
     } catch (err) {
-      console.error('❌ Failed to recover session:', err)
-      alert('セッションの復元に失敗しました')
-      return false
+      console.error('❌ Failed to recover recording:', err);
+      alert('録画の復元に失敗しました');
+      return false;
     }
-  }
+  };
 
-  const discardRecoverySession = async (sessionId: string) => {
-    if (!confirm('このセッションを削除してもよろしいですか？この操作は取り消せません。')) {
-      return false
+  const discardRecoveryRecording = async (recordingId: RecordingId) => {
+    if (!confirm('この録画を削除してもよろしいですか？この操作は取り消せません。')) {
+      return false;
     }
 
     try {
-      const storage = new ChunkStorage(sessionId)
-      await storage.deleteSession()
-      await loadSessions()
-      console.log('🗑️ Recovery session discarded:', sessionId)
-      return true
+      const storage = new ChunkStorage(recordingId);
+      await storage.deleteSession();
+      await loadRecordings();
+      console.log('🗑️ Recovery recording discarded:', recordingId);
+      return true;
     } catch (err) {
-      console.error('❌ Failed to discard session:', err)
-      alert('セッションの削除に失敗しました')
-      return false
+      console.error('❌ Failed to discard recording:', err);
+      alert('録画の削除に失敗しました');
+      return false;
     }
-  }
+  };
 
   return {
-    savedSessions,
-    recoverySession,
+    savedRecordings,
+    recoveryRecording,
     showRecoveryModal,
     setShowRecoveryModal,
-    setRecoverySession,
-    loadSessions,
-    deleteSession,
-    clearAllSessions,
-    recoverSession,
-    discardRecoverySession,
-  }
-}
+    setRecoveryRecording,
+    loadRecordings,
+    deleteRecording,
+    clearAllRecordings,
+    recoverRecording,
+    discardRecoveryRecording,
+    // Deprecated aliases for backward compatibility
+    savedSessions: savedRecordings,
+    recoverySession: recoveryRecording,
+    setRecoverySession: setRecoveryRecording,
+    loadSessions: loadRecordings,
+    deleteSession: deleteRecording,
+    clearAllSessions: clearAllRecordings,
+    recoverSession: recoverRecording,
+    discardRecoverySession: discardRecoveryRecording,
+  };
+};

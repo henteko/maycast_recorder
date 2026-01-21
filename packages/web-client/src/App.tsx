@@ -16,24 +16,24 @@ function App() {
   const [currentPage, setCurrentPage] = useState<NavigationPage>('recorder')
   const [settings, setSettings] = useState<RecorderSettings>(loadSettings())
 
-  const systemHealth = useSystemHealth()
-  const { videoDevices, audioDevices } = useDevices()
+  const systemHealth = useSystemHealth();
+  const { videoDevices, audioDevices } = useDevices();
   const {
-    savedSessions,
-    loadSessions,
-    deleteSession,
-    clearAllSessions,
-  } = useSessionManager()
-  const { downloadProgress, downloadSessionById } = useDownload()
+    savedRecordings,
+    loadRecordings,
+    deleteRecording,
+    clearAllRecordings,
+  } = useSessionManager();
+  const { downloadProgress, downloadRecordingById } = useDownload();
 
   const handleNavigate = (page: NavigationPage) => {
-    setCurrentPage(page)
-  }
+    setCurrentPage(page);
+  };
 
   const handleSaveSettings = () => {
-    saveSettings(settings)
-    console.log('✅ Settings saved:', settings)
-  }
+    saveSettings(settings);
+    console.log('✅ Settings saved:', settings);
+  };
 
   return (
     <MainLayout
@@ -48,17 +48,17 @@ function App() {
       {currentPage === 'recorder' && (
         <Recorder
           settings={settings}
-          onSessionComplete={loadSessions}
-          onDownload={downloadSessionById}
+          onSessionComplete={loadRecordings}
+          onDownload={downloadRecordingById}
           downloadProgress={downloadProgress}
         />
       )}
       {currentPage === 'library' && (
         <LibraryPage
-          sessions={savedSessions}
-          onDownload={downloadSessionById}
-          onDelete={deleteSession}
-          onClearAll={clearAllSessions}
+          recordings={savedRecordings}
+          onDownload={downloadRecordingById}
+          onDelete={deleteRecording}
+          onClearAll={clearAllRecordings}
           isDownloading={downloadProgress.isDownloading}
         />
       )}

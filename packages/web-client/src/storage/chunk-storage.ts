@@ -4,170 +4,181 @@
  * チャンクの保存・読み出しを管理する
  */
 
-import * as opfs from './opfs'
-import * as metadata from './metadata'
-import type { ChunkMetadata, SessionMetadata } from './types'
+import * as opfs from './opfs';
+import * as metadata from './metadata';
+import type { ChunkMetadata, RecordingId, RecordingState, Recording } from '@maycast/common-types';
 
 export class ChunkStorage {
-  private _sessionId: string
-  private chunkCounter: number = 0
+  private _recordingId: RecordingId;
+  private chunkCounter: number = 0;
 
-  constructor(sessionId: string) {
-    this._sessionId = sessionId
+  constructor(recordingId: RecordingId) {
+    this._recordingId = recordingId;
   }
 
-  get sessionId(): string {
-    return this._sessionId
+  get recordingId(): RecordingId {
+    return this._recordingId;
   }
 
   /**
-   * セッションを初期化
+   * 録画セッションを初期化
    */
   async initSession(): Promise<void> {
-    const sessionMetadata: SessionMetadata = {
-      sessionId: this._sessionId,
-      startTime: Date.now(),
-      totalChunks: 0,
+    const now = new Date();
+    const recording: Recording = {
+      id: this._recordingId,
+      state: 'standby' as RecordingState,
+      chunkCount: 0,
       totalSize: 0,
-      isCompleted: false,
-    }
+      startTime: now.getTime(),
+      createdAt: now.toISOString(),
+      updatedAt: now.toISOString(),
+    };
 
-    await metadata.saveSessionMetadata(sessionMetadata)
-    console.log('✅ Session initialized:', this._sessionId)
+    await metadata.saveRecording(recording);
+    console.log('✅ Recording initialized:', this._recordingId);
   }
 
   /**
    * init segmentを保存
    */
   async saveInitSegment(data: Uint8Array): Promise<void> {
-    await opfs.writeInitSegment(this._sessionId, data)
-    console.log('✅ Init segment saved:', data.length, 'bytes')
+    await opfs.writeInitSegment(this._recordingId, data);
+    console.log('✅ Init segment saved:', data.length, 'bytes');
   }
 
   /**
    * チャンクを保存
    */
   async saveChunk(data: Uint8Array, timestamp: number): Promise<number> {
-    const chunkId = this.chunkCounter++
+    const chunkId = this.chunkCounter++;
 
     // OPFSに保存
-    await opfs.writeChunk(this._sessionId, chunkId, data)
+    await opfs.writeChunk(this._recordingId, chunkId, data);
 
     // メタデータをIndexedDBに保存
     const chunkMetadata: ChunkMetadata = {
-      sessionId: this._sessionId,
+      recordingId: this._recordingId,
       chunkId,
       timestamp,
       size: data.length,
       createdAt: Date.now(),
-    }
-    await metadata.saveChunkMetadata(chunkMetadata)
+    };
+    await metadata.saveChunkMetadata(chunkMetadata);
 
-    // セッション統計を更新
-    await this.updateSessionStats(data.length)
+    // 録画統計を更新
+    await this.updateRecordingStats(data.length);
 
-    console.log(`💾 Chunk saved: #${chunkId}, ${data.length} bytes`)
+    console.log(`💾 Chunk saved: #${chunkId}, ${data.length} bytes`);
 
-    return chunkId
+    return chunkId;
   }
 
   /**
    * チャンクを読み出す
    */
   async loadChunk(chunkId: number): Promise<Uint8Array> {
-    return opfs.readChunk(this._sessionId, chunkId)
+    return opfs.readChunk(this._recordingId, chunkId);
   }
 
   /**
    * init segmentを読み出す
    */
   async loadInitSegment(): Promise<Uint8Array> {
-    return opfs.readInitSegment(this._sessionId)
+    return opfs.readInitSegment(this._recordingId);
   }
 
   /**
    * チャンク一覧を取得
    */
   async listChunks(): Promise<ChunkMetadata[]> {
-    return metadata.listChunkMetadata(this._sessionId)
+    return metadata.listChunkMetadata(this._recordingId);
   }
 
   /**
-   * セッション統計を更新
+   * 録画統計を更新
    */
-  private async updateSessionStats(addedSize: number): Promise<void> {
-    const session = await metadata.getSessionMetadata(this._sessionId)
-    if (!session) return
+  private async updateRecordingStats(addedSize: number): Promise<void> {
+    const recording = await metadata.getRecording(this._recordingId);
+    if (!recording) return;
 
-    session.totalChunks++
-    session.totalSize += addedSize
+    recording.chunkCount++;
+    recording.totalSize += addedSize;
+    recording.updatedAt = new Date().toISOString();
 
-    await metadata.saveSessionMetadata(session)
+    await metadata.saveRecording(recording);
   }
 
   /**
-   * セッションを完了
+   * 録画を完了
    */
   async completeSession(): Promise<void> {
-    const session = await metadata.getSessionMetadata(this._sessionId)
-    if (!session) return
+    const recording = await metadata.getRecording(this._recordingId);
+    if (!recording) return;
 
-    session.isCompleted = true
-    session.endTime = Date.now()
+    const now = new Date();
+    recording.state = 'synced' as RecordingState;
+    recording.endTime = now.getTime();
+    recording.updatedAt = now.toISOString();
 
-    await metadata.saveSessionMetadata(session)
-    console.log('✅ Session completed:', this._sessionId)
+    await metadata.saveRecording(recording);
+    console.log('✅ Recording completed:', this._recordingId);
   }
 
   /**
-   * セッションを削除
+   * 録画を削除
    */
   async deleteSession(): Promise<void> {
-    let opfsError: Error | null = null
-    let metadataError: Error | null = null
+    let opfsError: Error | null = null;
+    let metadataError: Error | null = null;
 
     // OPFSを削除（エラーでも続行）
     try {
-      await opfs.deleteSession(this._sessionId)
+      await opfs.deleteSession(this._recordingId);
     } catch (err) {
-      opfsError = err instanceof Error ? err : new Error(String(err))
-      console.warn('⚠️ OPFS deletion failed (continuing):', this._sessionId, err)
+      opfsError = err instanceof Error ? err : new Error(String(err));
+      console.warn('⚠️ OPFS deletion failed (continuing):', this._recordingId, err);
     }
 
     // IndexedDBメタデータを削除（エラーでも続行）
     try {
-      await metadata.deleteSessionMetadata(this._sessionId)
+      await metadata.deleteRecording(this._recordingId);
     } catch (err) {
-      metadataError = err instanceof Error ? err : new Error(String(err))
-      console.warn('⚠️ Metadata deletion failed:', this._sessionId, err)
+      metadataError = err instanceof Error ? err : new Error(String(err));
+      console.warn('⚠️ Metadata deletion failed:', this._recordingId, err);
     }
 
     // 両方失敗した場合のみエラーを投げる
     if (opfsError && metadataError) {
-      throw new Error(`Failed to delete session: OPFS error: ${opfsError.message}, Metadata error: ${metadataError.message}`)
+      throw new Error(`Failed to delete recording: OPFS error: ${opfsError.message}, Metadata error: ${metadataError.message}`);
     }
 
-    console.log('🗑️ Session deleted:', this._sessionId)
+    console.log('🗑️ Recording deleted:', this._recordingId);
   }
 
   /**
-   * セッション情報を取得
+   * 録画情報を取得
    */
-  async getSessionInfo(): Promise<SessionMetadata | null> {
-    return metadata.getSessionMetadata(this._sessionId)
+  async getRecordingInfo(): Promise<Recording | null> {
+    return metadata.getRecording(this._recordingId);
   }
 }
 
 /**
- * すべてのセッション一覧を取得
+ * すべての録画一覧を取得
  */
-export async function listAllSessions(): Promise<SessionMetadata[]> {
-  return metadata.listSessionMetadata()
+export async function listAllRecordings(): Promise<Recording[]> {
+  return metadata.listRecordings();
 }
 
 /**
- * セッションIDを生成
+ * 録画IDを生成 (UUID v4形式)
  */
-export function generateSessionId(): string {
-  return `session-${Date.now()}-${Math.random().toString(36).slice(2, 11)}`
+export function generateRecordingId(): RecordingId {
+  // Simple UUID v4 generator
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
 }

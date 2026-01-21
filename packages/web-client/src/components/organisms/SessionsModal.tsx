@@ -1,27 +1,27 @@
-import { ServerStackIcon, TrashIcon } from '@heroicons/react/24/solid'
-import { SessionItem } from '../molecules/SessionItem'
-import type { SessionMetadata } from '../../storage/types'
+import { ServerStackIcon, TrashIcon } from '@heroicons/react/24/solid';
+import { SessionItem } from '../molecules/SessionItem';
+import type { Recording, RecordingId } from '@maycast/common-types';
 
 interface SessionsModalProps {
-  isOpen: boolean
-  onClose: () => void
-  sessions: SessionMetadata[]
-  onDownload: (sessionId: string) => void
-  onDelete: (sessionId: string) => void
-  onClearAll: () => void
-  isDownloading: boolean
+  isOpen: boolean;
+  onClose: () => void;
+  recordings: Recording[];
+  onDownload: (recordingId: RecordingId) => void;
+  onDelete: (recordingId: RecordingId) => void;
+  onClearAll: () => void;
+  isDownloading: boolean;
 }
 
 export const SessionsModal = ({
   isOpen,
   onClose,
-  sessions,
+  recordings,
   onDownload,
   onDelete,
   onClearAll,
   isDownloading,
 }: SessionsModalProps) => {
-  if (!isOpen) return null
+  if (!isOpen) return null;
 
   return (
     <div
@@ -36,10 +36,10 @@ export const SessionsModal = ({
           <div className="flex items-center gap-3">
             <ServerStackIcon className="w-7 h-7 text-maycast-primary" />
             <h2 className="text-2xl font-bold text-maycast-text">
-              保存済みセッション <span className="text-maycast-primary">({sessions.length})</span>
+              保存済み録画 <span className="text-maycast-primary">({recordings.length})</span>
             </h2>
           </div>
-          {sessions.length > 0 && (
+          {recordings.length > 0 && (
             <button
               onClick={onClearAll}
               className="px-4 py-2 bg-maycast-rec/20 hover:bg-maycast-rec/30 rounded-xl text-sm font-semibold transition-all border border-maycast-rec/50 flex items-center gap-2 text-white cursor-pointer"
@@ -50,17 +50,17 @@ export const SessionsModal = ({
           )}
         </div>
 
-        {sessions.length === 0 ? (
+        {recordings.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-maycast-subtext">
             <ServerStackIcon className="w-16 h-16 mb-4 opacity-50" />
-            <p className="text-lg">保存済みセッションはありません</p>
+            <p className="text-lg">保存済み録画はありません</p>
           </div>
         ) : (
           <div className="space-y-3 overflow-y-auto pr-2">
-            {sessions.map((session) => (
+            {recordings.map((recording) => (
               <SessionItem
-                key={session.sessionId}
-                session={session}
+                key={recording.id}
+                recording={recording}
                 onDownload={onDownload}
                 onDelete={onDelete}
                 isDownloading={isDownloading}

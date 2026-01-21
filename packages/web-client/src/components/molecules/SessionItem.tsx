@@ -4,19 +4,19 @@ import {
   CheckIcon,
   ServerStackIcon,
   VideoCameraIcon,
-} from '@heroicons/react/24/solid'
-import type { SessionMetadata } from '../../storage/types'
+} from '@heroicons/react/24/solid';
+import type { Recording, RecordingId } from '@maycast/common-types';
 
 interface SessionItemProps {
-  session: SessionMetadata
-  onDownload: (sessionId: string) => void
-  onDelete: (sessionId: string) => void
-  isDownloading: boolean
+  recording: Recording;
+  onDownload: (recordingId: RecordingId) => void;
+  onDelete: (recordingId: RecordingId) => void;
+  isDownloading: boolean;
 }
 
-export const SessionItem = ({ session, onDownload, onDelete, isDownloading }: SessionItemProps) => {
-  const startDate = session.startTime ? new Date(session.startTime) : null
-  const isValidStart = startDate && !isNaN(startDate.getTime())
+export const SessionItem = ({ recording, onDownload, onDelete, isDownloading }: SessionItemProps) => {
+  const startDate = recording.startTime ? new Date(recording.startTime) : null;
+  const isValidStart = startDate && !isNaN(startDate.getTime());
 
   return (
     <div className="bg-maycast-panel/30 backdrop-blur-sm p-4 rounded-xl flex items-center justify-between border border-maycast-border/40 hover:border-maycast-border/60 transition-all">
@@ -25,7 +25,7 @@ export const SessionItem = ({ session, onDownload, onDelete, isDownloading }: Se
           <p className="text-sm text-maycast-text font-medium">
             {isValidStart ? startDate.toLocaleString('ja-JP') : 'Invalid Date'}
           </p>
-          {session.isCompleted ? (
+          {recording.state === 'synced' ? (
             <span className="flex items-center gap-1 px-2 py-1 bg-maycast-safe/20 text-maycast-safe text-xs font-semibold rounded-lg border border-maycast-safe/30">
               <CheckIcon className="w-3 h-3" />
               完了
@@ -40,14 +40,14 @@ export const SessionItem = ({ session, onDownload, onDelete, isDownloading }: Se
         <div className="flex items-center gap-4 text-xs text-maycast-subtext">
           <span className="flex items-center gap-1">
             <ServerStackIcon className="w-3 h-3" />
-            {session.totalChunks || 0} chunks
+            {recording.chunkCount || 0} chunks
           </span>
-          <span>{((session.totalSize || 0) / 1024 / 1024).toFixed(2)} MB</span>
+          <span>{((recording.totalSize || 0) / 1024 / 1024).toFixed(2)} MB</span>
         </div>
       </div>
       <div className="flex gap-2">
         <button
-          onClick={() => onDownload(session.sessionId)}
+          onClick={() => onDownload(recording.id)}
           disabled={isDownloading}
           className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
             isDownloading
@@ -59,7 +59,7 @@ export const SessionItem = ({ session, onDownload, onDelete, isDownloading }: Se
           <ArrowDownTrayIcon className="w-5 h-5" />
         </button>
         <button
-          onClick={() => onDelete(session.sessionId)}
+          onClick={() => onDelete(recording.id)}
           disabled={isDownloading}
           className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
             isDownloading
@@ -72,5 +72,5 @@ export const SessionItem = ({ session, onDownload, onDelete, isDownloading }: Se
         </button>
       </div>
     </div>
-  )
-}
+  );
+};

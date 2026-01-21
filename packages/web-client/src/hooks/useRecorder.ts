@@ -1,9 +1,10 @@
-import { useRef, useState, useCallback } from 'react'
-import { ChunkStorage, generateSessionId } from '../storage/chunk-storage'
-import type { ChunkStats } from '../types/webcodecs'
-import type { RecorderSettings } from '../types/settings'
-import { QUALITY_PRESETS } from '../types/settings'
-import type { MediaStreamOptions } from './useMediaStream'
+import { useRef, useState, useCallback } from 'react';
+import { ChunkStorage, generateRecordingId } from '../storage/chunk-storage';
+import type { ChunkStats } from '../types/webcodecs';
+import type { RecorderSettings } from '../types/settings';
+import { QUALITY_PRESETS } from '../types/settings';
+import type { MediaStreamOptions } from './useMediaStream';
+import type { RecordingId } from '@maycast/common-types';
 
 type ScreenState = 'standby' | 'recording' | 'completed'
 
@@ -41,20 +42,20 @@ export const useRecorder = ({
   const [savedChunks, setSavedChunks] = useState(0)
   const [recordingStartTime, setRecordingStartTime] = useState<number | null>(null)
 
-  const isRecordingRef = useRef<boolean>(false)
-  const sessionIdRef = useRef<string | null>(null)
+  const isRecordingRef = useRef<boolean>(false);
+  const recordingIdRef = useRef<RecordingId | null>(null);
   // @ts-expect-error - MediaStreamTrackProcessor is experimental
-  const videoProcessorRef = useRef<MediaStreamTrackProcessor<VideoFrame> | null>(null)
+  const videoProcessorRef = useRef<MediaStreamTrackProcessor<VideoFrame> | null>(null);
   // @ts-expect-error - MediaStreamTrackProcessor is experimental
-  const audioProcessorRef = useRef<MediaStreamTrackProcessor<AudioData> | null>(null)
+  const audioProcessorRef = useRef<MediaStreamTrackProcessor<AudioData> | null>(null);
 
   const startRecording = useCallback(async () => {
-    await closeEncoders()
+    await closeEncoders();
 
-    const sessionId = generateSessionId()
-    sessionIdRef.current = sessionId
-    const chunkStorage = new ChunkStorage(sessionId)
-    chunkStorageRef.current = chunkStorage
+    const recordingId = generateRecordingId();
+    recordingIdRef.current = recordingId;
+    const chunkStorage = new ChunkStorage(recordingId);
+    chunkStorageRef.current = chunkStorage;
 
     try {
       await chunkStorage.initSession()
@@ -196,20 +197,20 @@ export const useRecorder = ({
   }, [])
 
   const handleDiscardRecording = useCallback(async () => {
-    if (!sessionIdRef.current) return
+    if (!recordingIdRef.current) return
 
     if (!confirm('この録画を削除しますか？この操作は取り消せません。')) {
       return
     }
 
     try {
-      const storage = new ChunkStorage(sessionIdRef.current)
+      const storage = new ChunkStorage(recordingIdRef.current)
       await storage.deleteSession()
       if (onSessionComplete) {
         await onSessionComplete()
       }
       setScreenState('standby')
-      console.log('🗑️ Recording discarded:', sessionIdRef.current)
+      console.log('🗑️ Recording discarded:', recordingIdRef.current)
     } catch (err) {
       console.error('❌ Failed to discard recording:', err)
       alert('録画の削除に失敗しました')
@@ -222,7 +223,7 @@ export const useRecorder = ({
     stats,
     savedChunks,
     recordingStartTime,
-    sessionIdRef,
+    recordingIdRef,
     startRecording,
     stopRecording,
     handleNewRecording,

@@ -15,16 +15,18 @@ import { VideoPreview } from './organisms/VideoPreview'
 import { StatsPanel } from './organisms/StatsPanel'
 import { ControlPanel } from './organisms/ControlPanel'
 
+import type { RecordingId } from '@maycast/common-types';
+
 export interface RecorderExports {
   screenState: ScreenState;
-  sessionIdRef: React.MutableRefObject<string | null>;
+  recordingIdRef: React.MutableRefObject<RecordingId | null>;
   savedChunks: number;
 }
 
 interface RecorderProps {
   settings: RecorderSettings;
   onSessionComplete?: () => void | Promise<void>;
-  onDownload?: (sessionId: string) => Promise<void>;
+  onDownload?: (recordingId: RecordingId) => Promise<void>;
   downloadProgress?: DownloadProgress;
   exportRef?: React.Ref<RecorderExports>;
 }
@@ -44,13 +46,13 @@ export const Recorder: React.FC<RecorderProps> = ({
   const [settings] = useState<RecorderSettings>(externalSettings)
 
   const {
-    recoverySession,
+    recoveryRecording,
     showRecoveryModal,
     setShowRecoveryModal,
-    setRecoverySession,
-    recoverSession,
-    discardRecoverySession,
-  } = useSessionManager()
+    setRecoveryRecording,
+    recoverRecording,
+    discardRecoveryRecording,
+  } = useSessionManager();
 
   const {
     videoEncoderRef,
@@ -72,7 +74,7 @@ export const Recorder: React.FC<RecorderProps> = ({
     stats,
     savedChunks,
     recordingStartTime,
-    sessionIdRef,
+    recordingIdRef,
     startRecording,
     stopRecording,
     handleNewRecording,
@@ -134,63 +136,63 @@ export const Recorder: React.FC<RecorderProps> = ({
   // Export recorder state to parent
   useImperativeHandle(exportRef, () => ({
     screenState,
-    sessionIdRef,
+    recordingIdRef,
     savedChunks,
-  }), [screenState, sessionIdRef, savedChunks])
+  }), [screenState, recordingIdRef, savedChunks]);
 
   const formatElapsedTime = (seconds: number): string => {
-    const hours = Math.floor(seconds / 3600)
-    const minutes = Math.floor((seconds % 3600) / 60)
-    const secs = seconds % 60
-    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
-  }
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
 
   const handleStartStop = () => {
     if (isRecording) {
-      stopRecording()
+      stopRecording();
     } else {
-      startRecording()
+      startRecording();
     }
-  }
+  };
 
   const handleDownload = async () => {
-    if (!sessionIdRef.current || savedChunks === 0) {
-      alert('No recording data available')
-      return
+    if (!recordingIdRef.current || savedChunks === 0) {
+      alert('No recording data available');
+      return;
     }
 
     if (onDownload) {
       try {
-        await onDownload(sessionIdRef.current)
+        await onDownload(recordingIdRef.current);
       } catch (err) {
-        console.error('❌ Download error:', err)
-        alert('Failed to download recording')
+        console.error('❌ Download error:', err);
+        alert('Failed to download recording');
       }
     }
-  }
+  };
 
-  const handleRecoverSession = async () => {
-    if (!recoverySession) return
-    setShowRecoveryModal(false)
-    await recoverSession(recoverySession.sessionId)
-    setRecoverySession(null)
-    onSessionComplete?.()
-  }
+  const handleRecoverRecording = async () => {
+    if (!recoveryRecording) return;
+    setShowRecoveryModal(false);
+    await recoverRecording(recoveryRecording.id);
+    setRecoveryRecording(null);
+    onSessionComplete?.();
+  };
 
   const handleDiscardRecovery = async () => {
-    if (!recoverySession) return
-    setShowRecoveryModal(false)
-    await discardRecoverySession(recoverySession.sessionId)
-    setRecoverySession(null)
-  }
+    if (!recoveryRecording) return;
+    setShowRecoveryModal(false);
+    await discardRecoveryRecording(recoveryRecording.id);
+    setRecoveryRecording(null);
+  };
 
   return (
     <div className="flex flex-col h-full bg-maycast-bg text-maycast-text">
       <RecoveryModal
         isOpen={showRecoveryModal}
         onClose={() => setShowRecoveryModal(false)}
-        session={recoverySession}
-        onRecover={handleRecoverSession}
+        recording={recoveryRecording}
+        onRecover={handleRecoverRecording}
         onDiscard={handleDiscardRecovery}
         formatElapsedTime={formatElapsedTime}
       />
