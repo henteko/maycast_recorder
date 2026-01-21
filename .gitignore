@@ -38,6 +38,7 @@ yarn-error.log*
 # Build outputs
 dist/
 build/
+*.tsbuildinfo
 
 # Task runner
 .task/
