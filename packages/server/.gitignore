@@ -10,8 +10,8 @@ dist/
 # Logs
 *.log
 
-# Storage
-storage/
+# Storage (data directory, not source code)
+/storage/
 
 # OS files
 .DS_Store

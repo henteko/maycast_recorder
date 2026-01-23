@@ -3,7 +3,9 @@ import cors from 'cors';
 import morgan from 'morgan';
 import dotenv from 'dotenv';
 import { RecordingStorage } from './storage/recording-storage.js';
+import { LocalFileSystemStorage } from './storage/local-filesystem-storage.js';
 import { createRecordingsRouter } from './routes/recordings.js';
+import { createChunksRouter } from './routes/chunks.js';
 
 // Load environment variables
 dotenv.config();
@@ -11,9 +13,11 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 const LOG_LEVEL = process.env.LOG_LEVEL || 'info';
+const STORAGE_PATH = process.env.STORAGE_PATH || './storage';
 
 // Initialize storage
 const recordingStorage = new RecordingStorage();
+const chunkStorage = new LocalFileSystemStorage(STORAGE_PATH);
 
 // Middleware
 app.use(cors());
@@ -22,6 +26,7 @@ app.use(express.json());
 
 // API routes
 app.use('/api', createRecordingsRouter(recordingStorage));
+app.use('/api', createChunksRouter(recordingStorage, chunkStorage));
 
 // Health check endpoint
 app.get('/health', (_req, res) => {
