@@ -746,15 +746,17 @@ recordings: Map<recording_id, Recording>
 
 ### Phase 2A-5: Remote Mode実装（リアルタイムアップロード機能）
 
-**Goal:** Phase 1のStandalone Modeとは別に、サーバーと連携する「Remote Mode」を新規実装
+**Goal:** Phase 1のStandalone Modeとは別に、サーバーと連携する「Remote Mode」を新規実装。UI完全共通化により保守性向上。
 
-**Concept:**
+**Overall Concept:**
 - **Standalone Mode (Phase 1)**: `/solo` - サーバーなし、OPFS保存のみ、完全オフライン
 - **Remote Mode (Phase 2)**: `/remote` - サーバー連携、セッション管理、リアルタイムアップロード
+- **UI共通化**: MainLayout, Sidebar, Recorderコンポーネントを両モードで共有
+- **ストレージ戦略パターン**: 保存ロジックのみを切り替え可能な設計
 
 Remote Modeのフロー:
-1. **録画開始前**: サーバーにセッション作成 → session_id取得
-2. **録画開始**: session_idを使って録画開始、状態を`recording`に更新
+1. **録画開始前**: サーバーにRecording作成 → recording_id取得
+2. **録画開始**: recording_idを使って録画開始、状態を`recording`に更新
 3. **録画中**: チャンク生成時に以下を並行実行
    - OPFS保存（バックアップとして）
    - サーバーへ自動アップロード（メイン）
@@ -763,160 +765,204 @@ Remote Modeのフロー:
 **Project Structure:**
 ```text
 /packages/web-client/src
+├── /storage-strategies     # ストレージ戦略（新規）
+│   ├── IStorageStrategy.ts           # 戦略インターフェース
+│   ├── StandaloneStorageStrategy.ts  # Standalone Mode用
+│   └── RemoteStorageStrategy.ts      # Remote Mode用
 ├── /modes
-│   ├── /standalone     # Phase 1実装（既存）
-│   │   ├── StandaloneRecorder.tsx
-│   │   └── ...
-│   └── /remote         # Phase 2実装（新規）
-│       ├── RemoteRecorder.tsx
+│   └── /remote             # Remote Mode専用ロジック
 │       ├── RecordingManager.ts    # Recording管理
 │       ├── ChunkUploader.ts       # チャンクアップロード
-│       └── ...
-├── /shared             # 共通コンポーネント
-│   ├── RecordingEngine.ts  # WebCodecs録画ロジック（両モードで共有）
-│   ├── OPFSStorage.ts      # OPFS操作（両モードで共有）
-│   └── ...
+│       └── serverConfig.ts        # サーバー設定
+├── /components             # UI（両モードで共有）
+│   ├── Recorder.tsx        # 録画コンポーネント（戦略を注入）
+│   ├── /organisms
+│   │   ├── MainHeader.tsx
+│   │   ├── VideoPreview.tsx
+│   │   ├── StatsPanel.tsx
+│   │   └── ControlPanel.tsx
+│   └── /templates
+│       └── MainLayout.tsx
 └── App.tsx
-    ├── Route: /solo → Standalone Mode
-    └── Route: /remote → Remote Mode
+    ├── Route: /solo → Recorder + StandaloneStorageStrategy
+    └── Route: /remote → Recorder + RemoteStorageStrategy
 ```
 
 **Phase 4でのGuest Mode追加イメージ:**
 ```text
+└── /storage-strategies
+    ├── StandaloneStorageStrategy.ts
+    ├── RemoteStorageStrategy.ts
+    └── GuestStorageStrategy.ts      # Phase 4で追加
 └── /modes
-    ├── /standalone
     ├── /remote
-    ├── /guest          # Phase 4で追加
-    │   ├── GuestRecorder.tsx
-    │   └── ...
-    └── /director       # Phase 4で追加
-        ├── DirectorDashboard.tsx
+    ├── /guest                        # Phase 4で追加
+    │   └── SessionManager.ts
+    └── /director                     # Phase 4で追加
         ├── RoomManager.ts
-        └── ...
+        └── MultiRecordingCoordinator.ts
 ```
 
+---
+
+#### Phase 2A-5-1: ストレージ戦略の抽出と共通化準備
+
+**Goal:** Recorderコンポーネントから保存ロジックを抽出し、戦略パターンで切り替え可能にする
+
 **Tasks:**
+- [ ] `IStorageStrategy` インターフェース定義
+  ```typescript
+  interface IStorageStrategy {
+    onChunkGenerated(recordingId: RecordingId, chunkId: number, data: Uint8Array): Promise<void>;
+    onRecordingStart(recordingId: RecordingId): Promise<void>;
+    onRecordingStop(recordingId: RecordingId): Promise<void>;
+    getUploadProgress?(): { uploaded: number; total: number };
+  }
+  ```
+- [ ] 既存のOPFS保存ロジックを `StandaloneStorageStrategy.ts` に抽出
+  - useRecorder, useEncoders からOPFS保存処理を分離
+  - ChunkStorageインターフェースを活用
+- [ ] `Recorder.tsx` にストレージ戦略を注入できるよう修正
+  ```typescript
+  interface RecorderProps {
+    settings: RecorderSettings;
+    storageStrategy: IStorageStrategy;
+    // ... その他
+  }
+  ```
+- [ ] App.tsx で `/solo` に `StandaloneStorageStrategy` を注入
+- [ ] 既存の `/solo` が変更前と同じように動作することを確認
 
-**基本設定:**
-- [ ] `/remote` ルーティング追加
-- [ ] Remote Mode用のディレクトリ構成作成
-- [ ] サーバーURL設定UI実装
-  - デフォルト: `http://localhost:3000`
-  - 設定をlocalStorageに保存
-- [ ] CORS設定（サーバー側）
+**Test:**
+- [ ] `/solo` にアクセス → 以前と同じUI・動作
+- [ ] 録画開始→停止→ダウンロード が正常動作
+- [ ] OPFSにチャンクが保存される
+- [ ] リファクタリングによる機能退行なし
 
-**Recording管理ロジック:**
+**Deliverable:**
+- ストレージ戦略パターンの導入
+- Standalone Modeの動作維持
+- コードの保守性・拡張性向上
+
+---
+
+#### Phase 2A-5-2: Remote Mode基盤（サーバー通信層）
+
+**Goal:** RemoteストレージストラテジーのためのRecording管理とサーバー通信を実装
+
+**Tasks:**
 - [ ] `RecordingManager.ts` 実装
   - `createRecording()` - `POST /api/recordings`
   - `updateRecordingState(recordingId, state)` - `PATCH /api/recordings/:id/state`
-  - `uploadRecordingMetadata(recordingId, metadata)` - `PATCH /api/recordings/:id/metadata`
+  - `updateRecordingMetadata(recordingId, metadata)` - `PATCH /api/recordings/:id/metadata`
+  - `checkServerConnection()` - `GET /health`
   - Recording IDをメモリに保持
+- [ ] `serverConfig.ts` 実装
+  - `getServerUrl()` - localStorageから取得
+  - `setServerUrl(url)` - localStorageに保存
+  - デフォルト: `http://localhost:3000`
+- [ ] サーバーURL設定UIをSettings画面に統合
+  - Settings画面に「Server URL」フィールド追加
+  - 接続テストボタン（`GET /health`）
+  - 接続状態インジケーター（🟢 Connected / 🔴 Disconnected）
+- [ ] サーバー側CORS設定の確認・追加
+  - `packages/server/src/index.ts` でCORS有効化
+  - 開発環境: `http://localhost:5173` を許可
 
-**チャンクアップロードロジック:**
+**Test:**
+- [ ] Settings画面でサーバーURLを設定できる
+- [ ] 設定がlocalStorageに保存される
+- [ ] 接続テストボタンで接続確認ができる
+- [ ] サーバー起動時: 🟢 Connected 表示
+- [ ] サーバー停止時: 🔴 Disconnected 表示
+- [ ] RecordingManager.createRecording() でRecordingが作成される
+- [ ] サーバー側でRecordingレコードを確認
+  ```bash
+  curl http://localhost:3000/api/recordings/{recording_id}
+  ```
+
+**Deliverable:**
+- Recording管理API通信の実装
+- サーバー設定UI
+- サーバー接続確認機能
+
+---
+
+#### Phase 2A-5-3: チャンクアップロード機能
+
+**Goal:** チャンクをサーバーへアップロードする機能を実装（キュー管理・リトライ機能付き）
+
+**Tasks:**
 - [ ] `ChunkUploader.ts` 実装
-  - `uploadChunk(recordingId, chunkId, data: Uint8Array)`
-    - `fetch()` APIでPOSTリクエスト送信
-    - 非同期処理（録画をブロックしない）
+  - `uploadChunk(recordingId, chunkId, data: Uint8Array)` - `POST /api/recordings/:id/chunks/:chunkId`
   - アップロードキュー管理
     - チャンク生成順にアップロード
     - 並行アップロード数の制限（最大3並列）
-    - 失敗時の自動リトライ（最大3回）
+  - 失敗時の自動リトライ（最大3回）
   - アップロード状態管理
-    - チャンクごとの状態: 未送信 / 送信中 / 送信完了 / 送信失敗
-    - IndexedDBに状態を記録
+    - チャンクごとの状態: `pending` / `uploading` / `uploaded` / `failed`
+- [ ] IndexedDBにアップロード状態を記録
+  - `upload_states` テーブル作成
+  - スキーマ: `{recordingId, chunkId, state, retryCount, lastAttempt}`
+- [ ] アップロード状態の型定義
+  ```typescript
+  type UploadState = 'pending' | 'uploading' | 'uploaded' | 'failed';
+  interface ChunkUploadStatus {
+    recordingId: RecordingId;
+    chunkId: number;
+    state: UploadState;
+    retryCount: number;
+    lastAttempt: number;
+  }
+  ```
 
-**Remote Mode録画フロー:**
-- [ ] `RemoteRecorder.tsx` コンポーネント実装
-  1. **初期化**:
-     - サーバー接続確認（`GET /health`）
-     - 接続できない場合はエラー表示
-  2. **録画開始**:
-     - 「REC」ボタン押下
-     - サーバーにRecording作成（`createRecording()`）
-     - recording_idを受け取る
-     - メタデータをサーバーに送信
-     - Recording状態を`recording`に更新
-     - WebCodecs録画開始
-  3. **録画中**:
-     - RecordingEngine（共通ロジック）でチャンク生成
-     - チャンク生成時:
-       - OPFS保存（バックアップとして）
-       - **ChunkUploader経由でサーバーアップロード**
-  4. **録画停止**:
-     - 「STOP」ボタン押下
-     - WebCodecs録画停止
-     - 未送信チャンクの完了を待機
-     - Recording状態を`synced`に更新
+**Test:**
+- [ ] チャンクがキューに追加される
+- [ ] 並行アップロードが最大3並列に制限される
+- [ ] ブラウザのNetwork Tabで同時接続数を確認
+- [ ] サーバーログで並行リクエストを確認
+- [ ] アップロード失敗時、自動リトライされる（最大3回）
+- [ ] IndexedDBに状態が記録される
+- [ ] 3回失敗したチャンクは `failed` 状態で記録される
 
-**エラーハンドリング:**
-- [ ] サーバー接続エラー時の処理
-  - 録画開始前: エラーメッセージ表示、録画開始不可
-  - 録画中: 録画継続（OPFS保存のみ）、ステータス表示を変更
-- [ ] アップロード失敗時の処理
-  - IndexedDBに失敗チャンクを記録
-  - 後で手動再送可能にする（Phase 3で実装予定）
-- [ ] ネットワーク復旧検知
-  - 定期的にサーバー接続確認
-  - 復旧後、失敗したチャンクを自動再送
+**Deliverable:**
+- チャンクアップロード機能（キュー管理・リトライ付き）
+- アップロード状態のIndexedDB記録
 
-**UI（Remote Mode専用）:**
+---
 
-**1. 接続設定画面（録画開始前）:**
-- [ ] サーバーURL入力フィールド
-  - デフォルト: `http://localhost:3000`
-  - 保存ボタン（localStorageに保存）
-- [ ] 接続テストボタン
-  - `GET /health` を呼び出して接続確認
-  - 🟢 Connected / 🔴 Connection failed
-- [ ] モード表示
-  - 「Remote Mode - Server Sync Enabled」
+#### Phase 2A-5-4: RemoteStorageStrategy実装と統合
 
-**2. ランディング画面（待機中）:**
-- [ ] Phase 1と同様のUI
-  - カメラプレビュー
-  - 波形ビジュアライザー
-  - 「REC」ボタン
-- [ ] サーバー接続ステータス表示
-  - 🟢 Server connected
-  - Recording ID: (作成後に表示)
+**Goal:** Remote Mode用のストレージ戦略を実装し、共通UIで動作させる
 
-**3. 録画中画面:**
-- [ ] Phase 1と同様の基本UI
-  - 経過時間タイマー
-  - 波形表示
-  - 「STOP」ボタン
-- [ ] **Remote Mode専用のステータス表示:**
-  - 🟢 Recording + Syncing to server
-  - 📊 Uploaded: 15/20 chunks
-  - 進捗バー表示
-  - **ネットワークエラー時:**
-    - 🔴 Recording (Local only - sync paused)
-    - 警告メッセージ: "Server connection lost. Recording continues locally."
-
-**4. 録画停止時の待機UI:**
-- [ ] 「Finalizing upload...」モーダル表示
-  - プログレスバー: 18/20 chunks synced
-  - 「Please wait. Do not close this tab.」
-- [ ] アップロード完了後
-  - ✓ Synced to server
-  - Session ID: {session_id}
-
-**5. 完了画面:**
-- [ ] Phase 1と異なる表示
-  - 「✓ Recording synced to server」
-  - Recording ID表示
-  - **「Download MP4」ボタン**（Phase 2A-7で実装）
-  - 「New Recording」ボタン
+**Tasks:**
+- [ ] `RemoteStorageStrategy.ts` 実装
+  - `onRecordingStart()`: RecordingManager.createRecording() を呼び出し
+  - `onChunkGenerated()`:
+    - OPFS保存（バックアップ）
+    - ChunkUploader.uploadChunk() 呼び出し（非同期）
+  - `onRecordingStop()`: 全チャンクのアップロード完了を待機
+  - `getUploadProgress()`: アップロード進捗を返す
+- [ ] App.tsx で `/remote` ルートを更新
+  - MainLayout + Sidebar を使用（`/solo` と同じ構造）
+  - Recorderコンポーネントに `RemoteStorageStrategy` を注入
+- [ ] Recorder.tsx でアップロード進捗を表示
+  - StatsPanel にアップロード進捗を追加
+  - 「Uploaded: 15/20 chunks」のような表示
+- [ ] ネットワークエラー時の処理
+  - アップロード失敗時も録画継続（OPFS保存のみ）
+  - UI上で状態を表示（例: 「⚠️ Upload paused - Recording continues locally」）
+- [ ] 録画停止時のアップロード完了待機UI
+  - 「Finalizing upload...」モーダル表示
+  - プログレスバー表示
 
 **Test:**
 
 **基本フローテスト:**
-- [ ] `/remote` にアクセス → Remote Mode画面が表示される
-- [ ] サーバーURL設定 → localStorageに保存される
-- [ ] 接続テスト → 🟢 Connected が表示される
+- [ ] `/remote` にアクセス → `/solo` と同じUIが表示される
+- [ ] MainLayout + Sidebar が共通で使用されている
 - [ ] 録画開始 → サーバーにRecordingが自動作成される
-- [ ] Recording IDが画面に表示される
-- [ ] 録画中、チャンクがOPFSとサーバーの両方に保存される
+- [ ] 録画中、チャンクがOPFSとサーバーに並行保存される
 - [ ] サーバーの `./storage/{recording_id}/` にチャンクが随時保存される
 - [ ] UIに「Uploaded: 15/20 chunks」のような進捗が表示される
 - [ ] 録画停止 → 「Finalizing upload...」モーダルが表示される
@@ -929,23 +975,18 @@ Remote Modeのフロー:
   ```
 
 **エラーハンドリングテスト:**
-- [ ] サーバー停止状態で録画開始を試みる
-  - エラーメッセージが表示される
-  - 録画開始ボタンが無効化される
 - [ ] 録画中にサーバーを停止
-  - ステータスが「🔴 Recording (Local only - sync paused)」に変わる
+  - ステータス表示が変わる（例: 「⚠️ Upload paused」）
   - 録画は継続される
   - OPFSにはチャンクが保存される
   - 失敗したチャンクがIndexedDBに記録される
 - [ ] サーバーを再起動
-  - ステータスが🟢に戻る（Phase 3で実装予定の自動再送）
+  - UI状態が更新される
+  - （Phase 3で自動再送実装予定）
 
-**並行アップロードテスト:**
-- [ ] 複数のチャンクが同時にアップロードされる（最大3並列）
-- [ ] サーバーログで並行リクエストを確認
-- [ ] ネットワークタブで同時接続数を確認
-
-**Standalone Modeとの共存テスト:**
+**UI共通化テスト:**
+- [ ] `/solo` と `/remote` が同じUIコンポーネントを使用
+- [ ] Sidebar, MainHeader, VideoPreview, StatsPanel, ControlPanel が共通
 - [ ] `/solo` にアクセス → Standalone Mode画面が表示される
 - [ ] Standalone Modeで録画 → サーバーへのリクエストなし
 - [ ] `/remote` に切り替え → Remote Mode画面が表示される
@@ -953,16 +994,16 @@ Remote Modeのフロー:
 
 **Deliverable:**
 - **Remote Mode（リモートモード）の完全実装**
-  - Phase 1のStandalone Modeと独立した新しいモード
   - `/solo` と `/remote` で明確にモード分離
   - リアルタイムチャンクアップロード機能
   - OPFS + サーバーの二重保存システム
   - ネットワークエラー耐性（ローカル録画継続）
-  - セッションライフサイクル管理の完全な統合
-- **共通コンポーネント化**
-  - RecordingEngine（WebCodecs録画ロジック）の共有
-  - OPFSStorage（ストレージ操作）の共有
+  - Recordingライフサイクル管理の完全な統合
+- **UI完全共通化**
+  - Recorder, MainLayout, Sidebar, その他全UIコンポーネントを共有
+  - ストレージ戦略のみを切り替えるクリーンな設計
   - 両モードで一貫したUX
+  - 保守性・拡張性の向上
 
 ---
 
@@ -1697,7 +1738,10 @@ interface Room {
 | Phase 2A-2 | **Recording管理API完成**<br>• curlでRecordingを作成できる<br>• Recording情報を取得できる<br>• Recording状態を更新できる<br>• 状態遷移のバリデーションが動作する |
 | Phase 2A-3 | **ローカルストレージ基盤完成**<br>• ユニットテストで全テストが成功する<br>• チャンクの書き込み・読み出し・削除が正常に動作する<br>• `listChunks()` でチャンク一覧を取得できる |
 | Phase 2A-4 | **Chunk Upload API 基本実装完成**<br>• Recording検証付きでチャンクをアップロードできる<br>• アップロードしたチャンクがファイルシステムに保存される<br>• Recordingのchunk_countが更新される<br>• GETエンドポイントでチャンクを取得できる |
-| Phase 2A-5 | **Remote Mode完成**<br>• `/remote` にアクセスすると Remote Mode画面が表示される<br>• 録画開始前にRecordingが作成される<br>• 録画中、チャンクがOPFSとサーバーに並行保存される<br>• 録画停止時、全チャンクのアップロード完了を待つ<br>• ネットワークエラー時も録画が継続される<br>• Standalone Mode (`/solo`) と独立して動作する |
+| Phase 2A-5-1 | **ストレージ戦略パターン導入完成**<br>• IStorageStrategyインターフェース定義<br>• StandaloneStorageStrategyに既存ロジック抽出<br>• Recorderコンポーネントに戦略注入<br>• `/solo` が以前と同じように動作する |
+| Phase 2A-5-2 | **Remote Mode基盤完成**<br>• RecordingManager実装（createRecording, updateState等）<br>• サーバーURL設定UI（Settings画面統合）<br>• サーバー接続確認機能<br>• CORS設定完了 |
+| Phase 2A-5-3 | **チャンクアップロード機能完成**<br>• ChunkUploaderクラス実装<br>• アップロードキュー管理（最大3並列）<br>• 自動リトライ機能（最大3回）<br>• IndexedDBに状態記録 |
+| Phase 2A-5-4 | **Remote Mode完全統合・UI共通化完成**<br>• RemoteStorageStrategy実装<br>• `/remote` が `/solo` と同じUIを使用<br>• 録画中、チャンクがOPFSとサーバーに並行保存される<br>• 録画停止時、全チャンクのアップロード完了を待つ<br>• ネットワークエラー時も録画が継続される<br>• 両モードが独立して動作する |
 | Phase 2A-6 | **ハッシュ検証・冪等性実装完成**<br>• Blake3ハッシュ検証が動作する<br>• 同じチャンクを再度アップロードしても正常に処理される（冪等性）<br>• ハッシュ改ざん時にエラーが返る |
 | Phase 2A-7 | **ダウンロード機能完成**<br>• サーバー側でチャンクをストリーム結合できる<br>• `GET /api/recordings/:id/download` でMP4をダウンロードできる<br>• ダウンロードしたMP4が正常に再生できる<br>• **Phase 2完了：Remote Mode完全実装** |
 | Phase 3 | ネットワーク切断・復旧シナリオで0バイトのデータ損失 |
@@ -1724,7 +1768,11 @@ interface Room {
 - **Phase 2A-2:** Recording管理API。Recordingライフサイクルの確立
 - **Phase 2A-3:** ストレージ基盤。単体テストで品質保証
 - **Phase 2A-4:** Upload API実装。Recording検証付きアップロード
-- **Phase 2A-5:** **リアルタイムアップロード実装**。録画中の並行アップロード、最重要フェーズ
+- **Phase 2A-5:** **リアルタイムアップロード実装**。UI共通化とRemote Mode完全実装、最重要フェーズ
+  - **Phase 2A-5-1:** ストレージ戦略パターン導入。既存コードのリファクタリング
+  - **Phase 2A-5-2:** Recording管理通信層。サーバーURL設定とAPI通信
+  - **Phase 2A-5-3:** チャンクアップロード機能。キュー管理・リトライ機能
+  - **Phase 2A-5-4:** Remote Mode統合。UI完全共通化、並行アップロード実現
 - **Phase 2A-6:** ハッシュ検証・冪等性。データ整合性の保証
 - **Phase 2A-7:** ダウンロード機能。MP4ストリーム結合配信、Phase 2完了
 - **Phase 3:** 堅牢性の核心。妥協しない
@@ -1760,7 +1808,11 @@ interface Room {
    - Phase 2A-2: Recording管理APIを実装し、curlでテスト
    - Phase 2A-3: ストレージ基盤を単体テストで検証
    - Phase 2A-4: Upload APIにRecording検証を追加
-   - Phase 2A-5: **録画中のリアルタイムアップロード実装**（OPFS + サーバー並行保存）
+   - Phase 2A-5: **録画中のリアルタイムアップロード実装**（UI共通化 + OPFS + サーバー並行保存）
+     - Phase 2A-5-1: ストレージ戦略パターン導入、既存コードリファクタリング
+     - Phase 2A-5-2: RecordingManager・サーバーURL設定UI実装
+     - Phase 2A-5-3: ChunkUploader実装（キュー管理・リトライ）
+     - Phase 2A-5-4: RemoteStorageStrategy統合、UI完全共通化
    - Phase 2A-6: データ整合性を保証（Blake3ハッシュ検証・冪等性）
    - Phase 2A-7: ダウンロード機能実装（チャンク結合→MP4配信）
 9. **Phase 2A-7 完了時点で、Recording作成→アップロード→ダウンロードの完全なフローが検証完了**
