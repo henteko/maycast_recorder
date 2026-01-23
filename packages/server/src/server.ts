@@ -2,10 +2,11 @@ import express from 'express';
 import cors from 'cors';
 import morgan from 'morgan';
 import dotenv from 'dotenv';
-import { RecordingStorage } from './storage/recording-storage.js';
-import { LocalFileSystemStorage } from './storage/local-filesystem-storage.js';
+import { setupContainer } from './infrastructure/di/setupContainer.js';
 import { createRecordingsRouter } from './routes/recordings.js';
 import { createChunksRouter } from './routes/chunks.js';
+import type { RecordingController } from './presentation/controllers/RecordingController.js';
+import type { ChunkController } from './presentation/controllers/ChunkController.js';
 
 // Load environment variables
 dotenv.config();
@@ -16,9 +17,10 @@ const LOG_LEVEL = process.env.LOG_LEVEL || 'info';
 const STORAGE_PATH = process.env.STORAGE_PATH || './storage';
 const CORS_ORIGIN = process.env.CORS_ORIGIN || 'http://localhost:5173';
 
-// Initialize storage
-const recordingStorage = new RecordingStorage();
-const chunkStorage = new LocalFileSystemStorage(STORAGE_PATH);
+// Initialize DI Container
+const container = setupContainer(STORAGE_PATH);
+const recordingController = container.resolve<RecordingController>('RecordingController');
+const chunkController = container.resolve<ChunkController>('ChunkController');
 
 // Middleware
 app.use(cors({
@@ -28,13 +30,13 @@ app.use(cors({
 app.use(morgan(LOG_LEVEL === 'debug' ? 'dev' : 'combined'));
 
 // API routes - チャンクルーターを先にマウント（express.json()の前）
-app.use('/api', createChunksRouter(recordingStorage, chunkStorage));
+app.use('/api', createChunksRouter(chunkController));
 
 // JSON middleware（チャンクルーター以降のルートに適用）
 app.use(express.json());
 
 // その他のAPI routes
-app.use('/api', createRecordingsRouter(recordingStorage, chunkStorage));
+app.use('/api', createRecordingsRouter(recordingController));
 
 // Health check endpoint
 app.get('/health', (_req, res) => {
