@@ -1,20 +1,28 @@
 import { useState, useEffect, useCallback } from 'react';
-import { ChunkStorage, listAllRecordings } from '../storage/chunk-storage';
 import type { Recording, RecordingId } from '@maycast/common-types';
+import { useDI } from '../infrastructure/di';
+import type { ListRecordingsUseCase } from '../domain/usecases/ListRecordings.usecase';
+import type { DeleteRecordingUseCase } from '../domain/usecases/DeleteRecording.usecase';
+import type { CompleteRecordingUseCase } from '../domain/usecases/CompleteRecording.usecase';
 
 export const useSessionManager = () => {
   const [savedRecordings, setSavedRecordings] = useState<Recording[]>([]);
   const [recoveryRecording, setRecoveryRecording] = useState<Recording | null>(null);
   const [showRecoveryModal, setShowRecoveryModal] = useState(false);
 
+  const di = useDI();
+  const listRecordingsUseCase = di.resolve<ListRecordingsUseCase>('ListRecordingsUseCase');
+  const deleteRecordingUseCase = di.resolve<DeleteRecordingUseCase>('DeleteRecordingUseCase');
+  const completeRecordingUseCase = di.resolve<CompleteRecordingUseCase>('CompleteRecordingUseCase');
+
   const loadRecordings = useCallback(async () => {
     try {
-      const recordings = await listAllRecordings();
-      setSavedRecordings(recordings);
-      console.log('📂 Loaded saved recordings:', recordings.length);
+      const result = await listRecordingsUseCase.execute();
+      setSavedRecordings(result.recordings);
+      console.log('📂 Loaded saved recordings:', result.recordings.length);
 
       // Check for incomplete recordings (crash recovery)
-      const incompleteRecordings = recordings.filter(
+      const incompleteRecordings = result.recordings.filter(
         r => r.state !== 'synced' && r.chunkCount > 0
       );
       if (incompleteRecordings.length > 0) {
@@ -26,7 +34,7 @@ export const useSessionManager = () => {
     } catch (err) {
       console.error('❌ Failed to load recordings:', err);
     }
-  }, []);
+  }, [listRecordingsUseCase]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -39,8 +47,7 @@ export const useSessionManager = () => {
     }
 
     try {
-      const storage = new ChunkStorage(recordingId);
-      await storage.deleteSession();
+      await deleteRecordingUseCase.execute({ recordingId });
       await loadRecordings();
       console.log('🗑️ Recording deleted:', recordingId);
     } catch (err) {
@@ -61,8 +68,7 @@ export const useSessionManager = () => {
     for (const recording of savedRecordings) {
       try {
         console.log('🗑️ Deleting recording:', recording.id);
-        const storage = new ChunkStorage(recording.id);
-        await storage.deleteSession();
+        await deleteRecordingUseCase.execute({ recordingId: recording.id });
         successCount++;
         console.log('✅ Recording deleted successfully:', recording.id);
       } catch (err) {
@@ -81,12 +87,12 @@ export const useSessionManager = () => {
     } else {
       alert(`削除完了: 成功 ${successCount}件`);
     }
-  }
+  };
 
   const recoverRecording = async (recordingId: RecordingId) => {
     try {
-      const storage = new ChunkStorage(recordingId);
-      await storage.completeSession();
+      // CompleteRecordingUseCaseを使用して録画を完了状態にする
+      await completeRecordingUseCase.execute({ recordingId });
       await loadRecordings();
       console.log('✅ Recording recovered:', recordingId);
       return true;
@@ -103,8 +109,7 @@ export const useSessionManager = () => {
     }
 
     try {
-      const storage = new ChunkStorage(recordingId);
-      await storage.deleteSession();
+      await deleteRecordingUseCase.execute({ recordingId });
       await loadRecordings();
       console.log('🗑️ Recovery recording discarded:', recordingId);
       return true;

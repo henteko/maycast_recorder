@@ -15,6 +15,7 @@ import type { RecorderSettings } from './types/settings';
 import { StandaloneStorageStrategy } from './storage-strategies/StandaloneStorageStrategy';
 import { RemoteStorageStrategy } from './storage-strategies/RemoteStorageStrategy';
 import type { RecordingId } from '@maycast/common-types';
+import { DIProvider, setupContainer } from './infrastructure/di';
 
 // モード判定用のコンポーネント
 function ModeRouter() {
@@ -41,6 +42,12 @@ function ModeRouter() {
     }
     console.log('🔄 [App] Using StandaloneStorageStrategy');
     return new StandaloneStorageStrategy();
+  }, [isRemoteMode]);
+
+  // DIコンテナのセットアップ
+  const diContainer = useMemo(() => {
+    const mode = isRemoteMode ? 'remote' : 'standalone';
+    return setupContainer(mode);
   }, [isRemoteMode]);
 
   const handleNavigate = (page: NavigationPage) => {
@@ -81,44 +88,46 @@ function ModeRouter() {
   };
 
   return (
-    <MainLayout
-      sidebar={
-        <Sidebar
-          currentPage={currentPage}
-          onNavigate={handleNavigate}
-          systemHealth={systemHealth}
-        />
-      }
-    >
-      {currentPage === 'recorder' && (
-        <Recorder
-          settings={settings}
-          storageStrategy={storageStrategy}
-          onSessionComplete={loadRecordings}
-          onDownload={handleDownload}
-          downloadProgress={downloadProgress}
-        />
-      )}
-      {currentPage === 'library' && (
-        <LibraryPage
-          recordings={savedRecordings}
-          onDownload={downloadRecordingById}
-          onDelete={deleteRecording}
-          onClearAll={clearAllRecordings}
-          isDownloading={downloadProgress.isDownloading}
-        />
-      )}
-      {currentPage === 'settings' && (
-        <SettingsPage
-          settings={settings}
-          onSettingsChange={setSettings}
-          onSave={handleSaveSettings}
-          videoDevices={videoDevices}
-          audioDevices={audioDevices}
-          showServerSettings={isRemoteMode}
-        />
-      )}
-    </MainLayout>
+    <DIProvider container={diContainer}>
+      <MainLayout
+        sidebar={
+          <Sidebar
+            currentPage={currentPage}
+            onNavigate={handleNavigate}
+            systemHealth={systemHealth}
+          />
+        }
+      >
+        {currentPage === 'recorder' && (
+          <Recorder
+            settings={settings}
+            storageStrategy={storageStrategy}
+            onSessionComplete={loadRecordings}
+            onDownload={handleDownload}
+            downloadProgress={downloadProgress}
+          />
+        )}
+        {currentPage === 'library' && (
+          <LibraryPage
+            recordings={savedRecordings}
+            onDownload={downloadRecordingById}
+            onDelete={deleteRecording}
+            onClearAll={clearAllRecordings}
+            isDownloading={downloadProgress.isDownloading}
+          />
+        )}
+        {currentPage === 'settings' && (
+          <SettingsPage
+            settings={settings}
+            onSettingsChange={setSettings}
+            onSave={handleSaveSettings}
+            videoDevices={videoDevices}
+            audioDevices={audioDevices}
+            showServerSettings={isRemoteMode}
+          />
+        )}
+      </MainLayout>
+    </DIProvider>
   );
 }
 

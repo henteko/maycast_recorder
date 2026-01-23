@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { ChunkStorage } from '../storage/chunk-storage';
 import type { RecordingId } from '@maycast/common-types';
+import { useDI } from '../infrastructure/di';
+import type { DownloadRecordingUseCase } from '../domain/usecases/DownloadRecording.usecase';
 
 export interface DownloadProgress {
   isDownloading: boolean;
@@ -15,47 +16,28 @@ export const useDownload = () => {
     total: 0,
   });
 
+  const di = useDI();
+  const downloadRecordingUseCase = di.resolve<DownloadRecordingUseCase>('DownloadRecordingUseCase');
+
   const downloadRecordingById = async (recordingId: RecordingId) => {
     try {
-      const storage = new ChunkStorage(recordingId);
+      setDownloadProgress({ isDownloading: true, current: 0, total: 1 });
 
-      const chunkMetadata = await storage.listChunks();
-      const totalChunks = chunkMetadata.length + 1;
-      console.log(`📦 Preparing to load ${chunkMetadata.length} chunks from OPFS for recording ${recordingId}`);
+      const result = await downloadRecordingUseCase.execute({ recordingId });
 
-      setDownloadProgress({ isDownloading: true, current: 0, total: totalChunks });
+      setDownloadProgress({ isDownloading: true, current: 1, total: 1 });
 
-      const blobs: Blob[] = [];
-
-      const initSegment = await storage.loadInitSegment();
-      blobs.push(new Blob([initSegment as BlobPart]));
-      setDownloadProgress({ isDownloading: true, current: 1, total: totalChunks });
-      console.log(`📤 Loaded init segment: ${initSegment.length} bytes`);
-
-      for (let i = 0; i < chunkMetadata.length; i++) {
-        const meta = chunkMetadata[i];
-        const chunk = await storage.loadChunk(meta.chunkId);
-        blobs.push(new Blob([chunk as BlobPart]));
-
-        const currentProgress = i + 2;
-        setDownloadProgress({ isDownloading: true, current: currentProgress, total: totalChunks });
-        console.log(`📤 Loaded chunk #${meta.chunkId}: ${chunk.length} bytes (${currentProgress}/${totalChunks})`);
-      }
-
-      console.log('✅ All chunks loaded, combining blobs...');
-
-      const blob = new Blob(blobs, { type: 'video/mp4' });
-
-      const url = URL.createObjectURL(blob);
+      // Download the file
+      const url = URL.createObjectURL(result.blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `recording-${recordingId}.mp4`;
+      a.download = result.filename;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
 
-      console.log('✅ Downloaded:', blob.size, 'bytes');
+      console.log('✅ Downloaded:', result.blob.size, 'bytes');
 
       setDownloadProgress({ isDownloading: false, current: 0, total: 0 });
     } catch (err) {
