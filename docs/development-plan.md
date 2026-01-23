@@ -10,40 +10,479 @@
 
 **Goal:** 「失敗しない」ための4層防御を完成させる
 
-### 3.1 Manifest & Verification
+---
+
+### Phase 3.1: Manifest型定義とインフラ準備
+
+**Goal:** ManifestとChunkハッシュの型定義および基礎インフラを準備
 
 **Tasks:**
-- [ ] `@maycast/common-types`にManifest型定義
-- [ ] クライアント側でRecordingごとにChunkハッシュリスト生成
-- [ ] サーバー側で受信Chunkとハッシュ照合
-- [ ] 不足Chunkの検出とNACKプロトコル
-- [ ] Recording完了時のManifest検証
+- [ ] `@maycast/common-types`に`ChunkManifest`型定義を追加
+  ```typescript
+  interface ChunkInfo {
+    chunkId: number;
+    hash: string;        // Blake3ハッシュ
+    size: number;        // バイト数
+    timestamp: number;   // 録画開始からの相対時間（us）
+  }
 
-### 3.2 Resume Upload 機能
+  interface RecordingManifest {
+    recordingId: string;
+    chunks: ChunkInfo[];
+    totalChunks: number;
+    totalSize: number;
+    createdAt: string;
+    completedAt?: string;
+  }
+  ```
+- [ ] `Recording`エンティティに`manifest`フィールドを追加
+- [ ] サーバー側で`Manifest`を保存するAPI設計
+  - `PUT /api/recordings/:id/manifest` エンドポイント追加
 
-**Tasks:**
-- [ ] OPFSから未送信Chunkを検出
-- [ ] バックグラウンドで再送信
-- [ ] 進捗表示UI
-
-### 3.3 Delta Sync（差分同期）
-
-**Tasks:**
-- [ ] サーバー側で現在のChunkリストをクライアントに返す
-- [ ] クライアントが差分を検出して送信
-- [ ] ネットワーク切断→復旧シナリオのテスト
-
-### 3.4 Crash Recovery
-
-**Tasks:**
-- [ ] ブラウザ再起動後、OPFS内の未完了Recordingを検出
-- [ ] 「前回の収録を復元しますか？」UI
-- [ ] Standalone Mode: エクスポート機能
-- [ ] Remote Mode: 自動再アップロード（Recording ID維持）
+**Test:**
+- [ ] 型定義のコンパイルが成功する
+- [ ] サーバー側で空のManifestを作成できる
+  ```bash
+  curl -X PUT http://localhost:3000/api/recordings/{recording_id}/manifest \
+    -H "Content-Type: application/json" \
+    -d '{"recordingId":"test-001","chunks":[],"totalChunks":0,"totalSize":0,"createdAt":"2026-01-24T00:00:00Z"}'
+  ```
 
 **Deliverable:**
-- 電源断、ブラウザクラッシュ、回線切断に耐えるシステム
-- すべてのモードでデータ損失ゼロを保証
+- Manifest型定義
+- Manifest保存API
+
+---
+
+### Phase 3.2: クライアント側Manifestビルダー実装
+
+**Goal:** 録画中にManifestを構築し、OPFSとメモリの両方で管理
+
+**Tasks:**
+- [ ] `ManifestBuilder`クラス実装（`/packages/web-client/src/infrastructure/manifest/`）
+  ```typescript
+  class ManifestBuilder {
+    addChunk(chunkId: number, hash: string, size: number, timestamp: number): void
+    build(): RecordingManifest
+    save(): Promise<void>  // OPFSに保存
+    load(recordingId: string): Promise<RecordingManifest | null>
+  }
+  ```
+- [ ] チャンク保存時にハッシュ計算とManifest更新
+- [ ] `StandaloneStorageStrategy`と`RemoteStorageStrategy`に統合
+- [ ] OPFS内にManifestをJSON形式で保存（`/{recordingId}/manifest.json`）
+
+**Test:**
+- [ ] 10秒の録画を実行
+- [ ] OPFSに`manifest.json`が作成される
+- [ ] ブラウザコンソールでManifestの内容を確認
+  ```javascript
+  // DevTools Console
+  const manifest = await manifestBuilder.load('recording-001');
+  console.log(manifest);
+  // 期待: { chunks: [...], totalChunks: 5, totalSize: 1234567, ... }
+  ```
+- [ ] 各チャンクのハッシュが一意である
+
+**Deliverable:**
+- クライアント側Manifest構築機能
+- OPFS永続化
+
+---
+
+### Phase 3.3: サーバー側Manifest検証実装
+
+**Goal:** アップロード完了時、サーバー側でManifestとチャンクの整合性を検証
+
+**Tasks:**
+- [ ] `VerifyManifest.usecase.ts` 実装
+  - クライアントから送信されたManifestを受け取る
+  - サーバー上の実際のチャンクファイルと照合
+  - ハッシュ一致確認
+  - 欠損チャンク検出
+- [ ] `POST /api/recordings/:id/verify` エンドポイント実装
+  - リクエスト: `{ manifest: RecordingManifest }`
+  - レスポンス: `{ verified: boolean, missingChunks: number[], errors: string[] }`
+- [ ] RemoteStorageStrategyの`completeSession()`でManifest検証を呼び出す
+
+**Test:**
+- [ ] 正常シナリオ: すべてのチャンクが存在する場合
+  ```bash
+  # 録画完了後、検証APIを実行
+  curl -X POST http://localhost:3000/api/recordings/{recording_id}/verify \
+    -H "Content-Type: application/json" \
+    -d @manifest.json
+  # 期待レスポンス: {"verified":true,"missingChunks":[],"errors":[]}
+  ```
+- [ ] エラーシナリオ: チャンクを手動削除して検証
+  ```bash
+  # チャンク削除
+  rm ./storage/{recording_id}/chunk-005.fmp4
+  # 検証実行
+  curl -X POST http://localhost:3000/api/recordings/{recording_id}/verify \
+    -H "Content-Type: application/json" \
+    -d @manifest.json
+  # 期待レスポンス: {"verified":false,"missingChunks":[5],"errors":["Chunk 5 is missing"]}
+  ```
+
+**Deliverable:**
+- サーバー側Manifest検証機能
+- 欠損チャンク検出
+
+---
+
+### Phase 3.4: 欠損チャンク再送信プロトコル（NACK）
+
+**Goal:** 欠損チャンクをクライアントに通知し、再送信させる
+
+**Tasks:**
+- [ ] サーバー側で欠損チャンクリストを返す
+  - `POST /api/recordings/:id/verify` のレスポンスに`missingChunks`配列を含める
+- [ ] クライアント側で欠損チャンクを検出
+  - 検証APIのレスポンスで`verified: false`の場合、`missingChunks`をログ出力
+- [ ] OPFSから欠損チャンクを取得して再アップロード
+  - `ChunkUploader`に`retryMissingChunks(missingChunks: number[])`メソッド追加
+- [ ] 再検証して完全性を確認
+
+**Test:**
+- [ ] チャンクを手動削除して欠損状態を作る
+  ```bash
+  rm ./storage/{recording_id}/chunk-003.fmp4
+  ```
+- [ ] クライアント側で検証→再送信→再検証の流れを実行
+- [ ] ブラウザコンソールで以下のログを確認:
+  ```
+  ⚠️ [Verify] Missing chunks detected: [3]
+  🔄 [ChunkUploader] Retrying missing chunks: [3]
+  ✅ [Verify] All chunks verified successfully
+  ```
+
+**Deliverable:**
+- 欠損チャンク再送信機能
+- 完全性保証プロトコル
+
+---
+
+### Phase 3.5: Resume Upload機能 - 未送信チャンク検出
+
+**Goal:** ブラウザ再起動後、OPFS内の未送信チャンクを検出
+
+**Tasks:**
+- [ ] `UploadStateStorage`を拡張（既存実装を活用）
+  - 各チャンクのアップロード状態を記録（`pending`, `uploading`, `completed`, `failed`）
+- [ ] `detectUnfinishedRecordings()`関数実装
+  - OPFSとIndexedDBを走査
+  - `state: 'recording'`または`state: 'finalizing'`のRecordingを検出
+  - 未送信チャンク（`status !== 'completed'`）をリストアップ
+- [ ] 起動時にバックグラウンドで実行
+
+**Test:**
+- [ ] Remote Modeで録画中にブラウザを強制終了
+  ```javascript
+  // 録画中にDevToolsコンソールで実行
+  window.location.reload();
+  ```
+- [ ] 再起動後、以下のログが出力される:
+  ```
+  🔍 [ResumeUpload] Detecting unfinished recordings...
+  📋 [ResumeUpload] Found 1 unfinished recording: recording-001
+  📦 [ResumeUpload] Pending chunks: [5, 6, 7, 8]
+  ```
+- [ ] IndexedDBで未送信チャンクのリストを確認
+  ```javascript
+  // DevTools Application tab -> IndexedDB -> upload-state
+  ```
+
+**Deliverable:**
+- 未送信チャンク検出機能
+
+---
+
+### Phase 3.6: Resume Upload機能 - バックグラウンド再送信
+
+**Goal:** 検出した未送信チャンクをバックグラウンドでアップロード
+
+**Tasks:**
+- [ ] `ResumeUploadManager`クラス実装
+  ```typescript
+  class ResumeUploadManager {
+    async resumeRecording(recordingId: string): Promise<void>
+    async uploadPendingChunks(recordingId: string, chunkIds: number[]): Promise<void>
+    getProgress(): { current: number; total: number }
+  }
+  ```
+- [ ] 未送信チャンクをキューに追加
+- [ ] バックグラウンドでChunkUploaderを使用してアップロード
+- [ ] アップロード完了後、Recording状態を`synced`に更新
+
+**Test:**
+- [ ] 前のステップで検出した未送信チャンクを再アップロード
+- [ ] ブラウザコンソールで進捗ログを確認:
+  ```
+  🔄 [ResumeUpload] Resuming recording: recording-001
+  📤 [ResumeUpload] Uploading chunk 5/8
+  📤 [ResumeUpload] Uploading chunk 6/8
+  ...
+  ✅ [ResumeUpload] All chunks uploaded successfully
+  🎉 [ResumeUpload] Recording synced: recording-001
+  ```
+- [ ] サーバー側でチャンクが正しく保存されている
+  ```bash
+  ls -lh ./storage/{recording_id}/
+  # 全チャンクファイルが存在する
+  ```
+
+**Deliverable:**
+- バックグラウンド再アップロード機能
+
+---
+
+### Phase 3.7: Resume Upload機能 - UI実装
+
+**Goal:** 再アップロード進捗を表示するUI
+
+**Tasks:**
+- [ ] `ResumeUploadModal.tsx`コンポーネント実装
+  - 未完了Recordingリスト表示
+  - 各Recordingの進捗バー
+  - 「Resume All」「Skip」ボタン
+- [ ] アプリ起動時に自動表示
+  - 未完了Recordingが存在する場合のみ
+- [ ] 進捗状態をリアルタイム更新
+
+**UI Design:**
+```
+┌─────────────────────────────────────────┐
+│  Resume Previous Recordings             │
+├─────────────────────────────────────────┤
+│  Recording: recording-001               │
+│  Progress: [████████░░] 75% (6/8)       │
+│                                         │
+│  Recording: recording-002               │
+│  Progress: [██████████] 100% (10/10)    │
+│                                         │
+│  [Resume All]  [Skip]                   │
+└─────────────────────────────────────────┘
+```
+
+**Test:**
+- [ ] 未完了Recordingが存在する状態でアプリを起動
+- [ ] Resume Upload Modalが自動で表示される
+- [ ] 「Resume All」をクリック
+- [ ] 進捗バーが更新される
+- [ ] 完了後、Modalが自動で閉じる
+
+**Deliverable:**
+- Resume Upload UI
+
+---
+
+### Phase 3.8: Delta Sync - サーバー側チャンクリスト取得API
+
+**Goal:** サーバー上に存在するチャンクリストを返すAPI
+
+**Tasks:**
+- [ ] `GET /api/recordings/:id/chunks` エンドポイント実装
+  - レスポンス: `{ chunks: [{ chunkId: number, hash: string, size: number }] }`
+- [ ] LocalFileSystemChunkRepositoryに`listChunks()`メソッド追加
+- [ ] ハッシュとサイズも含めて返す
+
+**Test:**
+- [ ] curlでチャンクリストを取得
+  ```bash
+  curl http://localhost:3000/api/recordings/{recording_id}/chunks
+  # 期待レスポンス:
+  # {
+  #   "chunks": [
+  #     {"chunkId": 1, "hash": "abc123...", "size": 123456},
+  #     {"chunkId": 2, "hash": "def456...", "size": 234567},
+  #     ...
+  #   ]
+  # }
+  ```
+
+**Deliverable:**
+- サーバー側チャンクリストAPI
+
+---
+
+### Phase 3.9: Delta Sync - クライアント側差分検出
+
+**Goal:** クライアント側でサーバーとの差分を検出
+
+**Tasks:**
+- [ ] `DeltaSyncManager`クラス実装
+  ```typescript
+  class DeltaSyncManager {
+    async detectDelta(recordingId: string): Promise<number[]>
+    async syncMissingChunks(recordingId: string): Promise<void>
+  }
+  ```
+- [ ] サーバーからチャンクリストを取得
+- [ ] OPFS内のチャンクリストと比較
+- [ ] 差分（サーバーに存在しないチャンク）を検出
+
+**Test:**
+- [ ] サーバー側でチャンクを手動削除
+  ```bash
+  rm ./storage/{recording_id}/chunk-004.fmp4
+  ```
+- [ ] クライアント側で差分検出を実行
+  ```javascript
+  const delta = await deltaSyncManager.detectDelta('recording-001');
+  console.log('Missing chunks on server:', delta);
+  // 期待: [4]
+  ```
+
+**Deliverable:**
+- 差分検出機能
+
+---
+
+### Phase 3.10: Delta Sync - ネットワーク切断シナリオテスト
+
+**Goal:** ネットワーク切断→復旧時の差分同期をテスト
+
+**Tasks:**
+- [ ] ネットワーク切断シミュレーション環境準備
+  - Chrome DevTools -> Network -> Offline
+- [ ] 録画中にネットワークを切断
+- [ ] OPFSにのみチャンクが保存される
+- [ ] ネットワーク復旧
+- [ ] Delta Syncで差分アップロード
+
+**Test Scenario:**
+1. Remote Modeで録画開始
+2. 10秒録画後、ネットワークをOfflineに設定（DevTools）
+3. さらに10秒録画（OPFSにのみ保存）
+4. 録画停止
+5. ネットワークをOnlineに戻す
+6. Delta Sync実行
+7. ブラウザコンソールで以下を確認:
+   ```
+   🔍 [DeltaSync] Detecting delta...
+   📦 [DeltaSync] Missing chunks on server: [6, 7, 8, 9, 10]
+   🔄 [DeltaSync] Syncing missing chunks...
+   ✅ [DeltaSync] All chunks synced successfully
+   ```
+
+**Deliverable:**
+- ネットワーク復旧時の自動差分同期
+
+---
+
+### Phase 3.11: Crash Recovery - 未完了Recording検出UI
+
+**Goal:** ブラウザ再起動後、未完了Recordingを検出してユーザーに通知
+
+**Tasks:**
+- [ ] `RecoveryModal.tsx`コンポーネント拡張（既存実装を活用）
+  - 未完了Recordingリスト表示
+  - Standalone Mode: 「Export」「Delete」ボタン
+  - Remote Mode: 「Resume Upload」「Delete」ボタン
+- [ ] アプリ起動時に未完了Recordingを検出
+- [ ] 検出された場合、Modalを自動表示
+
+**UI Design (Standalone Mode):**
+```
+┌─────────────────────────────────────────┐
+│  Recover Previous Recordings            │
+├─────────────────────────────────────────┤
+│  Found 2 unfinished recordings:         │
+│                                         │
+│  📹 recording-001                        │
+│  Duration: ~15 sec                      │
+│  [Export MP4]  [Delete]                 │
+│                                         │
+│  📹 recording-002                        │
+│  Duration: ~30 sec                      │
+│  [Export MP4]  [Delete]                 │
+└─────────────────────────────────────────┘
+```
+
+**UI Design (Remote Mode):**
+```
+┌─────────────────────────────────────────┐
+│  Recover Previous Recordings            │
+├─────────────────────────────────────────┤
+│  Found 1 unfinished recording:          │
+│                                         │
+│  📹 recording-001                        │
+│  Pending chunks: 5                      │
+│  [Resume Upload]  [Delete]              │
+└─────────────────────────────────────────┘
+```
+
+**Test:**
+- [ ] 録画中にブラウザを強制終了
+- [ ] 再起動時、Recovery Modalが表示される
+- [ ] 未完了Recordingの情報が正しく表示される
+
+**Deliverable:**
+- Crash Recovery UI
+
+---
+
+### Phase 3.12: Crash Recovery - Standalone Mode完全統合
+
+**Goal:** Standalone Modeでの完全なクラッシュリカバリー
+
+**Tasks:**
+- [ ] 「Export MP4」ボタン実装
+  - OPFS内のチャンクを結合
+  - MP4ファイルとしてダウンロード
+  - ダウンロード完了後、OPFSから削除
+- [ ] 「Delete」ボタン実装
+  - OPFS内のRecordingを削除
+  - IndexedDBのメタデータも削除
+
+**Test:**
+- [ ] Standalone Modeで録画中にブラウザを強制終了
+- [ ] 再起動→Recovery Modal表示
+- [ ] 「Export MP4」クリック
+- [ ] MP4ファイルがダウンロードされる
+- [ ] VLCで再生できる
+- [ ] OPFSから削除される
+
+**Deliverable:**
+- Standalone Mode Crash Recovery完全実装
+
+---
+
+### Phase 3.13: Crash Recovery - Remote Mode完全統合
+
+**Goal:** Remote Modeでの完全なクラッシュリカバリー
+
+**Tasks:**
+- [ ] 「Resume Upload」ボタン実装
+  - Phase 3.6のResumeUploadManagerを呼び出し
+  - 未送信チャンクをアップロード
+  - Recording ID維持
+- [ ] アップロード完了後、OPFS削除（オプショナル）
+
+**Test:**
+- [ ] Remote Modeで録画中にブラウザを強制終了
+- [ ] 再起動→Recovery Modal表示
+- [ ] 「Resume Upload」クリック
+- [ ] 未送信チャンクがアップロードされる
+- [ ] サーバー側で完全なRecordingが生成される
+- [ ] サーバーからMP4をダウンロードして再生できる
+
+**Deliverable:**
+- Remote Mode Crash Recovery完全実装
+
+---
+
+**Overall Phase 3 Deliverable:**
+- **完全な堅牢性機能**
+  - Manifest & Verification
+  - 欠損チャンク検出・再送信
+  - Resume Upload（バックグラウンド再アップロード）
+  - Delta Sync（差分同期）
+  - Crash Recovery（両モード対応）
+- **ゼロデータ損失**
+  - 電源断、ブラウザクラッシュ、ネットワーク切断に耐える
+  - すべてのモードでデータ損失ゼロを保証
 
 ---
 
@@ -67,9 +506,222 @@ Room (room-abc123)
 
 ---
 
-### Phase 4.1: Room管理API実装
+### Phase 4.1.1: Room型定義と基礎インフラ
 
-**Goal:** Roomの作成・取得・状態管理APIを実装
+**Goal:** Room関連の型定義とドメインモデルを準備
+
+**Tasks:**
+- [ ] `@maycast/common-types`のRoom型を拡張
+  ```typescript
+  export type RoomState = 'idle' | 'recording' | 'finished';
+
+  export interface Room {
+    id: RoomId;
+    state: RoomState;
+    createdAt: string;
+    updatedAt: string;
+    recordingIds: string[];
+    guestUrl?: string;
+  }
+  ```
+- [ ] サーバー側にRoomエンティティ作成
+  - `/packages/common-types/src/entities/Room.entity.ts`
+- [ ] Room状態遷移のバリデーションロジック
+  - `idle` → `recording` → `finished`
+
+**Test:**
+- [ ] TypeScriptコンパイルが成功する
+- [ ] Room型定義をimportできる
+  ```typescript
+  import type { Room, RoomState } from '@maycast/common-types';
+  ```
+
+**Deliverable:**
+- Room型定義
+- ドメインモデル
+
+---
+
+### Phase 4.1.2: Roomリポジトリ実装（インメモリ）
+
+**Goal:** Room永続化のためのリポジトリパターン実装
+
+**Tasks:**
+- [ ] `IRoomRepository`インターフェース定義
+  ```typescript
+  interface IRoomRepository {
+    create(room: Room): Promise<Room>;
+    findById(roomId: RoomId): Promise<Room | null>;
+    update(room: Room): Promise<Room>;
+    delete(roomId: RoomId): Promise<void>;
+    list(): Promise<Room[]>;
+  }
+  ```
+- [ ] `InMemoryRoomRepository`実装
+  - `Map<RoomId, Room>`でデータ管理
+  - Phase 7でDB実装に切り替え予定
+- [ ] DIコンテナに登録
+
+**Test:**
+- [ ] ユニットテスト実装
+  ```typescript
+  describe('InMemoryRoomRepository', () => {
+    it('should create a room', async () => {
+      const room = await repository.create({ ... });
+      expect(room.id).toBeDefined();
+    });
+
+    it('should find a room by id', async () => {
+      const room = await repository.findById('room-001');
+      expect(room).toBeDefined();
+    });
+  });
+  ```
+- [ ] `task test:server`でユニットテストが成功する
+
+**Deliverable:**
+- Roomリポジトリ実装
+- ユニットテスト
+
+---
+
+### Phase 4.1.3: Room作成API実装
+
+**Goal:** Roomを作成するエンドポイント
+
+**Tasks:**
+- [ ] `CreateRoom.usecase.ts`実装
+  - UUID生成（`uuidv4()`）
+  - Guest URL生成（`/guest/{room_id}`）
+  - 初期状態: `idle`
+- [ ] `POST /api/rooms`エンドポイント実装
+  - リクエストボディ: `{}`（空でOK）
+  - レスポンス: `{ roomId, guestUrl, state, createdAt }`
+- [ ] RoomController作成
+
+**Test:**
+- [ ] curlでRoom作成
+  ```bash
+  curl -X POST http://localhost:3000/api/rooms \
+    -H "Content-Type: application/json"
+  # 期待レスポンス:
+  # {
+  #   "roomId": "550e8400-e29b-41d4-a716-446655440000",
+  #   "guestUrl": "/guest/550e8400-e29b-41d4-a716-446655440000",
+  #   "state": "idle",
+  #   "createdAt": "2026-01-24T10:00:00.000Z",
+  #   "recordingIds": []
+  # }
+  ```
+- [ ] 複数回実行して異なるRoom IDが生成される
+
+**Deliverable:**
+- Room作成API
+
+---
+
+### Phase 4.1.4: Room取得API実装
+
+**Goal:** Roomの情報を取得するエンドポイント
+
+**Tasks:**
+- [ ] `GetRoom.usecase.ts`実装
+- [ ] `GET /api/rooms/:room_id`エンドポイント実装
+  - 存在しないRoom IDの場合: `404 Not Found`
+  - レスポンス: Room情報（recordingIds含む）
+
+**Test:**
+- [ ] Room作成後、取得APIを実行
+  ```bash
+  # Room作成
+  ROOM_ID=$(curl -s -X POST http://localhost:3000/api/rooms | jq -r '.roomId')
+
+  # Room取得
+  curl http://localhost:3000/api/rooms/$ROOM_ID
+  # 期待レスポンス: Room情報が返る
+  ```
+- [ ] 存在しないRoom IDで404エラー
+  ```bash
+  curl http://localhost:3000/api/rooms/invalid-room-id
+  # 期待: 404 Not Found
+  ```
+
+**Deliverable:**
+- Room取得API
+
+---
+
+### Phase 4.1.5: Room状態更新API実装
+
+**Goal:** Room状態を更新するエンドポイント
+
+**Tasks:**
+- [ ] `UpdateRoomState.usecase.ts`実装
+  - 状態遷移のバリデーション
+  - `idle` → `recording` → `finished`のみ許可
+- [ ] `PATCH /api/rooms/:room_id/state`エンドポイント実装
+  - リクエストボディ: `{ state: RoomState }`
+  - レスポンス: 更新後のRoom情報
+
+**Test:**
+- [ ] 正常な状態遷移
+  ```bash
+  # Room作成（state: idle）
+  ROOM_ID=$(curl -s -X POST http://localhost:3000/api/rooms | jq -r '.roomId')
+
+  # idle → recording
+  curl -X PATCH http://localhost:3000/api/rooms/$ROOM_ID/state \
+    -H "Content-Type: application/json" \
+    -d '{"state":"recording"}'
+  # 期待: state が "recording" に更新
+
+  # recording → finished
+  curl -X PATCH http://localhost:3000/api/rooms/$ROOM_ID/state \
+    -H "Content-Type: application/json" \
+    -d '{"state":"finished"}'
+  # 期待: state が "finished" に更新
+  ```
+- [ ] 不正な状態遷移
+  ```bash
+  # finished → idle（許可されない）
+  curl -X PATCH http://localhost:3000/api/rooms/$ROOM_ID/state \
+    -H "Content-Type: application/json" \
+    -d '{"state":"idle"}'
+  # 期待: 400 Bad Request
+  ```
+
+**Deliverable:**
+- Room状態更新API
+
+---
+
+### Phase 4.1.6: Room内Recording一覧取得API実装
+
+**Goal:** Room内のすべてのRecordingを取得
+
+**Tasks:**
+- [ ] `GET /api/rooms/:room_id/recordings`エンドポイント実装
+  - Room内の`recordingIds`を取得
+  - 各RecordingのメタデータをRecordingRepositoryから取得
+  - レスポンス: `{ recordings: Recording[] }`
+
+**Test:**
+- [ ] Room作成後、Recording一覧を取得（空）
+  ```bash
+  ROOM_ID=$(curl -s -X POST http://localhost:3000/api/rooms | jq -r '.roomId')
+  curl http://localhost:3000/api/rooms/$ROOM_ID/recordings
+  # 期待: {"recordings": []}
+  ```
+- [ ] Recording追加後、一覧を取得（Phase 4.2で実装）
+
+**Deliverable:**
+- Room内Recording一覧API
+
+---
+
+### Phase 4.1.7: Roomストレージディレクトリ構造実装
+
+**Goal:** Room単位でRecordingを整理するディレクトリ構造
 
 **Storage Structure:**
 ```text
@@ -77,365 +729,1494 @@ Room (room-abc123)
 └── /rooms
     └── /{room_id}/
         ├── /{recording_id_1}/  # Guest A
+        │   ├── init.mp4
         │   ├── chunk-001.fmp4
         │   └── ...
         ├── /{recording_id_2}/  # Guest B
         │   └── ...
         └── /{recording_id_3}/  # Guest C
             └── ...
-
-Roomメタデータ（インメモリMap）:
-rooms: Map<room_id, Room>
-
-interface Room {
-  id: string;              // UUID
-  state: RoomState;        // 'standby' | 'recording' | 'finalizing' | 'synced'
-  createdAt: Date;
-  startedAt?: Date;
-  finishedAt?: Date;
-  recordings: string[];    // Recording IDのリスト
-  guestUrl: string;        // Guest用のURL
-}
 ```
 
 **Tasks:**
-- [ ] Roomデータモデル定義（TypeScript）
-- [ ] Roomストレージ実装（インメモリMap）
-  - `rooms: Map<string, Room>`
-  - Phase 7でデータベースに移行予定
-- [ ] `POST /api/rooms` エンドポイント実装
-  - 新しいRoomを作成
-  - UUIDでRoom ID生成
-  - Guest URL生成（例: `/guest/{room_id}`）
-  - 初期状態は `standby`
-  - レスポンス: `{ room_id, guest_url, created_at, state }`
-- [ ] `GET /api/rooms/:room_id` エンドポイント実装
-  - Room情報を取得
-  - 含まれるRecording一覧も返す
-- [ ] `PATCH /api/rooms/:room_id/state` エンドポイント実装
-  - Room状態を更新
-  - Room内の全Recording状態も連動して更新
-- [ ] `GET /api/rooms/:room_id/recordings` エンドポイント実装
-  - Room内のすべてのRecordingを取得
+- [ ] LocalFileSystemChunkRepositoryを拡張
+  - Recording作成時に`roomId`を受け取る
+  - Room有りの場合: `./storage/rooms/{room_id}/{recording_id}/`
+  - Room無しの場合: `./storage/{recording_id}/`（既存の挙動維持）
+- [ ] ディレクトリ作成ロジック追加
 
 **Test:**
-- [ ] curlでRoom作成
+- [ ] Room有りでRecording作成（Phase 4.2で実装）
   ```bash
-  curl -X POST http://localhost:3000/api/rooms
-  # レスポンス: {"room_id": "room-abc123", "guest_url": "/guest/room-abc123", ...}
+  ROOM_ID=$(curl -s -X POST http://localhost:3000/api/rooms | jq -r '.roomId')
+  RECORDING_ID=$(curl -s -X POST "http://localhost:3000/api/recordings?roomId=$ROOM_ID" | jq -r '.recordingId')
+
+  # ディレクトリ確認
+  ls -la ./storage/rooms/$ROOM_ID/$RECORDING_ID/
+  # 期待: ディレクトリが作成されている
   ```
-- [ ] Room情報取得
+- [ ] Room無しでRecording作成（既存の挙動）
   ```bash
-  curl http://localhost:3000/api/rooms/room-abc123
+  RECORDING_ID=$(curl -s -X POST http://localhost:3000/api/recordings | jq -r '.recordingId')
+  ls -la ./storage/$RECORDING_ID/
+  # 期待: ディレクトリが作成されている
   ```
 
 **Deliverable:**
-- Room管理API
-- Recording → Roomの紐付け機能
+- Room対応ストレージ構造
 
 ---
 
-### Phase 4.2: Recording API拡張（Room対応）
+### Phase 4.2.1: Recording型にRoom ID追加
 
-**Goal:** Recording作成時にRoom IDを指定できるように拡張
+**Goal:** RecordingエンティティにRoomとの紐付けを追加
 
 **Tasks:**
-- [ ] `POST /api/recordings` エンドポイント拡張
-  - クエリパラメータ `?room_id=xxx` を受け取る
-  - room_idが指定された場合、Recordingに紐付け
-  - Room の recordings配列に追加
-  - ストレージパス: `./storage/rooms/{room_id}/{recording_id}/`
-- [ ] Recording作成時にRoom存在確認
-  - Room未存在の場合は `404 Not Found`
-  - Room状態が `standby` または `recording` でない場合は `400 Bad Request`
+- [ ] Recording型を拡張
+  ```typescript
+  export interface Recording {
+    id: RecordingId;
+    roomId?: RoomId;  // 新規追加
+    state: RecordingState;
+    metadata?: RecordingMetadata;
+    chunkCount: number;
+    totalSize: number;
+    startTime: number;
+    endTime?: number;
+    createdAt: string;
+    updatedAt: string;
+  }
+  ```
+- [ ] RecordingRepositoryの`create()`にroomIdパラメータ追加
 
 **Test:**
-- [ ] Room作成後、Recording作成
-  ```bash
-  ROOM_ID=$(curl -X POST http://localhost:3000/api/rooms | jq -r '.room_id')
-  RECORDING_ID=$(curl -X POST "http://localhost:3000/api/recordings?room_id=$ROOM_ID" | jq -r '.recording_id')
-  ```
-- [ ] チャンクが `./storage/rooms/{room_id}/{recording_id}/` に保存される
-- [ ] Room情報取得時、recordingsに含まれる
+- [ ] TypeScriptコンパイルが成功する
+- [ ] 既存のRecording作成ロジック（Room無し）が動作する
 
 **Deliverable:**
-- Room対応Recording作成API
+- Room ID対応Recording型
 
 ---
 
-### Phase 4.3: Guest Mode実装
+### Phase 4.2.2: Recording作成時のRoom紐付け実装
 
-**Goal:** ゲスト用の録画画面を実装（Remote ModeベースでRoom対応）
-
-**URL Structure:**
-```
-/guest/{room_id}
-```
-
-**Project Structure:**
-```text
-/packages/web-client/src
-└── /modes
-    ├── /standalone
-    ├── /remote
-    └── /guest          # Phase 4で追加
-        ├── GuestRecorder.tsx
-        ├── RoomConnection.ts
-        └── ...
-```
+**Goal:** Recording作成時にRoom IDを指定可能に
 
 **Tasks:**
-- [ ] `/guest/:room_id` ルーティング追加
-- [ ] `GuestRecorder.tsx` コンポーネント実装
-  - URLからroom_idを取得
-  - Room存在確認（`GET /api/rooms/:room_id`）
-  - Recording作成時にroom_idを指定
-  - Remote Modeのロジックを再利用
-- [ ] `RoomConnection.ts` 実装
-  - Room WebSocket接続（`/ws/rooms/:room_id`）
-  - Room状態変更の受信
-  - Director指示（REC開始/停止）の受信
+- [ ] `CreateRecording.usecase.ts`を拡張
+  - オプショナルパラメータ`roomId?: RoomId`を受け取る
+  - roomIdが指定された場合:
+    - Roomの存在確認（RoomRepository.findById）
+    - Room状態確認（`idle`または`recording`のみ許可）
+    - RecordingのroomIdフィールドに設定
+    - RoomのrecordingIds配列に追加
+- [ ] `POST /api/recordings`エンドポイント拡張
+  - クエリパラメータ`?roomId=xxx`を受け取る
+
+**Test:**
+- [ ] Room作成後、Recording作成（Room紐付け有り）
+  ```bash
+  # Room作成
+  ROOM_ID=$(curl -s -X POST http://localhost:3000/api/rooms | jq -r '.roomId')
+
+  # Recording作成（Room紐付け）
+  RECORDING_ID=$(curl -s -X POST "http://localhost:3000/api/recordings?roomId=$ROOM_ID" | jq -r '.recordingId')
+
+  # Recording情報確認
+  curl http://localhost:3000/api/recordings/$RECORDING_ID | jq '.roomId'
+  # 期待: ROOM_IDが表示される
+  ```
+- [ ] Room情報取得時、recordingIdsに含まれる
+  ```bash
+  curl http://localhost:3000/api/rooms/$ROOM_ID | jq '.recordingIds'
+  # 期待: [RECORDING_ID]
+  ```
+
+**Deliverable:**
+- Room紐付けRecording作成機能
+
+---
+
+### Phase 4.2.3: Room存在確認バリデーション
+
+**Goal:** 存在しないRoom IDでのRecording作成を防止
+
+**Tasks:**
+- [ ] CreateRecording.usecaseでバリデーション強化
+  - Room未存在の場合: `RoomNotFoundError`をスロー
+  - Room状態が不正の場合: `InvalidRoomStateError`をスロー
+- [ ] エラーハンドリング実装
+
+**Test:**
+- [ ] 存在しないRoom IDでRecording作成
+  ```bash
+  curl -X POST "http://localhost:3000/api/recordings?roomId=invalid-room-id"
+  # 期待: 404 Not Found, {"error": "Room not found"}
+  ```
+- [ ] 完了済みRoomでRecording作成
+  ```bash
+  # Room作成
+  ROOM_ID=$(curl -s -X POST http://localhost:3000/api/rooms | jq -r '.roomId')
+
+  # Room状態を finished に更新
+  curl -X PATCH http://localhost:3000/api/rooms/$ROOM_ID/state \
+    -H "Content-Type: application/json" \
+    -d '{"state":"finished"}'
+
+  # Recording作成（失敗する）
+  curl -X POST "http://localhost:3000/api/recordings?roomId=$ROOM_ID"
+  # 期待: 400 Bad Request, {"error": "Room is not accepting new recordings"}
+  ```
+
+**Deliverable:**
+- Room存在確認バリデーション
+
+---
+
+### Phase 4.2.4: Room対応ストレージパス実装
+
+**Goal:** Room紐付けRecordingのチャンクを専用ディレクトリに保存
+
+**Tasks:**
+- [ ] LocalFileSystemChunkRepositoryのストレージパス生成ロジック拡張
+  - roomIdが指定された場合: `./storage/rooms/{roomId}/{recordingId}/`
+  - roomIdが未指定の場合: `./storage/{recordingId}/`（既存の挙動）
+- [ ] ディレクトリ作成処理
+
+**Test:**
+- [ ] Room紐付けRecording作成→チャンクアップロード
+  ```bash
+  # Room作成
+  ROOM_ID=$(curl -s -X POST http://localhost:3000/api/rooms | jq -r '.roomId')
+
+  # Recording作成
+  RECORDING_ID=$(curl -s -X POST "http://localhost:3000/api/recordings?roomId=$ROOM_ID" | jq -r '.recordingId')
+
+  # init segment アップロード
+  curl -X PUT "http://localhost:3000/api/recordings/$RECORDING_ID/init" \
+    --data-binary @init.mp4
+
+  # チャンクアップロード
+  curl -X PUT "http://localhost:3000/api/recordings/$RECORDING_ID/chunks/1" \
+    --data-binary @chunk-001.fmp4
+
+  # ストレージパス確認
+  ls -la ./storage/rooms/$ROOM_ID/$RECORDING_ID/
+  # 期待: init.mp4, chunk-001.fmp4 が存在
+  ```
+- [ ] Room未指定の場合（既存の挙動）
+  ```bash
+  RECORDING_ID=$(curl -s -X POST http://localhost:3000/api/recordings | jq -r '.recordingId')
+  ls -la ./storage/$RECORDING_ID/
+  # 期待: 正常にチャンクが保存される
+  ```
+
+**Deliverable:**
+- Room対応ストレージパス実装
+
+---
+
+### Phase 4.2.5: Room内Recording一覧取得の完全実装
+
+**Goal:** Room内のすべてのRecordingを取得（メタデータ含む）
+
+**Tasks:**
+- [ ] `GET /api/rooms/:room_id/recordings`エンドポイント完全実装
+  - RoomのrecordingIdsを取得
+  - 各Recording IDでRecordingRepositoryから詳細情報を取得
+  - レスポンス: `{ recordings: Recording[] }`
+
+**Test:**
+- [ ] 複数Recordingを作成後、一覧取得
+  ```bash
+  # Room作成
+  ROOM_ID=$(curl -s -X POST http://localhost:3000/api/rooms | jq -r '.roomId')
+
+  # Recording A作成
+  REC_A=$(curl -s -X POST "http://localhost:3000/api/recordings?roomId=$ROOM_ID" | jq -r '.recordingId')
+
+  # Recording B作成
+  REC_B=$(curl -s -X POST "http://localhost:3000/api/recordings?roomId=$ROOM_ID" | jq -r '.recordingId')
+
+  # Recording一覧取得
+  curl http://localhost:3000/api/rooms/$ROOM_ID/recordings | jq '.recordings | length'
+  # 期待: 2
+
+  curl http://localhost:3000/api/rooms/$ROOM_ID/recordings | jq '.recordings[].id'
+  # 期待: REC_A, REC_B が表示される
+  ```
+
+**Deliverable:**
+- Room内Recording一覧取得API（完全版）
+
+---
+
+### Phase 4.3.1: Guest Modeルーティング準備
+
+**Goal:** Guest Mode用のルーティングとディレクトリ構造を準備
+
+**Tasks:**
+- [ ] `/guest/:room_id`ルーティング追加（App.tsx）
+- [ ] ディレクトリ構造作成
+  ```text
+  /packages/web-client/src/modes/guest/
+  ├── GuestRecorder.tsx
+  ├── GuestStorageStrategy.ts
+  ├── types.ts
+  └── hooks/
+      └── useRoomConnection.ts
+  ```
+- [ ] 基本的なGuestRecorderコンポーネント作成（プレースホルダー）
+
+**Test:**
+- [ ] `/guest/test-room-id`にアクセス
+- [ ] プレースホルダーページが表示される
+- [ ] Room IDがURLから取得できる
+  ```typescript
+  const { roomId } = useParams<{ roomId: string }>();
+  console.log('Room ID:', roomId);  // 期待: "test-room-id"
+  ```
+
+**Deliverable:**
+- Guest Modeルーティング
+- ディレクトリ構造
+
+---
+
+### Phase 4.3.2: Room存在確認とメタデータ取得
+
+**Goal:** Guest Mode起動時にRoom存在確認とメタデータ取得
+
+**Tasks:**
+- [ ] `useRoomMetadata`カスタムフック実装
+  ```typescript
+  function useRoomMetadata(roomId: string) {
+    const [room, setRoom] = useState<Room | null>(null);
+    const [error, setError] = useState<string | null>(null);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+      fetch(`/api/rooms/${roomId}`)
+        .then(res => res.json())
+        .then(setRoom)
+        .catch(setError)
+        .finally(() => setLoading(false));
+    }, [roomId]);
+
+    return { room, error, loading };
+  }
+  ```
+- [ ] GuestRecorderでRoom存在確認
+  - Room未存在の場合: エラー画面表示
 
 **UI:**
-- [ ] Remote Modeと同様の録画UI
-- [ ] Room IDと録画状態表示
-- [ ] 「Waiting for director...」待機画面
-- [ ] Director指示によるREC開始/停止（手動操作不可）
+```
+┌─────────────────────────────────────────┐
+│  Room Not Found                         │
+│                                         │
+│  The room you're trying to join does   │
+│  not exist or has been deleted.        │
+│                                         │
+│  Please check the URL and try again.   │
+└─────────────────────────────────────────┘
+```
 
 **Test:**
-- [ ] DirectorがRoomを作成
-- [ ] Guest URLにアクセス
-- [ ] 待機画面が表示される
-- [ ] Directorが録画開始を指示（Phase 4.4で実装）
-- [ ] ゲスト側で自動的に録画開始
+- [ ] 存在しないRoom IDでアクセス
+  ```
+  http://localhost:5173/guest/invalid-room-id
+  # 期待: "Room Not Found" エラー画面
+  ```
+- [ ] 存在するRoom IDでアクセス
+  ```bash
+  # Room作成
+  ROOM_ID=$(curl -s -X POST http://localhost:3000/api/rooms | jq -r '.roomId')
+
+  # ブラウザでアクセス
+  # http://localhost:5173/guest/$ROOM_ID
+  # 期待: Room情報が取得される
+  ```
 
 **Deliverable:**
-- Guest Mode画面
-- Room連携機能
+- Room存在確認機能
 
 ---
 
-### Phase 4.4: Director画面実装
+### Phase 4.3.3: GuestStorageStrategy実装
 
-**Goal:** 管理者用のダッシュボードを実装し、Room作成・一括制御を可能にする
+**Goal:** Guest Mode専用のストレージ戦略（RemoteStorageStrategy拡張）
 
-**URL Structure:**
+**Tasks:**
+- [ ] `GuestStorageStrategy.ts`実装
+  - RemoteStorageStrategyを継承
+  - Recording作成時に自動的にroomIdを指定
+  - `POST /api/recordings?roomId={roomId}`を呼び出し
+- [ ] DIコンテナに登録
+
+**Test:**
+- [ ] Guest Modeで録画開始
+- [ ] Recording作成時にroomIdが自動的に設定される
+- [ ] ブラウザコンソールで確認:
+  ```
+  📝 [GuestStorageStrategy] Creating recording with roomId: room-abc123
+  ✅ [GuestStorageStrategy] Recording created: recording-001
+  ```
+- [ ] サーバー側でRecordingがRoom内に作成される
+  ```bash
+  curl http://localhost:3000/api/rooms/$ROOM_ID | jq '.recordingIds'
+  # 期待: [RECORDING_ID]
+  ```
+
+**Deliverable:**
+- GuestStorageStrategy実装
+
+---
+
+### Phase 4.3.4: 待機画面UI実装
+
+**Goal:** Director指示を待つ待機画面
+
+**UI Design:**
 ```
-/director
-```
-
-**Project Structure:**
-```text
-/packages/web-client/src
-└── /modes
-    └── /director       # Phase 4で追加
-        ├── DirectorDashboard.tsx
-        ├── RoomManager.ts
-        ├── RoomControls.tsx
-        └── ...
+┌─────────────────────────────────────────┐
+│  Maycast Recorder - Guest Mode          │
+├─────────────────────────────────────────┤
+│                                         │
+│  Room: room-abc123                      │
+│  Status: 🟡 Waiting for director        │
+│                                         │
+│  ┌─────────────────────────────────┐   │
+│  │  [Camera Preview]               │   │
+│  │                                 │   │
+│  └─────────────────────────────────┘   │
+│                                         │
+│  • Check your camera and microphone    │
+│  • Wait for the director to start      │
+│                                         │
+└─────────────────────────────────────────┘
 ```
 
 **Tasks:**
-- [ ] `/director` ルーティング追加
-- [ ] `DirectorDashboard.tsx` コンポーネント実装
-  - Room一覧表示
-  - 新規Room作成ボタン
-  - Room詳細ビュー
-- [ ] `RoomControls.tsx` コンポーネント実装
-  - Guest URL表示・コピー機能
+- [ ] 待機画面コンポーネント実装
+  - Room ID表示
+  - Room状態表示
+  - カメラプレビュー
+  - マイク/カメラチェック
+- [ ] Room状態に応じたUI切り替え
+  - `idle`: 待機画面
+  - `recording`: 録画画面（Phase 4.3.5で実装）
+  - `finished`: 完了画面
+
+**Test:**
+- [ ] Guest Modeでアクセス
+- [ ] 待機画面が表示される
+- [ ] カメラプレビューが表示される
+- [ ] Room IDが正しく表示される
+
+**Deliverable:**
+- 待機画面UI
+
+---
+
+### Phase 4.3.5: Recorder統合（Remote Modeロジック再利用）
+
+**Goal:** Remote ModeのRecorderロジックをGuest Modeで再利用
+
+**Tasks:**
+- [ ] GuestRecorderにRecorderコンポーネント統合
+- [ ] GuestStorageStrategyを注入
+- [ ] 録画制御をDisabled（Director指示のみで制御）
+- [ ] 録画開始/停止はWebSocketイベントでトリガー（Phase 4.5で実装）
+
+**Test:**
+- [ ] Guest Modeでカメラ/マイクが正常に動作
+- [ ] 手動での録画開始ボタンが無効化されている
+- [ ] プレビューが正常に表示される
+
+**Deliverable:**
+- Guest Mode録画統合
+
+---
+
+### Phase 4.3.6: 録画完了後のUI
+
+**Goal:** 録画完了後の「アップロード完了」画面
+
+**UI Design:**
+```
+┌─────────────────────────────────────────┐
+│  Maycast Recorder - Guest Mode          │
+├─────────────────────────────────────────┤
+│                                         │
+│  Recording Complete! ✅                 │
+│                                         │
+│  Room: room-abc123                      │
+│  Recording ID: recording-001            │
+│  Duration: 15:32                        │
+│                                         │
+│  All chunks uploaded successfully.     │
+│                                         │
+│  You can now close this window.        │
+│                                         │
+└─────────────────────────────────────────┘
+```
+
+**Tasks:**
+- [ ] 完了画面コンポーネント実装
+- [ ] Recording状態が`synced`になったら自動表示
+- [ ] アップロード進捗表示（Phase 3のResumeUpload UIを再利用）
+
+**Test:**
+- [ ] Guest Modeで録画→停止→完了
+- [ ] 「Recording Complete!」画面が表示される
+- [ ] Recording IDとDurationが正しく表示される
+
+**Deliverable:**
+- 録画完了画面UI
+
+---
+
+### Phase 4.4.1: Directorルーティングと基本構造
+
+**Goal:** Director画面の基本構造とルーティング
+
+**Tasks:**
+- [ ] `/director`ルーティング追加（App.tsx）
+- [ ] ディレクトリ構造作成
+  ```text
+  /packages/web-client/src/modes/director/
+  ├── DirectorDashboard.tsx
+  ├── components/
+  │   ├── RoomList.tsx
+  │   ├── RoomDetail.tsx
+  │   ├── RoomControls.tsx
+  │   └── GuestList.tsx
+  ├── hooks/
+  │   ├── useRoomManager.ts
+  │   └── useRoomWebSocket.ts
+  └── types.ts
+  ```
+- [ ] DirectorDashboardコンポーネント作成（プレースホルダー）
+
+**Test:**
+- [ ] `/director`にアクセス
+- [ ] プレースホルダーページが表示される
+
+**Deliverable:**
+- Directorルーティング
+- ディレクトリ構造
+
+---
+
+### Phase 4.4.2: Room作成機能実装
+
+**Goal:** Director画面からRoomを作成
+
+**Tasks:**
+- [ ] `useRoomManager`カスタムフック実装
+  ```typescript
+  function useRoomManager() {
+    const [rooms, setRooms] = useState<Room[]>([]);
+
+    const createRoom = async () => {
+      const res = await fetch('/api/rooms', { method: 'POST' });
+      const room = await res.json();
+      setRooms([...rooms, room]);
+      return room;
+    };
+
+    return { rooms, createRoom };
+  }
+  ```
+- [ ] 「Create New Room」ボタン実装
+- [ ] Room作成後、詳細画面に遷移
+
+**UI:**
+```
+┌─────────────────────────────────────────┐
+│  Maycast Recorder - Director            │
+├─────────────────────────────────────────┤
+│  Rooms                                  │
+│                                         │
+│  [Create New Room]                      │
+│                                         │
+│  No rooms yet. Create one to get        │
+│  started.                               │
+└─────────────────────────────────────────┘
+```
+
+**Test:**
+- [ ] 「Create New Room」クリック
+- [ ] Roomが作成される
+- [ ] ブラウザコンソールで確認:
+  ```
+  ✅ [RoomManager] Room created: room-abc123
+  ```
+- [ ] Room一覧に新しいRoomが追加される
+
+**Deliverable:**
+- Room作成機能
+
+---
+
+### Phase 4.4.3: Room一覧表示
+
+**Goal:** 作成済みRoomの一覧を表示
+
+**Tasks:**
+- [ ] `GET /api/rooms`エンドポイント実装（サーバー側）
+  - すべてのRoomを取得
+  - レスポンス: `{ rooms: Room[] }`
+- [ ] RoomListコンポーネント実装
+  - Room一覧を表示
+  - 各Roomの状態を表示（idle, recording, finished）
+  - クリックでRoom詳細に遷移
+
+**UI:**
+```
+┌─────────────────────────────────────────┐
+│  Maycast Recorder - Director            │
+├─────────────────────────────────────────┤
+│  Rooms                    [Create New]  │
+│                                         │
+│  ┌─────────────────────────────────┐   │
+│  │ Room: room-abc123              │   │
+│  │ Status: 🟡 Idle                │   │
+│  │ Guests: 0                      │   │
+│  │ Created: 2026-01-24 10:00      │   │
+│  └─────────────────────────────────┘   │
+│                                         │
+│  ┌─────────────────────────────────┐   │
+│  │ Room: room-def456              │   │
+│  │ Status: 🟢 Recording           │   │
+│  │ Guests: 3                      │   │
+│  │ Created: 2026-01-24 09:30      │   │
+│  └─────────────────────────────────┘   │
+└─────────────────────────────────────────┘
+```
+
+**Test:**
+- [ ] 複数Room作成
+- [ ] 一覧に全Roomが表示される
+- [ ] 各Roomの状態が正しく表示される
+
+**Deliverable:**
+- Room一覧表示
+
+---
+
+### Phase 4.4.4: Room詳細画面とGuest URL表示
+
+**Goal:** Room詳細画面でGuest URL表示とコピー機能
+
+**Tasks:**
+- [ ] RoomDetailコンポーネント実装
+  - Room ID表示
+  - Room状態表示
+  - Guest URL表示
+  - Guest URLコピーボタン
+- [ ] クリップボードコピー機能実装
+  ```typescript
+  const copyGuestUrl = () => {
+    const url = `${window.location.origin}/guest/${room.id}`;
+    navigator.clipboard.writeText(url);
+  };
+  ```
+
+**UI:**
+```
+┌─────────────────────────────────────────┐
+│  Room: room-abc123                      │
+├─────────────────────────────────────────┤
+│  Status: 🟡 Idle                        │
+│  Created: 2026-01-24 10:00:00           │
+│                                         │
+│  Guest URL:                             │
+│  ┌───────────────────────────────────┐ │
+│  │ http://localhost:5173/guest/...   │ │
+│  │                      [Copy URL]   │ │
+│  └───────────────────────────────────┘ │
+│                                         │
+│  Guests: 0 connected                    │
+│                                         │
+│  [Start Recording]  [Delete Room]       │
+└─────────────────────────────────────────┘
+```
+
+**Test:**
+- [ ] Room詳細画面にアクセス
+- [ ] Guest URLが表示される
+- [ ] 「Copy URL」クリック
+- [ ] クリップボードにURLがコピーされる
+  ```javascript
+  // ブラウザで確認
+  navigator.clipboard.readText().then(console.log);
+  ```
+
+**Deliverable:**
+- Room詳細画面
+- Guest URLコピー機能
+
+---
+
+### Phase 4.4.5: Room制御ボタン実装（API呼び出し）
+
+**Goal:** Start/Stop Recording ボタンからRoom状態を更新
+
+**Tasks:**
+- [ ] RoomControlsコンポーネント実装
   - 「Start Recording」ボタン
   - 「Stop Recording」ボタン
-  - 接続中のゲスト一覧
-  - 各ゲストの録画状態表示
-- [ ] `RoomManager.ts` 実装
-  - Room作成（`POST /api/rooms`）
-  - Room状態更新（`PATCH /api/rooms/:id/state`）
-  - Room WebSocket接続
+  - Room状態に応じてボタン有効/無効化
+- [ ] Room状態更新API呼び出し
+  ```typescript
+  const startRecording = async () => {
+    await fetch(`/api/rooms/${roomId}/state`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ state: 'recording' })
+    });
+  };
+
+  const stopRecording = async () => {
+    await fetch(`/api/rooms/${roomId}/state`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ state: 'finished' })
+    });
+  };
+  ```
+
+**Test:**
+- [ ] Room詳細画面で「Start Recording」クリック
+- [ ] Room状態が`idle` → `recording`に変更
+- [ ] ブラウザコンソールで確認:
+  ```
+  🎬 [RoomControls] Starting recording for room: room-abc123
+  ✅ [RoomControls] Room state updated: recording
+  ```
+- [ ] 「Stop Recording」クリック
+- [ ] Room状態が`recording` → `finished`に変更
+
+**Deliverable:**
+- Room制御ボタン
+
+---
+
+### Phase 4.4.6: ゲスト一覧表示（静的版）
+
+**Goal:** Room内のRecording（Guest）を一覧表示
+
+**Tasks:**
+- [ ] GuestListコンポーネント実装
+  - `GET /api/rooms/:id/recordings`でRecording一覧を取得
+  - 各Recordingの状態を表示
+  - 定期的にポーリング（5秒ごと）
+- [ ] Recording情報をカード形式で表示
 
 **UI:**
-- [ ] Room一覧画面
-  - アクティブなRoom一覧
-  - 各Roomの状態表示
-- [ ] Room詳細画面
-  - Guest URL表示（コピーボタン付き）
-  - 接続中のゲスト一覧
-    - Guest A: 🟢 Recording (15/20 chunks)
-    - Guest B: 🟢 Recording (12/20 chunks)
-    - Guest C: 🔴 Disconnected
-  - 一括制御ボタン
-    - 「Start Recording All」
-    - 「Stop Recording All」
-  - 全ゲストの同期状態表示
+```
+┌─────────────────────────────────────────┐
+│  Guests (3 connected)                   │
+├─────────────────────────────────────────┤
+│  ┌───────────────────────────────────┐ │
+│  │ 📹 Guest A (recording-001)        │ │
+│  │ Status: 🟢 Recording              │ │
+│  │ Chunks: 15                        │ │
+│  │ Size: 1.2 MB                      │ │
+│  └───────────────────────────────────┘ │
+│                                         │
+│  ┌───────────────────────────────────┐ │
+│  │ 📹 Guest B (recording-002)        │ │
+│  │ Status: 🟢 Recording              │ │
+│  │ Chunks: 12                        │ │
+│  │ Size: 980 KB                      │ │
+│  └───────────────────────────────────┘ │
+│                                         │
+│  ┌───────────────────────────────────┐ │
+│  │ 📹 Guest C (recording-003)        │ │
+│  │ Status: 🟡 Idle                   │ │
+│  │ Chunks: 0                         │ │
+│  │ Size: 0 KB                        │ │
+│  └───────────────────────────────────┘ │
+└─────────────────────────────────────────┘
+```
 
 **Test:**
-- [ ] Director画面にアクセス
-- [ ] 新規Room作成
-- [ ] Guest URLが表示される
-- [ ] Guest URLをコピーして別タブで開く
-- [ ] ゲストが接続される（Director画面に表示）
-- [ ] 「Start Recording All」クリック
-- [ ] 全ゲストで録画開始
-- [ ] 「Stop Recording All」クリック
-- [ ] 全ゲストで録画停止・同期完了
+- [ ] Guest Modeで複数タブから接続
+- [ ] Director画面でゲスト一覧が表示される
+- [ ] 各ゲストの状態が正しく表示される
+- [ ] ゲストが録画開始すると状態が更新される（ポーリング）
 
 **Deliverable:**
-- Director画面
-- Room一括制御機能
+- ゲスト一覧表示（静的版）
 
 ---
 
-### Phase 4.5: Room WebSocket実装
+### Phase 4.4.7: Room削除機能
 
-**Goal:** Room単位でのWebSocket通信を実装し、リアルタイム状態同期
-
-**Note:** Phase 2のRemote Modeでは単一クライアントのため、WebSocketは不要でした（HTTP APIのみで十分）。Phase 4では複数クライアント（Director + Guests）間のリアルタイム通信が必要なため、ここで初めてWebSocketを導入します。
+**Goal:** 不要なRoomを削除
 
 **Tasks:**
-- [ ] `/ws/rooms/:room_id` WebSocketエンドポイント実装
-- [ ] Room内の全接続クライアントを管理
-  - Director接続
-  - Guest接続（複数）
-- [ ] Room状態変更のブロードキャスト
-  - `RoomStateChanged { room_id, state }`
-  - `RecordingCreated { room_id, recording_id, guest_name }`
-  - `RecordingStateChanged { room_id, recording_id, state }`
-  - `ChunkUploaded { room_id, recording_id, chunk_id }`
-- [ ] Director指示のブロードキャスト
-  - `DirectorCommand { command: 'start' | 'stop' }`
-  - Room内の全Guestに送信
+- [ ] `DELETE /api/rooms/:id`エンドポイント実装（サーバー側）
+  - Room削除
+  - Room内のRecordingも削除（オプショナル）
+  - ストレージからファイル削除
+- [ ] 「Delete Room」ボタン実装
+- [ ] 削除確認ダイアログ
 
 **Test:**
-- [ ] DirectorとGuest（複数）が同じRoomに接続
-- [ ] Directorが「Start」指示 → 全Guestに通知が届く
-- [ ] Guest録画開始 → Directorに状態変更通知が届く
-- [ ] Guestチャンクアップロード → Directorにリアルタイム進捗表示
-
-**Deliverable:**
-- Room単位のWebSocket通信
-- リアルタイム状態同期
-
----
-
-### Phase 4.6: Stop & Flush Protocol
-
-**Goal:** 録画停止時、全ゲストのアップロード完了を待機する仕組み
-
-**Tasks:**
-- [ ] Director「Stop」指示時の処理
-  1. Room状態を `finalizing` に更新
-  2. 全GuestにStop指示をブロードキャスト
-  3. 各Guestが録画停止
-  4. 未送信チャンクのアップロード完了を待機
-  5. 各RecordingがSynced状態になるのを監視
-  6. 全Recording Synced確認後、Room状態を `synced` に更新
-- [ ] Guest側の処理
-  - Stop指示受信
-  - 録画停止
-  - 未送信チャンク完了待機
-  - `synced`状態に更新
-  - WebSocket接続維持（「ブラウザを閉じてOK」まで）
-- [ ] Director側の表示
-  - 「Waiting for all guests to sync...」
-  - 各ゲストの同期状態表示
-  - 全員Synced後「✓ All recordings synced」
-
-**Test:**
-- [ ] 複数ゲストで録画中
-- [ ] Director「Stop」クリック
-- [ ] 全ゲストで録画停止
-- [ ] 各ゲストのアップロード完了を待機
-- [ ] 全ゲストSynced確認
-- [ ] Room状態が`synced`になる
-- [ ] ゲスト画面に「ブラウザを閉じてOK」表示
-
-**Deliverable:**
-- Stop & Flushプロトコル
-- 全ゲスト同期確認機能
-
----
-
-### Phase 4.7: Director画面ダウンロード機能
-
-**Goal:** Director画面から各Recording（Guest）のMP4を個別にダウンロード
-
-**Concept:**
-- Phase 2A-7で実装したダウンロードエンドポイントを活用
-- Director画面で各Guestの録画を個別にダウンロード可能
-- オプション：全Recording一括ダウンロード（ZIP形式）
-
-**Tasks:**
-
-**Director画面UI:**
-- [ ] Room詳細画面に各RecordingのMP4ダウンロードボタンを追加
-  ```
-  Room: room-abc123
-  Status: ✓ Synced
-
-  Recordings:
-  ┌─────────────────────────────────────────┐
-  │ Guest A (recording-001)                 │
-  │ Duration: 15:32                         │
-  │ Size: 1.2 GB                            │
-  │ [Download MP4]                          │ ← 新規追加
-  ├─────────────────────────────────────────┤
-  │ Guest B (recording-002)                 │
-  │ Duration: 15:30                         │
-  │ Size: 1.1 GB                            │
-  │ [Download MP4]                          │
-  ├─────────────────────────────────────────┤
-  │ Guest C (recording-003)                 │
-  │ Duration: 15:35                         │
-  │ Size: 1.3 GB                            │
-  │ [Download MP4]                          │
-  └─────────────────────────────────────────┘
-
-  [Download All as ZIP] ← オプショナル
+- [ ] Room詳細画面で「Delete Room」クリック
+- [ ] 確認ダイアログが表示される
+- [ ] 「Confirm」クリック
+- [ ] Roomが削除される
+- [ ] Room一覧から消える
+- [ ] ストレージから削除される
+  ```bash
+  ls ./storage/rooms/
+  # 削除したRoomのディレクトリが存在しない
   ```
 
-- [ ] ダウンロードボタンクリック時の処理
-  - `GET /api/recordings/{recording_id}/download` を呼び出し
-  - ファイル名を `{room_id}_{guest_name}_{timestamp}.mp4` に設定
-  - 自動ダウンロード開始
+**Deliverable:**
+- Room削除機能
 
-- [ ] ダウンロード進捗表示
-  - 各Recordingのダウンロード状態を表示
-  - 複数ダウンロード時のキュー管理
+---
 
-**サーバー側（オプショナル）:**
-- [ ] `GET /api/rooms/:room_id/download-all` エンドポイント（オプショナル）
-  - Room内の全Recordingを取得
-  - 各RecordingをMP4に結合
-  - ZIP形式で圧縮
-  - ZIP全体をストリーム配信
-  - ファイル名: `room-{room_id}.zip`
+### Phase 4.5.1: WebSocket基礎インフラ（サーバー側）
+
+**Goal:** WebSocketサーバーのセットアップ
+
+**Tasks:**
+- [ ] WebSocketライブラリ追加（`ws`パッケージ）
+  ```bash
+  cd packages/server
+  npm install ws @types/ws
+  ```
+- [ ] WebSocketサーバー初期化（server.ts）
+  ```typescript
+  import { WebSocketServer } from 'ws';
+  const wss = new WebSocketServer({ server });
+  ```
+- [ ] 接続管理クラス実装
+  ```typescript
+  class ConnectionManager {
+    private connections = new Map<string, WebSocket>();
+
+    addConnection(clientId: string, ws: WebSocket): void
+    removeConnection(clientId: string): void
+    getConnection(clientId: string): WebSocket | undefined
+    broadcast(roomId: string, message: any): void
+  }
+  ```
 
 **Test:**
-- [ ] Director画面でRoom作成→複数Guest録画→全員Synced
-- [ ] Guest AのMP4ダウンロード
-  - ファイル名: `room-abc123_guest-a_20260122-143052.mp4`
-  - VLCで再生できる
-- [ ] Guest BのMP4ダウンロード
-  - 正常に再生できる
-- [ ] 複数Recording同時ダウンロード
-  - ブラウザが複数ファイルをダウンロード
-- [ ] （オプショナル）「Download All as ZIP」
-  - ZIP内に全GuestのMP4が含まれる
-  - 各MP4が正常に再生できる
-
-**UI改善:**
-- [ ] Recording情報表示
-  - Duration（録画時間）表示
-  - File Size（ファイルサイズ）表示
-  - Recording State（状態）表示
-- [ ] ダウンロード状態インジケーター
-  - 🔵 Download ready
-  - 🟢 Downloading...
-  - ✅ Downloaded
+- [ ] サーバー起動時にWebSocketサーバーが起動
+- [ ] ログで確認:
+  ```
+  🚀 Maycast Recorder Server running on port 3000
+  🔌 WebSocket server initialized
+  ```
 
 **Deliverable:**
-- Director画面から各Recording MP4をダウンロード
-- Guest別のファイル名でダウンロード
-- （オプショナル）全Recording一括ZIPダウンロード
+- WebSocket基礎インフラ
+
+---
+
+### Phase 4.5.2: Room WebSocketエンドポイント実装
+
+**Goal:** `/ws/rooms/:room_id`エンドポイントの実装
+
+**Tasks:**
+- [ ] WebSocketルーティング実装
+  - URLから`room_id`を抽出
+  - Room存在確認
+  - 接続確立
+- [ ] Room別接続管理
+  ```typescript
+  class RoomConnectionManager {
+    private roomConnections = new Map<RoomId, Set<WebSocket>>();
+
+    addToRoom(roomId: RoomId, ws: WebSocket): void
+    removeFromRoom(roomId: RoomId, ws: WebSocket): void
+    broadcastToRoom(roomId: RoomId, message: any): void
+  }
+  ```
+- [ ] 接続/切断イベントハンドリング
+
+**Test:**
+- [ ] WebSocketクライアントでテスト
+  ```javascript
+  // ブラウザコンソール
+  const ws = new WebSocket('ws://localhost:3000/ws/rooms/room-abc123');
+  ws.onopen = () => console.log('✅ Connected');
+  ws.onmessage = (event) => console.log('📨 Message:', event.data);
+  ws.onerror = (error) => console.error('❌ Error:', error);
+  ```
+- [ ] サーバー側ログで接続確認:
+  ```
+  🔌 [WebSocket] New connection to room: room-abc123
+  ```
+
+**Deliverable:**
+- Room WebSocketエンドポイント
+
+---
+
+### Phase 4.5.3: メッセージ型定義とプロトコル設計
+
+**Goal:** WebSocketメッセージの型定義
+
+**Tasks:**
+- [ ] `@maycast/common-types`にWebSocketメッセージ型定義
+  ```typescript
+  // websocket.ts
+  export type WebSocketMessageType =
+    | 'room:state_changed'
+    | 'room:recording_created'
+    | 'room:recording_state_changed'
+    | 'room:chunk_uploaded'
+    | 'director:command'
+    | 'guest:joined'
+    | 'guest:left';
+
+  export interface WebSocketMessage {
+    type: WebSocketMessageType;
+    payload: any;
+    timestamp: string;
+  }
+
+  export interface RoomStateChangedMessage extends WebSocketMessage {
+    type: 'room:state_changed';
+    payload: {
+      roomId: RoomId;
+      state: RoomState;
+    };
+  }
+
+  export interface DirectorCommandMessage extends WebSocketMessage {
+    type: 'director:command';
+    payload: {
+      command: 'start' | 'stop';
+      roomId: RoomId;
+    };
+  }
+
+  // ...他のメッセージ型も定義
+  ```
+- [ ] サーバー側でメッセージ送受信ヘルパー実装
+
+**Test:**
+- [ ] 型定義がコンパイル成功
+- [ ] メッセージをパースできる
+
+**Deliverable:**
+- WebSocketメッセージ型定義
+
+---
+
+### Phase 4.5.4: Director指示のブロードキャスト実装
+
+**Goal:** Directorからの「Start/Stop」指示をGuestにブロードキャスト
+
+**Tasks:**
+- [ ] Director接続時のクライアントタイプ識別
+  - 接続時にクライアントタイプを送信（`director` or `guest`）
+- [ ] Directorからのコマンド受信処理
+  ```typescript
+  ws.on('message', (data) => {
+    const message = JSON.parse(data);
+    if (message.type === 'director:command') {
+      roomConnectionManager.broadcastToRoom(roomId, message);
+    }
+  });
+  ```
+- [ ] Guest側でコマンド受信処理（Phase 4.5.5で実装）
+
+**Test:**
+- [ ] Director側でコマンド送信
+  ```javascript
+  // Directorブラウザコンソール
+  const ws = new WebSocket('ws://localhost:3000/ws/rooms/room-abc123');
+  ws.onopen = () => {
+    ws.send(JSON.stringify({
+      type: 'director:command',
+      payload: { command: 'start', roomId: 'room-abc123' },
+      timestamp: new Date().toISOString()
+    }));
+  };
+  ```
+- [ ] Guest側で受信確認
+  ```javascript
+  // Guestブラウザコンソール
+  const ws = new WebSocket('ws://localhost:3000/ws/rooms/room-abc123');
+  ws.onmessage = (event) => {
+    console.log('📨 Received:', JSON.parse(event.data));
+    // 期待: { type: 'director:command', payload: { command: 'start', ... } }
+  };
+  ```
+
+**Deliverable:**
+- Director指示ブロードキャスト
+
+---
+
+### Phase 4.5.5: Guest側WebSocket接続実装
+
+**Goal:** Guest ModeでWebSocket接続してDirector指示を受信
+
+**Tasks:**
+- [ ] `useRoomWebSocket`カスタムフック実装（Guest Mode用）
+  ```typescript
+  function useRoomWebSocket(roomId: string) {
+    const [ws, setWs] = useState<WebSocket | null>(null);
+    const [lastCommand, setLastCommand] = useState<string | null>(null);
+
+    useEffect(() => {
+      const websocket = new WebSocket(`ws://localhost:3000/ws/rooms/${roomId}`);
+      websocket.onmessage = (event) => {
+        const message = JSON.parse(event.data);
+        if (message.type === 'director:command') {
+          setLastCommand(message.payload.command);
+        }
+      };
+      setWs(websocket);
+
+      return () => websocket.close();
+    }, [roomId]);
+
+    return { ws, lastCommand };
+  }
+  ```
+- [ ] GuestRecorderでWebSocket統合
+  - `lastCommand`が`'start'`の場合、録画開始
+  - `lastCommand`が`'stop'`の場合、録画停止
+
+**Test:**
+- [ ] Guest ModeでWebSocket接続確認
+- [ ] Director側で「Start」コマンド送信
+- [ ] Guest側で自動的に録画開始
+- [ ] ブラウザコンソールで確認:
+  ```
+  🔌 [useRoomWebSocket] Connected to room: room-abc123
+  📨 [useRoomWebSocket] Received command: start
+  🎬 [GuestRecorder] Starting recording...
+  ```
+
+**Deliverable:**
+- Guest側WebSocket接続
+
+---
+
+### Phase 4.5.6: Director側WebSocket接続とリアルタイム更新
+
+**Goal:** Director ModeでWebSocket接続してゲスト状態をリアルタイム表示
+
+**Tasks:**
+- [ ] `useRoomWebSocket`カスタムフック実装（Director Mode用）
+  ```typescript
+  function useRoomWebSocket(roomId: string) {
+    const [guestUpdates, setGuestUpdates] = useState<any[]>([]);
+
+    useEffect(() => {
+      const ws = new WebSocket(`ws://localhost:3000/ws/rooms/${roomId}`);
+      ws.onmessage = (event) => {
+        const message = JSON.parse(event.data);
+        if (message.type === 'room:recording_state_changed') {
+          setGuestUpdates(prev => [...prev, message.payload]);
+        }
+      };
+
+      return () => ws.close();
+    }, [roomId]);
+
+    return { guestUpdates };
+  }
+  ```
+- [ ] GuestListコンポーネントをリアルタイム更新に変更
+  - ポーリングを削除
+  - WebSocketイベントで状態更新
+
+**Test:**
+- [ ] Guest Modeで録画開始
+- [ ] Director画面でリアルタイムに状態が更新される
+- [ ] ポーリングなしで即座に反映される
+
+**Deliverable:**
+- Director側WebSocket接続
+- リアルタイム状態表示
+
+---
+
+### Phase 4.5.7: チャンクアップロード通知
+
+**Goal:** Guestのチャンクアップロード進捗をDirectorにリアルタイム通知
+
+**Tasks:**
+- [ ] Guest側でチャンクアップロード時にWebSocketメッセージ送信
+  ```typescript
+  // ChunkUploader内
+  async uploadChunk(chunk: Uint8Array, chunkId: number) {
+    await uploadToServer(chunk, chunkId);
+
+    // WebSocketで通知
+    ws?.send(JSON.stringify({
+      type: 'room:chunk_uploaded',
+      payload: { roomId, recordingId, chunkId },
+      timestamp: new Date().toISOString()
+    }));
+  }
+  ```
+- [ ] サーバー側で受信してブロードキャスト
+- [ ] Director側で受信して進捗バー更新
+
+**Test:**
+- [ ] Guest Modeで録画中
+- [ ] Director画面で各ゲストのチャンク進捗がリアルタイム表示
+  ```
+  Guest A: [████████░░] 75% (15/20 chunks)
+  Guest B: [██████████] 100% (20/20 chunks)
+  ```
+
+**Deliverable:**
+- チャンクアップロード進捗通知
+
+---
+
+### Phase 4.6.1: Stop指示のブロードキャスト
+
+**Goal:** Directorからの「Stop」指示を全Guestに送信
+
+**Tasks:**
+- [ ] Director側「Stop Recording」ボタン実装
+  - WebSocketで`director:command { command: 'stop' }`を送信
+  - Room状態を`recording` → `finished`に更新
+- [ ] サーバー側でRoom内の全Guestにブロードキャスト
+
+**Test:**
+- [ ] Director画面で「Stop Recording」クリック
+- [ ] 全Guest側でStopコマンド受信
+- [ ] ブラウザコンソール（Guest側）で確認:
+  ```
+  📨 [useRoomWebSocket] Received command: stop
+  🛑 [GuestRecorder] Stopping recording...
+  ```
+
+**Deliverable:**
+- Stop指示ブロードキャスト
+
+---
+
+### Phase 4.6.2: Guest側録画停止とFlush処理
+
+**Goal:** Stop指示受信時、録画停止して未送信チャンクをアップロード
+
+**Tasks:**
+- [ ] GuestRecorderでStop指示処理
+  ```typescript
+  useEffect(() => {
+    if (lastCommand === 'stop') {
+      // 録画停止
+      stopRecording();
+
+      // 未送信チャンクのアップロード完了を待機
+      waitForUploadComplete().then(() => {
+        // Recording状態を synced に更新
+        updateRecordingState('synced');
+
+        // WebSocketで通知
+        ws?.send(JSON.stringify({
+          type: 'guest:synced',
+          payload: { roomId, recordingId },
+          timestamp: new Date().toISOString()
+        }));
+      });
+    }
+  }, [lastCommand]);
+  ```
+- [ ] `waitForUploadComplete()`実装
+  - ChunkUploaderのキューが空になるまで待機
+  - タイムアウト処理（最大5分）
+
+**Test:**
+- [ ] Guest Modeで録画中
+- [ ] Director側で「Stop」指示
+- [ ] Guest側で録画停止
+- [ ] 未送信チャンクが自動的にアップロードされる
+- [ ] アップロード完了後、`guest:synced`メッセージが送信される
+- [ ] ブラウザコンソールで確認:
+  ```
+  🛑 [GuestRecorder] Recording stopped
+  ⏳ [GuestRecorder] Waiting for upload to complete...
+  ✅ [GuestRecorder] All chunks uploaded
+  🎉 [GuestRecorder] Recording synced
+  ```
+
+**Deliverable:**
+- Guest側Flush処理
+
+---
+
+### Phase 4.6.3: Director側同期状態監視
+
+**Goal:** 各Guestの同期状態をリアルタイム表示
+
+**Tasks:**
+- [ ] Director側でGuest同期状態を管理
+  ```typescript
+  interface GuestSyncState {
+    recordingId: string;
+    synced: boolean;
+    progress: number;  // 0-100
+  }
+
+  const [guestSyncStates, setGuestSyncStates] = useState<Map<string, GuestSyncState>>(new Map());
+  ```
+- [ ] WebSocketで`guest:synced`メッセージ受信
+  ```typescript
+  ws.onmessage = (event) => {
+    const message = JSON.parse(event.data);
+    if (message.type === 'guest:synced') {
+      setGuestSyncStates(prev => {
+        const updated = new Map(prev);
+        updated.set(message.payload.recordingId, {
+          recordingId: message.payload.recordingId,
+          synced: true,
+          progress: 100
+        });
+        return updated;
+      });
+    }
+  };
+  ```
+- [ ] UI更新
+
+**UI:**
+```
+┌─────────────────────────────────────────┐
+│  Room: room-abc123                      │
+│  Status: 🟡 Finalizing                  │
+├─────────────────────────────────────────┤
+│  Waiting for all guests to sync...      │
+│                                         │
+│  Guest A: ✅ Synced (100%)              │
+│  Guest B: ⏳ Uploading... (75%)         │
+│  Guest C: ✅ Synced (100%)              │
+└─────────────────────────────────────────┘
+```
+
+**Test:**
+- [ ] 複数Guestで録画→Stop
+- [ ] Director画面で各Guestの同期状態が表示される
+- [ ] Guest Bのアップロードが遅い場合、進捗が表示される
+- [ ] 全Guestが`Synced`になったら完了
+
+**Deliverable:**
+- Director側同期状態監視
+
+---
+
+### Phase 4.6.4: Room状態の最終更新とUI
+
+**Goal:** 全Guest同期完了後、Room状態を`finished`に確定
+
+**Tasks:**
+- [ ] Director側で全Guest同期確認
+  ```typescript
+  useEffect(() => {
+    const allSynced = Array.from(guestSyncStates.values())
+      .every(state => state.synced);
+
+    if (allSynced && guestSyncStates.size > 0) {
+      // Room状態を finished に更新（既に更新済みの場合は不要）
+      console.log('✅ All guests synced!');
+    }
+  }, [guestSyncStates]);
+  ```
+- [ ] UI更新
+
+**UI (完了後):**
+```
+┌─────────────────────────────────────────┐
+│  Room: room-abc123                      │
+│  Status: ✅ Finished                    │
+├─────────────────────────────────────────┤
+│  ✓ All recordings synced successfully   │
+│                                         │
+│  Guest A: ✅ Synced (15:32)             │
+│  Guest B: ✅ Synced (15:30)             │
+│  Guest C: ✅ Synced (15:35)             │
+│                                         │
+│  [Download All]  [Back to Rooms]        │
+└─────────────────────────────────────────┘
+```
+
+**Test:**
+- [ ] 全Guest同期完了
+- [ ] Director画面に「✓ All recordings synced successfully」表示
+- [ ] Room状態が`finished`
+
+**Deliverable:**
+- Room最終状態更新
+
+---
+
+### Phase 4.6.5: Guest側「ブラウザを閉じてOK」表示
+
+**Goal:** Guest側で同期完了後の表示
+
+**Tasks:**
+- [ ] Guest側で`synced`状態になったらUI更新
+- [ ] 「Recording Complete!」画面表示（Phase 4.3.6で実装済み）
+
+**UI:**
+```
+┌─────────────────────────────────────────┐
+│  Recording Complete! ✅                 │
+│                                         │
+│  Your recording has been uploaded.     │
+│  You can now close this window.        │
+└─────────────────────────────────────────┘
+```
+
+**Test:**
+- [ ] Guest側で録画→Stop→同期完了
+- [ ] 「Recording Complete!」画面が表示される
+
+**Deliverable:**
+- Guest側完了画面
+
+---
+
+### Phase 4.7.1: 個別Recording MP4ダウンロード（基本実装）
+
+**Goal:** Director画面から各GuestのMP4を個別にダウンロード
+
+**Tasks:**
+- [ ] GuestListコンポーネントに「Download MP4」ボタン追加
+- [ ] ダウンロードハンドラー実装
+  ```typescript
+  const downloadRecording = async (recordingId: string) => {
+    const res = await fetch(`/api/recordings/${recordingId}/download`);
+    const blob = await res.blob();
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `recording-${recordingId}.mp4`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+  ```
+
+**Test:**
+- [ ] Room完了後、Director画面でダウンロード
+- [ ] Guest AのMP4がダウンロードされる
+- [ ] ファイル名: `recording-{recordingId}.mp4`
+- [ ] VLCで再生できる
+
+**Deliverable:**
+- 個別Recording MP4ダウンロード（基本版）
+
+---
+
+### Phase 4.7.2: Recording情報表示（Duration, Size）
+
+**Goal:** Recording詳細情報を表示
+
+**Tasks:**
+- [ ] サーバー側でRecordingメタデータ拡張
+  - `durationUs`（録画時間、マイクロ秒）
+  - `totalSize`（合計ファイルサイズ、バイト）
+- [ ] フロントエンドで表示用フォーマット関数
+  ```typescript
+  function formatDuration(durationUs: number): string {
+    const seconds = Math.floor(durationUs / 1_000_000);
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+    return `${hours}:${String(minutes % 60).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
+  }
+
+  function formatSize(bytes: number): string {
+    const mb = bytes / (1024 * 1024);
+    const gb = mb / 1024;
+    return gb >= 1 ? `${gb.toFixed(2)} GB` : `${mb.toFixed(2)} MB`;
+  }
+  ```
+- [ ] GuestListコンポーネントで情報表示
+
+**UI:**
+```
+┌─────────────────────────────────────────┐
+│  Guest A (recording-001)                │
+│  Duration: 15:32                        │
+│  Size: 1.2 GB                           │
+│  [Download MP4]                         │
+└─────────────────────────────────────────┘
+```
+
+**Test:**
+- [ ] Director画面でRecording情報が表示される
+- [ ] Duration, Sizeが正しく計算されている
+
+**Deliverable:**
+- Recording情報表示
+
+---
+
+### Phase 4.7.3: ダウンロードファイル名のカスタマイズ
+
+**Goal:** ファイル名を`{room_id}_{recording_id}_{timestamp}.mp4`形式に
+
+**Tasks:**
+- [ ] ファイル名生成ロジック実装
+  ```typescript
+  const generateFilename = (roomId: string, recordingId: string): string => {
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    return `room-${roomId}_recording-${recordingId}_${timestamp}.mp4`;
+  };
+  ```
+- [ ] ダウンロードハンドラーを更新
+
+**Test:**
+- [ ] ダウンロードしたファイル名を確認
+  ```
+  room-abc123_recording-001_2026-01-24T10-30-00-000Z.mp4
+  ```
+
+**Deliverable:**
+- カスタムファイル名
+
+---
+
+### Phase 4.7.4: ダウンロード進捗表示
+
+**Goal:** ダウンロード中の進捗を表示
+
+**Tasks:**
+- [ ] ダウンロード状態管理
+  ```typescript
+  interface DownloadState {
+    recordingId: string;
+    status: 'idle' | 'downloading' | 'completed' | 'error';
+    progress: number;  // 0-100
+  }
+
+  const [downloadStates, setDownloadStates] = useState<Map<string, DownloadState>>(new Map());
+  ```
+- [ ] Fetch APIで進捗取得
+  ```typescript
+  const downloadWithProgress = async (recordingId: string) => {
+    const res = await fetch(`/api/recordings/${recordingId}/download`);
+    const contentLength = res.headers.get('Content-Length');
+    const total = parseInt(contentLength || '0', 10);
+
+    const reader = res.body?.getReader();
+    let received = 0;
+    const chunks: Uint8Array[] = [];
+
+    while (true) {
+      const { done, value } = await reader!.read();
+      if (done) break;
+
+      chunks.push(value);
+      received += value.length;
+
+      const progress = (received / total) * 100;
+      setDownloadStates(prev => {
+        const updated = new Map(prev);
+        updated.set(recordingId, { recordingId, status: 'downloading', progress });
+        return updated;
+      });
+    }
+
+    // Blob作成してダウンロード
+    const blob = new Blob(chunks);
+    // ...
+  };
+  ```
+- [ ] UI更新
+
+**UI:**
+```
+┌─────────────────────────────────────────┐
+│  Guest A (recording-001)                │
+│  Duration: 15:32                        │
+│  Size: 1.2 GB                           │
+│  [████████░░] 75% Downloading...        │
+└─────────────────────────────────────────┘
+```
+
+**Test:**
+- [ ] ダウンロード中、進捗バーが更新される
+- [ ] 完了後、「✅ Downloaded」表示
+
+**Deliverable:**
+- ダウンロード進捗表示
+
+---
+
+### Phase 4.7.5: 複数Recording同時ダウンロード対応
+
+**Goal:** 複数Recordingを同時にダウンロード
+
+**Tasks:**
+- [ ] ダウンロードキュー管理
+  - 最大3並列ダウンロード
+- [ ] 各Recordingの進捗を個別表示
+
+**Test:**
+- [ ] 「Download All」ボタン追加（オプショナル）
+- [ ] 複数Recordingを順次ダウンロード
+- [ ] 各ファイルが正常にダウンロードされる
+
+**Deliverable:**
+- 複数Recording同時ダウンロード
+
+---
+
+### Phase 4.7.6: 全Recording一括ZIPダウンロード（オプショナル）
+
+**Goal:** Room内の全RecordingをZIP形式で一括ダウンロード
+
+**Tasks:**
+- [ ] サーバー側で`GET /api/rooms/:room_id/download-all`エンドポイント実装
+  - Room内の全Recording IDを取得
+  - 各RecordingのMP4を結合
+  - ZIP形式で圧縮（`archiver`パッケージ使用）
+  - ストリーム配信
+  ```typescript
+  import archiver from 'archiver';
+
+  app.get('/api/rooms/:room_id/download-all', async (req, res) => {
+    const { room_id } = req.params;
+    const recordings = await getRecordingsInRoom(room_id);
+
+    res.set('Content-Type', 'application/zip');
+    res.set('Content-Disposition', `attachment; filename="room-${room_id}.zip"`);
+
+    const archive = archiver('zip', { zlib: { level: 0 } });
+    archive.pipe(res);
+
+    for (const recording of recordings) {
+      const mp4Stream = await combineChunks(recording.id);
+      archive.append(mp4Stream, { name: `recording-${recording.id}.mp4` });
+    }
+
+    await archive.finalize();
+  });
+  ```
+- [ ] Director画面に「Download All as ZIP」ボタン追加
+
+**Test:**
+- [ ] 「Download All as ZIP」クリック
+- [ ] ZIP形式でダウンロードされる
+- [ ] ZIP解凍後、全GuestのMP4が含まれる
+- [ ] 各MP4が正常に再生できる
+
+**Deliverable:**
+- 全Recording一括ZIPダウンロード
 
 ---
 
@@ -458,31 +2239,373 @@ interface Room {
 
 ## Phase 5: Guardian & 監視機能
 
-**Goal:** エンコード負荷監視と自動画質調整
+**Goal:** エンコード負荷監視と自動画質調整で録画停止を防ぐ
 
-### 5.1 Performance Monitor（WASM側）
+---
 
-**Tasks:**
-- [ ] VideoEncoder queueサイズ監視
-- [ ] CPU使用率推定（処理遅延から算出）
-- [ ] 危険閾値検出
+### Phase 5.1.1: VideoEncoder Queue監視
 
-### 5.2 Adaptive Bitrate
+**Goal:** VideoEncoderのキューサイズを監視し、負荷を検出
 
 **Tasks:**
-- [ ] ビットレート動的変更API
-- [ ] 解像度ダウンスケール
-- [ ] UI警告表示（「負荷軽減のため画質を下げました」）
+- [ ] `PerformanceMonitor`クラス実装
+  ```typescript
+  class PerformanceMonitor {
+    private queueSizeHistory: number[] = [];
 
-### 5.3 Audio Analysis
+    monitorEncoderQueue(encoder: VideoEncoder): number {
+      // VideoEncoder.encodeQueueSize を取得（未標準化のため、実装依存）
+      const queueSize = (encoder as any).encodeQueueSize || 0;
+      this.queueSizeHistory.push(queueSize);
 
-**Tasks:**
-- [ ] RMS/Peak レベル取得
-- [ ] 無音検出（トラブルシューティング用）
-- [ ] リアルタイムメーター表示
+      // 過去10サンプルの平均
+      const avgQueueSize = this.queueSizeHistory.slice(-10).reduce((a, b) => a + b, 0) / 10;
+      return avgQueueSize;
+    }
+
+    isOverloaded(avgQueueSize: number): boolean {
+      // キューサイズが30を超えたら過負荷と判定
+      return avgQueueSize > 30;
+    }
+  }
+  ```
+- [ ] Recorderで1秒ごとに監視
+
+**Test:**
+- [ ] 録画中、ブラウザコンソールでキューサイズを確認
+  ```
+  📊 [PerformanceMonitor] Encoder queue size: 5
+  📊 [PerformanceMonitor] Average queue size: 4.2
+  ```
+- [ ] 高解像度（4K）で録画してキューサイズ増加を確認
+- [ ] キューサイズが閾値を超えたら警告ログ
+  ```
+  ⚠️ [PerformanceMonitor] Encoder overload detected! Queue: 32
+  ```
 
 **Deliverable:**
-- 収録停止を防ぐ自動防衛機能
+- VideoEncoder Queue監視機能
+
+---
+
+### Phase 5.1.2: CPU使用率推定
+
+**Goal:** エンコード処理時間から CPU 使用率を推定
+
+**Tasks:**
+- [ ] エンコード処理時間の計測
+  ```typescript
+  class PerformanceMonitor {
+    private encodeTimings: number[] = [];
+
+    measureEncodeTime(startTime: number, endTime: number): void {
+      const encodeTime = endTime - startTime;
+      this.encodeTimings.push(encodeTime);
+    }
+
+    estimateCpuUsage(): number {
+      // フレームレート 30fps の場合、1フレームの理想処理時間は 33ms
+      const idealFrameTime = 1000 / 30;
+      const avgEncodeTime = this.encodeTimings.slice(-30).reduce((a, b) => a + b, 0) / 30;
+
+      // CPU使用率 = (実際の処理時間 / 理想処理時間) * 100
+      const cpuUsage = (avgEncodeTime / idealFrameTime) * 100;
+      return Math.min(cpuUsage, 100);
+    }
+  }
+  ```
+- [ ] UI に CPU 使用率表示（デバッグモード）
+
+**Test:**
+- [ ] 録画中、CPU使用率を確認
+  ```
+  📊 [PerformanceMonitor] CPU usage: 45%
+  ```
+- [ ] 高負荷時（4K録画）に100%に近づく
+
+**Deliverable:**
+- CPU使用率推定機能
+
+---
+
+### Phase 5.1.3: 危険閾値検出とアラート
+
+**Goal:** 過負荷を検出してアラート表示
+
+**Tasks:**
+- [ ] 閾値設定
+  - キューサイズ: 30以上で警告、50以上で危険
+  - CPU使用率: 80%以上で警告、95%以上で危険
+- [ ] アラート状態管理
+  ```typescript
+  type AlertLevel = 'normal' | 'warning' | 'danger';
+
+  interface PerformanceAlert {
+    level: AlertLevel;
+    message: string;
+  }
+
+  class PerformanceMonitor {
+    getAlert(): PerformanceAlert {
+      const queueSize = this.getAvgQueueSize();
+      const cpuUsage = this.estimateCpuUsage();
+
+      if (queueSize >= 50 || cpuUsage >= 95) {
+        return { level: 'danger', message: 'Severe overload! Quality will be reduced.' };
+      }
+      if (queueSize >= 30 || cpuUsage >= 80) {
+        return { level: 'warning', message: 'High load detected. Monitor performance.' };
+      }
+      return { level: 'normal', message: '' };
+    }
+  }
+  ```
+
+**Test:**
+- [ ] 高負荷時に警告が表示される
+- [ ] ブラウザコンソールで確認:
+  ```
+  ⚠️ [PerformanceMonitor] Warning: High load detected. Monitor performance.
+  ```
+
+**Deliverable:**
+- 危険閾値検出機能
+
+---
+
+### Phase 5.2.1: Adaptive Bitrate - ビットレート動的変更
+
+**Goal:** 過負荷検出時、ビットレートを自動的に下げる
+
+**Tasks:**
+- [ ] ビットレート変更API実装
+  ```typescript
+  class AdaptiveBitrateController {
+    private currentBitrate: number;
+    private minBitrate = 500_000;  // 500 Kbps
+    private maxBitrate = 5_000_000;  // 5 Mbps
+
+    reduceBitrate(): number {
+      this.currentBitrate = Math.max(this.currentBitrate * 0.8, this.minBitrate);
+      return this.currentBitrate;
+    }
+
+    increaseBitrate(): number {
+      this.currentBitrate = Math.min(this.currentBitrate * 1.2, this.maxBitrate);
+      return this.currentBitrate;
+    }
+
+    applyBitrate(encoder: VideoEncoder, bitrate: number): void {
+      // VideoEncoder の再設定（既存のencoderを破棄して新しいencoderを作成）
+      // 注意: WebCodecsでは実行中のビットレート変更は難しい
+      // 実装はプロジェクト固有のロジックに依存
+    }
+  }
+  ```
+- [ ] PerformanceMonitorと統合
+  - 過負荷検出時、ビットレートを20%削減
+  - 負荷正常化時、ビットレートを20%増加（元の設定まで）
+
+**Note:** WebCodecs では実行中のVideoEncoderのビットレート変更が難しいため、このフェーズは研究フェーズとして実装の実現可能性を検証する必要があります。
+
+**Test:**
+- [ ] 過負荷シミュレーション
+- [ ] ビットレートが自動的に削減される
+- [ ] ログで確認:
+  ```
+  ⚠️ [AdaptiveBitrate] Reducing bitrate: 2500000 → 2000000
+  ```
+
+**Deliverable:**
+- Adaptive Bitrate機能（研究段階）
+
+---
+
+### Phase 5.2.2: 解像度ダウンスケール（オプショナル）
+
+**Goal:** さらなる過負荷時、解像度を下げる
+
+**Tasks:**
+- [ ] 解像度変更ロジック
+  - 1080p → 720p
+  - 720p → 480p
+- [ ] Canvas でダウンスケール
+  ```typescript
+  function downscaleFrame(frame: VideoFrame, targetWidth: number, targetHeight: number): VideoFrame {
+    const canvas = document.createElement('canvas');
+    canvas.width = targetWidth;
+    canvas.height = targetHeight;
+    const ctx = canvas.getContext('2d')!;
+    ctx.drawImage(frame, 0, 0, targetWidth, targetHeight);
+    return new VideoFrame(canvas, { timestamp: frame.timestamp });
+  }
+  ```
+
+**Test:**
+- [ ] 解像度変更が反映される
+- [ ] 録画ファイルの解像度を確認
+
+**Deliverable:**
+- 解像度ダウンスケール機能（オプショナル）
+
+---
+
+### Phase 5.2.3: UI警告表示
+
+**Goal:** 画質変更をユーザーに通知
+
+**Tasks:**
+- [ ] 警告トースト実装
+  ```
+  ┌─────────────────────────────────────────┐
+  │  ⚠️ Performance Warning                 │
+  │  Bitrate reduced to maintain stability  │
+  │  2500 Kbps → 2000 Kbps                  │
+  └─────────────────────────────────────────┘
+  ```
+- [ ] Recorderコンポーネントに統合
+
+**Test:**
+- [ ] ビットレート変更時、トーストが表示される
+
+**Deliverable:**
+- UI警告表示
+
+---
+
+### Phase 5.3.1: Audio Analysis - RMS/Peak レベル取得
+
+**Goal:** 音声レベルをリアルタイム監視
+
+**Tasks:**
+- [ ] `AudioAnalyzer`クラス実装
+  ```typescript
+  class AudioAnalyzer {
+    private analyserNode: AnalyserNode;
+
+    constructor(audioContext: AudioContext, source: MediaStreamAudioSourceNode) {
+      this.analyserNode = audioContext.createAnalyser();
+      this.analyserNode.fftSize = 2048;
+      source.connect(this.analyserNode);
+    }
+
+    getRMS(): number {
+      const dataArray = new Float32Array(this.analyserNode.fftSize);
+      this.analyserNode.getFloatTimeDomainData(dataArray);
+
+      let sum = 0;
+      for (let i = 0; i < dataArray.length; i++) {
+        sum += dataArray[i] ** 2;
+      }
+      const rms = Math.sqrt(sum / dataArray.length);
+      return rms;
+    }
+
+    getPeak(): number {
+      const dataArray = new Float32Array(this.analyserNode.fftSize);
+      this.analyserNode.getFloatTimeDomainData(dataArray);
+      return Math.max(...dataArray);
+    }
+  }
+  ```
+
+**Test:**
+- [ ] 録画中、音声レベルをログ出力
+  ```
+  🔊 [AudioAnalyzer] RMS: 0.05, Peak: 0.15
+  ```
+
+**Deliverable:**
+- Audio Analysis機能
+
+---
+
+### Phase 5.3.2: 無音検出
+
+**Goal:** 無音状態を検出してトラブルシューティング
+
+**Tasks:**
+- [ ] 無音検出ロジック
+  ```typescript
+  class AudioAnalyzer {
+    detectSilence(threshold = 0.01): boolean {
+      const rms = this.getRMS();
+      return rms < threshold;
+    }
+  }
+  ```
+- [ ] 10秒間無音が続いたら警告表示
+
+**UI:**
+```
+┌─────────────────────────────────────────┐
+│  ⚠️ Audio Warning                       │
+│  No audio detected for 10 seconds.     │
+│  Check your microphone settings.       │
+└─────────────────────────────────────────┘
+```
+
+**Test:**
+- [ ] マイクをミュートして録画
+- [ ] 10秒後、警告が表示される
+
+**Deliverable:**
+- 無音検出機能
+
+---
+
+### Phase 5.3.3: リアルタイム音声メーター表示
+
+**Goal:** 音声レベルをリアルタイムで可視化
+
+**Tasks:**
+- [ ] AudioMeterコンポーネント実装
+  ```typescript
+  function AudioMeter({ analyzer }: { analyzer: AudioAnalyzer }) {
+    const [rms, setRms] = useState(0);
+
+    useEffect(() => {
+      const interval = setInterval(() => {
+        setRms(analyzer.getRMS());
+      }, 100);
+
+      return () => clearInterval(interval);
+    }, [analyzer]);
+
+    const percentage = Math.min(rms * 100, 100);
+
+    return (
+      <div className="audio-meter">
+        <div className="meter-bar" style={{ width: `${percentage}%` }} />
+      </div>
+    );
+  }
+  ```
+
+**UI:**
+```
+Audio: [████████░░░░░░░░░░] 40%
+```
+
+**Test:**
+- [ ] 録画中、音声メーターが動く
+- [ ] 音量に応じてバーが変化
+
+**Deliverable:**
+- リアルタイム音声メーター
+
+---
+
+**Overall Phase 5 Deliverable:**
+- **完全な監視・自動防衛機能**
+  - VideoEncoder Queue監視
+  - CPU使用率推定
+  - 危険閾値検出
+  - Adaptive Bitrate（ビットレート自動調整）
+  - 解像度ダウンスケール（オプショナル）
+  - Audio Analysis（RMS/Peak、無音検出、リアルタイムメーター）
+  - UI警告表示
+- **録画停止を防ぐ自動防衛システム**
 
 ---
 
@@ -492,54 +2615,426 @@ interface Room {
 
 **Note:** Phase 4でDirector/Guest画面の基本機能は実装済み。Phase 6ではさらなる改善とポリッシュを行う。
 
-### 6.1 Director画面の改善
+---
+
+### Phase 6.1.1: Room一覧のフィルタリング・検索
+
+**Goal:** Room一覧に検索とフィルター機能を追加
 
 **Tasks:**
-- [ ] Room一覧のフィルタリング・検索機能
-- [ ] Room履歴管理（過去のRoom一覧）
-- [ ] 収録統計ダッシュボード
-  - Room別の録画時間
-  - Guest別のファイルサイズ
-  - Chunk数、アップロード速度
-- [ ] エラーログビューア
-- [ ] Guest招待リンクのQRコード生成
+- [ ] 検索バー実装
+  - Room IDで検索
+  - 作成日で検索
+- [ ] フィルター機能
+  - 状態別フィルター（Idle, Recording, Finished）
+  - 日付範囲フィルター
+- [ ] ソート機能
+  - 作成日時順
+  - 状態順
 
-### 6.2 Guest画面の改善
+**UI:**
+```
+┌─────────────────────────────────────────┐
+│  Rooms                                  │
+│  [Search: ________] [Filter: All ▼]    │
+│  [Sort: Created ▼]         [Create New] │
+├─────────────────────────────────────────┤
+│  ...Room list...                        │
+└─────────────────────────────────────────┘
+```
 
-**Tasks:**
-- [ ] カメラ/マイク事前チェック画面
-  - デバイス選択
-  - プレビュー確認
-  - 音声レベルメーター
-- [ ] 接続状態インジケーターの改善
-  - より詳細なステータス表示
-  - 再接続時のアニメーション
-- [ ] 「収録中」アニメーション
-- [ ] Synced状態の明確な表示
-  - 成功アニメーション
-  - 「ブラウザを閉じてOK」の大きな表示
-
-### 6.3 Download 機能
-
-**Tasks:**
-- [ ] サーバー側でChunkをストリーム結合
-- [ ] `GET /api/recordings/:id/download` エンドポイント
-- [ ] `GET /api/rooms/:id/download` エンドポイント（全Recording結合）
-- [ ] Range Request対応（部分ダウンロード）
-- [ ] ダウンロード進捗表示
-
-### 6.4 全モード共通UI改善
-
-**Tasks:**
-- [ ] レスポンシブデザイン対応
-- [ ] ダークモード完全対応（Tailwind CSS設定）
-- [ ] アクセシビリティ改善（ARIA属性、キーボードナビゲーション）
-- [ ] エラーメッセージの改善
-- [ ] ローディングアニメーション統一
+**Test:**
+- [ ] Room ID検索が動作する
+- [ ] フィルターでRecording状態のRoomのみ表示
+- [ ] ソートで並び順が変わる
 
 **Deliverable:**
-- プロダクションレディなUI/UX
-- 全モードで統一された操作体験
+- Room検索・フィルター機能
+
+---
+
+### Phase 6.1.2: Room履歴管理
+
+**Goal:** 過去のRoomを履歴として保存
+
+**Tasks:**
+- [ ] 「Archive Room」機能実装
+  - Room状態が`finished`の場合、アーカイブ可能
+  - アーカイブされたRoomは一覧から非表示
+- [ ] 「Archived Rooms」タブ追加
+  - アーカイブ済みRoom一覧
+  - 再表示・削除機能
+
+**Test:**
+- [ ] Room完了後、「Archive」ボタンが表示される
+- [ ] アーカイブ後、一覧から消える
+- [ ] 「Archived Rooms」タブで確認できる
+
+**Deliverable:**
+- Room履歴管理
+
+---
+
+### Phase 6.1.3: 収録統計ダッシュボード
+
+**Goal:** Room別の統計情報を可視化
+
+**Tasks:**
+- [ ] 統計情報計算
+  - Room別の合計録画時間
+  - Guest別のファイルサイズ
+  - 平均Chunk数
+  - アップロード速度
+- [ ] ダッシュボードUI実装
+  - グラフ表示（Chart.js 使用）
+  - カード形式で表示
+
+**UI:**
+```
+┌─────────────────────────────────────────┐
+│  Dashboard                              │
+├─────────────────────────────────────────┤
+│  Total Rooms: 15                        │
+│  Active Rooms: 3                        │
+│  Total Recordings: 45                   │
+│  Total Size: 125 GB                     │
+│                                         │
+│  [Recent Activity Chart]                │
+└─────────────────────────────────────────┘
+```
+
+**Test:**
+- [ ] 統計情報が正しく計算される
+- [ ] グラフが表示される
+
+**Deliverable:**
+- 収録統計ダッシュボード
+
+---
+
+### Phase 6.1.4: エラーログビューア
+
+**Goal:** サーバーエラーやクライアントエラーを表示
+
+**Tasks:**
+- [ ] エラーログ収集
+  - サーバー側のエラーログをAPIで取得
+  - クライアント側のエラーをIndexedDBに保存
+- [ ] エラーログビューアUI
+  - エラー一覧表示
+  - フィルター（日時、タイプ）
+  - 詳細表示
+
+**Test:**
+- [ ] エラー発生時、ログに記録される
+- [ ] エラーログビューアで確認できる
+
+**Deliverable:**
+- エラーログビューア
+
+---
+
+### Phase 6.1.5: Guest招待リンクのQRコード生成
+
+**Goal:** Guest URLをQRコードで共有
+
+**Tasks:**
+- [ ] QRコードライブラリ追加（`qrcode.react`）
+  ```bash
+  cd packages/web-client
+  npm install qrcode.react
+  ```
+- [ ] QRコード表示コンポーネント実装
+- [ ] Room詳細画面に表示
+
+**UI:**
+```
+┌─────────────────────────────────────────┐
+│  Guest URL:                             │
+│  http://localhost:5173/guest/room-abc123│
+│  [Copy URL]  [Show QR Code]             │
+│                                         │
+│  ┌─────────────┐                        │
+│  │ QR Code     │                        │
+│  │ [███  ███]  │                        │
+│  │ [  ████  ]  │                        │
+│  │ [███  ███]  │                        │
+│  └─────────────┘                        │
+└─────────────────────────────────────────┘
+```
+
+**Test:**
+- [ ] QRコードが表示される
+- [ ] スマホでスキャンしてアクセスできる
+
+**Deliverable:**
+- QRコード生成機能
+
+---
+
+### Phase 6.2.1: カメラ/マイク事前チェック画面
+
+**Goal:** Guest接続前にデバイスチェック
+
+**Tasks:**
+- [ ] デバイス選択UI実装
+  - カメラ一覧
+  - マイク一覧
+  - スピーカー一覧（オプショナル）
+- [ ] プレビュー確認
+  - カメラプレビュー
+  - 音声レベルメーター
+- [ ] 「Join Room」ボタン
+
+**UI:**
+```
+┌─────────────────────────────────────────┐
+│  Device Check                           │
+├─────────────────────────────────────────┤
+│  Camera: [HD Webcam ▼]                  │
+│  ┌───────────────────────────────────┐ │
+│  │ [Camera Preview]                  │ │
+│  └───────────────────────────────────┘ │
+│                                         │
+│  Microphone: [Built-in Mic ▼]          │
+│  Audio: [████████░░] 40%                │
+│                                         │
+│  [Join Room]                            │
+└─────────────────────────────────────────┘
+```
+
+**Test:**
+- [ ] デバイス選択が動作する
+- [ ] プレビューが表示される
+- [ ] 音声レベルメーターが動作する
+
+**Deliverable:**
+- デバイス事前チェック画面
+
+---
+
+### Phase 6.2.2: 接続状態インジケーター改善
+
+**Goal:** Guest接続状態を詳細に表示
+
+**Tasks:**
+- [ ] 接続状態管理
+  - `connecting`: 接続中
+  - `connected`: 接続完了
+  - `reconnecting`: 再接続中
+  - `disconnected`: 切断
+- [ ] UI更新
+  - 状態別アイコン表示
+  - 再接続アニメーション
+
+**UI:**
+```
+Status: 🟢 Connected
+Status: 🟡 Reconnecting... (Attempt 2/3)
+Status: 🔴 Disconnected
+```
+
+**Test:**
+- [ ] 接続状態が正しく表示される
+- [ ] ネットワーク切断時、再接続アニメーション表示
+
+**Deliverable:**
+- 接続状態インジケーター改善
+
+---
+
+### Phase 6.2.3: 「収録中」アニメーション
+
+**Goal:** 録画中であることを視覚的に明示
+
+**Tasks:**
+- [ ] 録画インジケーターアニメーション
+  - 赤い点滅
+  - 「REC」表示
+- [ ] 録画時間表示
+  - リアルタイムカウントアップ
+
+**UI:**
+```
+🔴 REC  00:15:32
+```
+
+**Test:**
+- [ ] 録画中、赤い点が点滅する
+- [ ] 録画時間が正しくカウントアップされる
+
+**Deliverable:**
+- 録画中アニメーション
+
+---
+
+### Phase 6.2.4: Synced状態の明確な表示
+
+**Goal:** アップロード完了を大きく表示
+
+**Tasks:**
+- [ ] 成功アニメーション実装
+  - チェックマークアニメーション
+  - フェードイン効果
+- [ ] 大きなメッセージ表示
+
+**UI:**
+```
+┌─────────────────────────────────────────┐
+│                                         │
+│           ✅                            │
+│                                         │
+│  Recording Complete!                    │
+│                                         │
+│  You can now close this window.         │
+│                                         │
+└─────────────────────────────────────────┘
+```
+
+**Test:**
+- [ ] 同期完了後、アニメーションが表示される
+
+**Deliverable:**
+- Synced状態の明確な表示
+
+---
+
+### Phase 6.3: ダウンロード機能改善（Phase 4.7で実装済み）
+
+**Note:** Phase 4.7で既に実装済みのため、スキップ
+
+---
+
+### Phase 6.4.1: レスポンシブデザイン対応
+
+**Goal:** モバイル・タブレット対応
+
+**Tasks:**
+- [ ] Tailwind CSSでブレークポイント設定
+  - `sm`: 640px
+  - `md`: 768px
+  - `lg`: 1024px
+- [ ] 各画面をレスポンシブ対応
+  - Director画面
+  - Guest画面
+  - Standalone/Remote画面
+
+**Test:**
+- [ ] スマホサイズで表示
+- [ ] レイアウトが崩れない
+- [ ] タッチ操作が可能
+
+**Deliverable:**
+- レスポンシブデザイン
+
+---
+
+### Phase 6.4.2: ダークモード完全対応
+
+**Goal:** ダークモード切り替え
+
+**Tasks:**
+- [ ] Tailwind CSSのダークモード設定
+  ```javascript
+  // tailwind.config.js
+  module.exports = {
+    darkMode: 'class',
+    // ...
+  };
+  ```
+- [ ] ダークモード切り替えトグル実装
+- [ ] 全コンポーネントをダークモード対応
+
+**Test:**
+- [ ] ダークモード切り替えが動作する
+- [ ] 全画面でダークモードが適用される
+
+**Deliverable:**
+- ダークモード完全対応
+
+---
+
+### Phase 6.4.3: アクセシビリティ改善
+
+**Goal:** WCAG 2.1 AA準拠
+
+**Tasks:**
+- [ ] ARIA属性追加
+  - `aria-label`
+  - `aria-describedby`
+  - `role`属性
+- [ ] キーボードナビゲーション対応
+  - Tab順序
+  - Enter/Spaceでボタン操作
+- [ ] フォーカスインジケーター改善
+
+**Test:**
+- [ ] キーボードだけで操作できる
+- [ ] スクリーンリーダーで読み上げられる
+
+**Deliverable:**
+- アクセシビリティ改善
+
+---
+
+### Phase 6.4.4: エラーメッセージの改善
+
+**Goal:** ユーザーフレンドリーなエラーメッセージ
+
+**Tasks:**
+- [ ] エラーメッセージの統一
+  - 技術用語を避ける
+  - 解決策を提示
+- [ ] エラートースト実装
+
+**Example:**
+```
+Before: "Failed to upload chunk: 500 Internal Server Error"
+After:  "Upload failed. Please check your internet connection and try again."
+```
+
+**Test:**
+- [ ] エラー発生時、わかりやすいメッセージが表示される
+
+**Deliverable:**
+- エラーメッセージ改善
+
+---
+
+### Phase 6.4.5: ローディングアニメーション統一
+
+**Goal:** 統一感のあるローディング表示
+
+**Tasks:**
+- [ ] ローディングコンポーネント実装
+  - スピナーアニメーション
+  - スケルトンUI
+- [ ] 全画面で統一
+
+**Test:**
+- [ ] ローディング表示が統一されている
+
+**Deliverable:**
+- ローディングアニメーション統一
+
+---
+
+**Overall Phase 6 Deliverable:**
+- **プロダクションレディなUI/UX**
+  - Room検索・フィルター・履歴管理
+  - 収録統計ダッシュボード
+  - エラーログビューア
+  - QRコード生成
+  - デバイス事前チェック画面
+  - 接続状態インジケーター改善
+  - 録画中アニメーション
+  - Synced状態の明確な表示
+  - レスポンシブデザイン
+  - ダークモード完全対応
+  - アクセシビリティ改善
+  - エラーメッセージ改善
+  - ローディングアニメーション統一
+- **全モードで統一された操作体験**
 
 ---
 
