@@ -12,29 +12,35 @@ export type RecordingState = 'standby' | 'recording' | 'finalizing' | 'synced';
  * Recording metadata
  */
 export interface RecordingMetadata {
-  /** Video codec (e.g., "H.264", "VP9") */
-  videoCodec: string;
+  /** User-defined display name for the recording */
+  displayName?: string;
 
-  /** Audio codec (e.g., "AAC", "Opus") */
-  audioCodec: string;
+  /** Device information */
+  deviceInfo?: {
+    browser: string;
+    os: string;
+    screenResolution: string;
+  };
 
-  /** Video width in pixels */
-  width: number;
+  /** Video configuration */
+  videoConfig?: {
+    codec: string;
+    width: number;
+    height: number;
+    frameRate: number;
+    bitrate: number;
+  };
 
-  /** Video height in pixels */
-  height: number;
-
-  /** Video bitrate in bits per second */
-  videoBitrate: number;
-
-  /** Audio bitrate in bits per second */
-  audioBitrate: number;
-
-  /** Frame rate (frames per second) */
-  framerate: number;
+  /** Audio configuration */
+  audioConfig?: {
+    codec: string;
+    sampleRate: number;
+    channelCount: number;
+    bitrate: number;
+  };
 
   /** Total duration in microseconds */
-  durationUs: number;
+  durationUs?: number;
 }
 
 /**

@@ -1,3 +1,21 @@
+// Entities
+export { RecordingEntity } from './entities/Recording.entity.js';
+export { ChunkEntity } from './entities/Chunk.entity.js';
+
+// Domain Errors
+export {
+  DomainError,
+  RecordingNotFoundError,
+  InvalidStateTransitionError,
+  InvalidOperationError,
+  InvalidChunkError,
+  ChunkNotFoundError,
+  NetworkError,
+  UploadError,
+  StorageFullError,
+  StorageAccessError,
+} from './errors/DomainErrors.js';
+
 // Chunk types
 export type { ChunkId, ChunkMetadata } from './chunk.js';
 
