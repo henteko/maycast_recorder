@@ -18,6 +18,7 @@ export interface ChunkUploadStatus {
   state: UploadState;
   retryCount: number;
   lastAttempt: number; // timestamp
+  hash?: string; // Blake3ハッシュ（16進数文字列）
   error?: string;
 }
 

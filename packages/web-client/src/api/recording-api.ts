@@ -141,7 +141,8 @@ export class RecordingAPIClient {
   async uploadChunk(
     recordingId: string,
     chunkId: string,
-    data: Uint8Array
+    data: Uint8Array,
+    hash: string
   ): Promise<void> {
     const response = await fetch(
       `${this.baseUrl}/api/recordings/${recordingId}/chunks?chunk_id=${chunkId}`,
@@ -149,13 +150,15 @@ export class RecordingAPIClient {
         method: 'POST',
         headers: {
           'Content-Type': 'application/octet-stream',
+          'X-Chunk-Hash': hash,
         },
         body: data as BodyInit,
       }
     );
 
     if (!response.ok) {
-      throw new Error(`Failed to upload chunk: ${response.statusText}`);
+      const errorText = await response.text();
+      throw new Error(`Failed to upload chunk: ${response.status} ${response.statusText} - ${errorText}`);
     }
   }
 }

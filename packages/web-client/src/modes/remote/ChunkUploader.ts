@@ -6,10 +6,13 @@ import {
   updateUploadState,
   listUploadStates,
 } from './upload-state-storage';
+import { blake3 } from '@noble/hashes/blake3.js';
+import { bytesToHex } from '@noble/hashes/utils.js';
 
 export interface ChunkUploadTask {
   chunkId: string;
   data: Uint8Array;
+  hash: string; // Blake3ハッシュ（16進数文字列）
   status: 'pending' | 'uploading' | 'completed' | 'failed';
   retryCount: number;
   error?: string;
@@ -53,9 +56,14 @@ export class ChunkUploader {
    * チャンクをキューに追加
    */
   async addChunk(chunkId: string, data: Uint8Array): Promise<void> {
+    // Blake3ハッシュを計算
+    const hashBytes = blake3(data);
+    const hash = bytesToHex(hashBytes);
+
     this.queue.set(chunkId, {
       chunkId,
       data,
+      hash,
       status: 'pending',
       retryCount: 0,
     });
@@ -67,8 +75,11 @@ export class ChunkUploader {
       state: 'pending',
       retryCount: 0,
       lastAttempt: Date.now(),
+      hash,
     };
     await saveUploadState(uploadStatus);
+
+    console.log(`🔐 [ChunkUploader] Chunk #${chunkId} hash calculated: ${hash.substring(0, 16)}...`);
 
     // キュー処理を開始
     this.processQueue();
@@ -136,7 +147,7 @@ export class ChunkUploader {
     });
 
     try {
-      await this.apiClient.uploadChunk(this.recordingId, task.chunkId, task.data);
+      await this.apiClient.uploadChunk(this.recordingId, task.chunkId, task.data, task.hash);
       task.status = 'completed';
       console.log(`✅ Chunk uploaded: ${task.chunkId}`);
 

@@ -1,6 +1,8 @@
 import express from 'express';
 import { RecordingStorage } from '../storage/recording-storage.js';
 import { StorageBackend } from '../storage/storage-backend.js';
+import { blake3 } from '@noble/hashes/blake3.js';
+import { bytesToHex } from '@noble/hashes/utils.js';
 
 export function createChunksRouter(
   recordingStorage: RecordingStorage,
@@ -48,17 +50,82 @@ export function createChunksRouter(
 
       const data = req.body as Buffer;
 
+      // ハッシュの検証
+      const clientHash = req.headers['x-chunk-hash'] as string;
+      if (!clientHash) {
+        res.status(400).json({ error: 'X-Chunk-Hash header is required' });
+        return;
+      }
+
+      // サーバー側でハッシュを計算
+      const serverHashBytes = blake3(new Uint8Array(data));
+      const serverHash = bytesToHex(serverHashBytes);
+
+      // ハッシュの一致確認
+      if (clientHash !== serverHash) {
+        console.error(`❌ Hash mismatch for chunk ${chunk_id}: client=${clientHash.substring(0, 16)}..., server=${serverHash.substring(0, 16)}...`);
+        res.status(400).json({
+          error: 'Hash verification failed',
+          expected: serverHash,
+          received: clientHash
+        });
+        return;
+      }
+
+      console.log(`🔐 [ChunkUpload] Hash verified for chunk ${chunk_id}: ${serverHash.substring(0, 16)}...`);
+
       try {
+        // 冪等性チェック: チャンクが既に存在するか確認
+        let chunkExists = false;
+        try {
+          const existingChunk = await chunkStorage.getChunk(recording_id, chunk_id);
+          chunkExists = true;
+
+          // 既存チャンクのハッシュを計算
+          const existingHashBytes = blake3(new Uint8Array(existingChunk));
+          const existingHash = bytesToHex(existingHashBytes);
+
+          if (existingHash === serverHash) {
+            // 同じチャンクが既に存在する（冪等性）
+            console.log(`✅ [ChunkUpload] Chunk ${chunk_id} already exists with matching hash (idempotent)`);
+            res.status(200).json({
+              message: 'Chunk already exists (idempotent)',
+              chunk_id,
+              size: data.length
+            });
+            return;
+          } else {
+            // ハッシュが異なる場合はコンフリクト
+            console.error(`❌ [ChunkUpload] Chunk ${chunk_id} exists but hash differs`);
+            res.status(409).json({
+              error: 'Chunk already exists with different content',
+              existing_hash: existingHash,
+              new_hash: serverHash
+            });
+            return;
+          }
+        } catch (error) {
+          // チャンクが存在しない場合は続行
+          if (error instanceof Error && error.message.includes('Chunk not found')) {
+            chunkExists = false;
+          } else {
+            throw error;
+          }
+        }
+
         // チャンクを保存
         await chunkStorage.putChunk(recording_id, chunk_id, data);
 
-        // チャンクカウントを更新
-        recordingStorage.incrementChunkCount(recording_id);
+        // チャンクカウントを更新（新規保存の場合のみ）
+        if (!chunkExists) {
+          recordingStorage.incrementChunkCount(recording_id);
+        }
 
         res.status(201).json({
           message: 'Chunk uploaded successfully',
           chunk_id,
-          size: data.length
+          size: data.length,
+          hash: serverHash
         });
       } catch (error) {
         console.error('Error uploading chunk:', error);
