@@ -46,6 +46,12 @@ export const useEncoders = ({ wasmInitialized, settings, storageStrategy, onStat
   const recordingIdRef = useRef<RecordingId | null>(null)
 
   const initializeMuxerWithConfigs = useCallback(async () => {
+    // 既にMuxerが初期化されている場合はスキップ
+    if (muxerRef.current) {
+      console.log('⏭️ Muxer already initialized, skipping');
+      return;
+    }
+
     if (!videoConfigRef.current || !audioConfigRef.current || !wasmInitialized || !activeStreamRef.current) {
       console.log('⏳ Waiting for codec configs...', {
         video: !!videoConfigRef.current,

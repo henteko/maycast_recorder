@@ -7,6 +7,7 @@ import type { RecordingMetadata, RecordingState } from '@maycast/common-types';
  */
 export class RecordingManager {
   private recordingId: string | null = null;
+  private currentState: RecordingState = 'standby';
   private apiClient: RecordingAPIClient;
 
   constructor(serverUrl: string) {
@@ -27,6 +28,7 @@ export class RecordingManager {
     console.log('📡 [RecordingManager] Calling createRecording API...');
     const response = await this.apiClient.createRecording();
     this.recordingId = response.recording_id;
+    this.currentState = 'standby'; // 初期状態
     console.log(`📝 [RecordingManager] Recording created: ${this.recordingId}`);
     return this.recordingId;
   }
@@ -44,15 +46,23 @@ export class RecordingManager {
   }
 
   /**
-   * Recording状態を更新
+   * Recording状態を更新（冪等性を持つ）
    */
   async updateState(state: RecordingState): Promise<void> {
     if (!this.recordingId) {
       throw new Error('Recording not created yet');
     }
 
+    // 既に目的の状態にある場合はスキップ
+    if (this.currentState === state) {
+      console.log(`⏭️ [RecordingManager] Already in state: ${state}, skipping transition`);
+      return;
+    }
+
+    console.log(`🔄 [RecordingManager] State transition: ${this.currentState} → ${state}`);
     await this.apiClient.updateRecordingState(this.recordingId, state);
-    console.log(`🔄 Recording state updated: ${state}`);
+    this.currentState = state;
+    console.log(`✅ [RecordingManager] State updated to: ${state}`);
   }
 
   /**

@@ -84,6 +84,10 @@ export class RemoteStorageStrategy implements IStorageStrategy {
 
     if (recordingManager && remoteRecordingId) {
       try {
+        // 録画開始 → recording状態に遷移
+        console.log(`🔄 [RemoteStorageStrategy] Marking as recording (remote=${remoteRecordingId})`);
+        await recordingManager.updateState('recording');
+
         console.log(`📡 [RemoteStorageStrategy] Uploading init segment to server... (remote=${remoteRecordingId})`);
         const apiClient = recordingManager.getAPIClient();
         await apiClient.uploadInitSegment(remoteRecordingId, data);
@@ -147,6 +151,10 @@ export class RemoteStorageStrategy implements IStorageStrategy {
 
     if (chunkUploader && recordingManager && remoteRecordingId) {
       try {
+        // まずfinalizing状態に遷移（録画停止時）
+        console.log(`🔄 [RemoteStorageStrategy] Marking as finalizing (remote=${remoteRecordingId})`);
+        await recordingManager.updateState('finalizing');
+
         console.log(`⏳ [RemoteStorageStrategy] Waiting for all chunks to upload... (remote=${remoteRecordingId})`);
         await chunkUploader.waitForCompletion();
 
@@ -154,10 +162,10 @@ export class RemoteStorageStrategy implements IStorageStrategy {
         console.log(`✅ Upload completed: ${stats.uploadedChunks}/${stats.totalChunks} chunks (remote=${remoteRecordingId})`);
 
         if (stats.failedChunks > 0) {
-          console.warn(`⚠️ ${stats.failedChunks} chunks failed to upload`);
-          await recordingManager.updateState('finalizing');
+          console.warn(`⚠️ ${stats.failedChunks} chunks failed to upload, staying in 'finalizing' state`);
+          // finalizing状態のまま（既に設定済み）
         } else {
-          // 全チャンク成功
+          // 全チャンク成功 → synced状態に遷移
           await recordingManager.updateState('synced');
           console.log(`✅ Recording synced to server (local=${localRecordingId}, remote=${remoteRecordingId})`);
         }

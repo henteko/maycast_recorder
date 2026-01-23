@@ -49,8 +49,8 @@ export class ChunkUploader {
   ) {
     this.recordingId = recordingId;
     this.apiClient = apiClient;
-    // デフォルトを3から10に増やす（高速化）
-    this.maxConcurrentUploads = options.maxConcurrentUploads ?? 10;
+    // 並列数を5に設定（安定性とパフォーマンスのバランス）
+    this.maxConcurrentUploads = options.maxConcurrentUploads ?? 5;
     this.maxRetries = options.maxRetries ?? 3;
   }
 

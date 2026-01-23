@@ -6,17 +6,22 @@ import { asyncHandler } from '../middleware/errorHandler';
  * Recordings Router (Refactored)
  *
  * Controllerベースのルーティング
+ *
+ * NOTE: JSONデータを扱うため、express.json()ミドルウェアを使用
  */
 export function createRecordingsRouter(
   recordingController: RecordingController
 ): express.Router {
   const router = express.Router();
 
+  // JSONデータをパース
+  const jsonParser = express.json();
+
   /**
    * POST /api/recordings
    * 新しいRecordingを作成
    */
-  router.post('/recordings', asyncHandler(async (req, res) => {
+  router.post('/recordings', jsonParser, asyncHandler(async (req, res) => {
     await recordingController.create(req, res);
   }));
 
@@ -32,7 +37,7 @@ export function createRecordingsRouter(
    * PATCH /api/recordings/:id/state
    * Recording状態を更新
    */
-  router.patch('/recordings/:id/state', asyncHandler(async (req, res) => {
+  router.patch('/recordings/:id/state', jsonParser, asyncHandler(async (req, res) => {
     await recordingController.updateState(req, res);
   }));
 
@@ -40,7 +45,7 @@ export function createRecordingsRouter(
    * PATCH /api/recordings/:id/metadata
    * Recordingメタデータを更新
    */
-  router.patch('/recordings/:id/metadata', asyncHandler(async (req, res) => {
+  router.patch('/recordings/:id/metadata', jsonParser, asyncHandler(async (req, res) => {
     await recordingController.updateMetadata(req, res);
   }));
 

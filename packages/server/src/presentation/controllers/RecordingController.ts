@@ -67,7 +67,15 @@ export class RecordingController {
     const { id } = req.params;
     const { state } = req.body;
 
+    console.log('🔍 [RecordingController.updateState] Request received:', {
+      id,
+      body: req.body,
+      state,
+      contentType: req.headers['content-type'],
+    });
+
     if (!state) {
+      console.error('❌ [RecordingController.updateState] State is missing');
       res.status(400).json({ error: 'State is required' });
       return;
     }

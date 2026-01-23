@@ -30,13 +30,11 @@ app.use(cors({
 }));
 app.use(morgan(LOG_LEVEL === 'debug' ? 'dev' : 'combined'));
 
-// API routes - チャンクルーターを先にマウント（express.json()の前）
+// API routes
+// NOTE: チャンクルーターとレコーディングルーターは、それぞれ独自のボディパーサーを持つ
+// - チャンクルーター: express.raw()でバイナリデータをパース
+// - レコーディングルーター: express.json()でJSONデータをパース
 app.use('/api', createChunksRouter(chunkController));
-
-// JSON middleware（チャンクルーター以降のルートに適用）
-app.use(express.json());
-
-// その他のAPI routes
 app.use('/api', createRecordingsRouter(recordingController));
 
 // Health check endpoint
@@ -57,10 +55,18 @@ app.use((_req, res) => {
 app.use(errorHandler);
 
 // Start server
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`🚀 Maycast Recorder Server running on port ${PORT}`);
   console.log(`📊 Log level: ${LOG_LEVEL}`);
   console.log(`🏥 Health check: http://localhost:${PORT}/health`);
 });
+
+// HTTPサーバーのタイムアウト設定を延長
+server.timeout = 300000; // 5分（デフォルトは120秒）
+server.keepAliveTimeout = 65000; // 65秒
+server.headersTimeout = 66000; // keepAliveTimeoutより長く
+
+console.log(`⏱️  Server timeout: ${server.timeout}ms`);
+console.log(`🔄 Keep-Alive timeout: ${server.keepAliveTimeout}ms`);
 
 export default app;

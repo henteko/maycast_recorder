@@ -86,6 +86,8 @@ export class RecordingAPIClient {
     recordingId: string,
     state: 'standby' | 'recording' | 'finalizing' | 'synced'
   ): Promise<void> {
+    console.log('🔄 [RecordingAPI] Updating recording state:', { recordingId, state });
+
     const response = await fetch(`${this.baseUrl}/api/recordings/${recordingId}/state`, {
       method: 'PATCH',
       headers: {
@@ -95,8 +97,16 @@ export class RecordingAPIClient {
     });
 
     if (!response.ok) {
-      throw new Error(`Failed to update recording state: ${response.statusText}`);
+      const errorText = await response.text();
+      console.error('❌ [RecordingAPI] Failed to update state:', {
+        status: response.status,
+        statusText: response.statusText,
+        errorText,
+      });
+      throw new Error(`Failed to update recording state: ${response.status} ${response.statusText} - ${errorText}`);
     }
+
+    console.log('✅ [RecordingAPI] State updated successfully');
   }
 
   /**
@@ -126,21 +136,35 @@ export class RecordingAPIClient {
     recordingId: string,
     data: Uint8Array
   ): Promise<void> {
-    const response = await fetch(
-      `${this.baseUrl}/api/recordings/${recordingId}/init-segment`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/octet-stream',
-        },
-        body: data as BodyInit,
-        keepalive: true, // Keep-Alive接続で高速化
-      }
-    );
+    // タイムアウト設定（30秒）
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to upload init segment: ${response.status} ${response.statusText} - ${errorText}`);
+    try {
+      const response = await fetch(
+        `${this.baseUrl}/api/recordings/${recordingId}/init-segment`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/octet-stream',
+          },
+          body: data as BodyInit,
+          signal: controller.signal,
+        }
+      );
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to upload init segment: ${response.status} ${response.statusText} - ${errorText}`);
+      }
+    } catch (error) {
+      clearTimeout(timeoutId);
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error('Upload timeout: init segment took longer than 30 seconds');
+      }
+      throw error;
     }
   }
 
@@ -153,22 +177,36 @@ export class RecordingAPIClient {
     data: Uint8Array,
     hash: string
   ): Promise<void> {
-    const response = await fetch(
-      `${this.baseUrl}/api/recordings/${recordingId}/chunks?chunk_id=${chunkId}`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/octet-stream',
-          'X-Chunk-Hash': hash,
-        },
-        body: data as BodyInit,
-        keepalive: true, // Keep-Alive接続で高速化
-      }
-    );
+    // タイムアウト設定（30秒）
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000);
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to upload chunk: ${response.status} ${response.statusText} - ${errorText}`);
+    try {
+      const response = await fetch(
+        `${this.baseUrl}/api/recordings/${recordingId}/chunks?chunk_id=${chunkId}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/octet-stream',
+            'X-Chunk-Hash': hash,
+          },
+          body: data as BodyInit,
+          signal: controller.signal,
+        }
+      );
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to upload chunk: ${response.status} ${response.statusText} - ${errorText}`);
+      }
+    } catch (error) {
+      clearTimeout(timeoutId);
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error(`Upload timeout: chunk ${chunkId} took longer than 30 seconds`);
+      }
+      throw error;
     }
   }
 
