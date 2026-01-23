@@ -150,6 +150,7 @@ export class RecordingAPIClient {
           'Content-Type': 'application/octet-stream',
         },
         body: data as BodyInit,
+        keepalive: true, // Keep-Alive接続で高速化
       }
     );
 
@@ -177,6 +178,7 @@ export class RecordingAPIClient {
           'X-Chunk-Hash': hash,
         },
         body: data as BodyInit,
+        keepalive: true, // Keep-Alive接続で高速化
       }
     );
 

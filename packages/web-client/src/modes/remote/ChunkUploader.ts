@@ -48,7 +48,8 @@ export class ChunkUploader {
   ) {
     this.recordingId = recordingId;
     this.apiClient = apiClient;
-    this.maxConcurrentUploads = options.maxConcurrentUploads ?? 3;
+    // デフォルトを3から10に増やす（高速化）
+    this.maxConcurrentUploads = options.maxConcurrentUploads ?? 10;
     this.maxRetries = options.maxRetries ?? 3;
   }
 
@@ -68,7 +69,9 @@ export class ChunkUploader {
       retryCount: 0,
     });
 
-    // IndexedDBに状態を保存
+    console.log(`🔐 [ChunkUploader] Chunk #${chunkId} hash calculated: ${hash.substring(0, 16)}...`);
+
+    // IndexedDBに状態を保存（非ブロッキング - アップロードを待たせない）
     const uploadStatus: ChunkUploadStatus = {
       recordingId: this.recordingId as RecordingId,
       chunkId: parseInt(chunkId, 10),
@@ -77,11 +80,11 @@ export class ChunkUploader {
       lastAttempt: Date.now(),
       hash,
     };
-    await saveUploadState(uploadStatus);
+    saveUploadState(uploadStatus).catch(err => {
+      console.warn(`⚠️ Failed to save upload state to IndexedDB for chunk ${chunkId}:`, err);
+    });
 
-    console.log(`🔐 [ChunkUploader] Chunk #${chunkId} hash calculated: ${hash.substring(0, 16)}...`);
-
-    // キュー処理を開始
+    // キュー処理を開始（すぐに開始）
     this.processQueue();
   }
 
@@ -140,10 +143,12 @@ export class ChunkUploader {
     task.status = 'uploading';
     this.activeUploads++;
 
-    // IndexedDBに状態更新
-    await updateUploadState(this.recordingId as RecordingId, chunkIdNum, {
+    // IndexedDBに状態更新（非ブロッキング）
+    updateUploadState(this.recordingId as RecordingId, chunkIdNum, {
       state: 'uploading',
       retryCount: task.retryCount + 1,
+    }).catch(err => {
+      console.warn(`⚠️ Failed to update upload state for chunk ${task.chunkId}:`, err);
     });
 
     try {
@@ -151,9 +156,11 @@ export class ChunkUploader {
       task.status = 'completed';
       console.log(`✅ Chunk uploaded: ${task.chunkId}`);
 
-      // IndexedDBに成功を記録
-      await updateUploadState(this.recordingId as RecordingId, chunkIdNum, {
+      // IndexedDBに成功を記録（非ブロッキング）
+      updateUploadState(this.recordingId as RecordingId, chunkIdNum, {
         state: 'uploaded',
+      }).catch(err => {
+        console.warn(`⚠️ Failed to update upload state for chunk ${task.chunkId}:`, err);
       });
     } catch (error) {
       console.error(`❌ Failed to upload chunk ${task.chunkId}:`, error);
@@ -166,20 +173,24 @@ export class ChunkUploader {
         task.error = errorMessage;
         console.log(`🔄 Retrying chunk ${task.chunkId} (attempt ${task.retryCount}/${this.maxRetries})`);
 
-        // IndexedDBにリトライ状態を記録
-        await updateUploadState(this.recordingId as RecordingId, chunkIdNum, {
+        // IndexedDBにリトライ状態を記録（非ブロッキング）
+        updateUploadState(this.recordingId as RecordingId, chunkIdNum, {
           state: 'pending',
           error: errorMessage,
+        }).catch(err => {
+          console.warn(`⚠️ Failed to update upload state for chunk ${task.chunkId}:`, err);
         });
       } else {
         task.status = 'failed';
         task.error = errorMessage;
         console.error(`💥 Chunk upload failed after ${this.maxRetries} retries: ${task.chunkId}`);
 
-        // IndexedDBに失敗を記録
-        await updateUploadState(this.recordingId as RecordingId, chunkIdNum, {
+        // IndexedDBに失敗を記録（非ブロッキング）
+        updateUploadState(this.recordingId as RecordingId, chunkIdNum, {
           state: 'failed',
           error: errorMessage,
+        }).catch(err => {
+          console.warn(`⚠️ Failed to update upload state for chunk ${task.chunkId}:`, err);
         });
       }
     } finally {
