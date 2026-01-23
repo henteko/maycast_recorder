@@ -117,7 +117,7 @@
 - [ ] エラーシナリオ: チャンクを手動削除して検証
   ```bash
   # チャンク削除
-  rm ./storage/{recording_id}/chunk-005.fmp4
+  rm ./recordings-data/{recording_id}/chunk-005.fmp4
   # 検証実行
   curl -X POST http://localhost:3000/api/recordings/{recording_id}/verify \
     -H "Content-Type: application/json" \
@@ -147,7 +147,7 @@
 **Test:**
 - [ ] チャンクを手動削除して欠損状態を作る
   ```bash
-  rm ./storage/{recording_id}/chunk-003.fmp4
+  rm ./recordings-data/{recording_id}/chunk-003.fmp4
   ```
 - [ ] クライアント側で検証→再送信→再検証の流れを実行
 - [ ] ブラウザコンソールで以下のログを確認:
@@ -228,7 +228,7 @@
   ```
 - [ ] サーバー側でチャンクが正しく保存されている
   ```bash
-  ls -lh ./storage/{recording_id}/
+  ls -lh ./recordings-data/{recording_id}/
   # 全チャンクファイルが存在する
   ```
 
@@ -325,7 +325,7 @@
 **Test:**
 - [ ] サーバー側でチャンクを手動削除
   ```bash
-  rm ./storage/{recording_id}/chunk-004.fmp4
+  rm ./recordings-data/{recording_id}/chunk-004.fmp4
   ```
 - [ ] クライアント側で差分検出を実行
   ```javascript
@@ -741,8 +741,8 @@ Room (room-abc123)
 **Tasks:**
 - [ ] LocalFileSystemChunkRepositoryを拡張
   - Recording作成時に`roomId`を受け取る
-  - Room有りの場合: `./storage/rooms/{room_id}/{recording_id}/`
-  - Room無しの場合: `./storage/{recording_id}/`（既存の挙動維持）
+  - Room有りの場合: `./recordings-data/rooms/{room_id}/{recording_id}/`
+  - Room無しの場合: `./recordings-data/{recording_id}/`（既存の挙動維持）
 - [ ] ディレクトリ作成ロジック追加
 
 **Test:**
@@ -752,13 +752,13 @@ Room (room-abc123)
   RECORDING_ID=$(curl -s -X POST "http://localhost:3000/api/recordings?roomId=$ROOM_ID" | jq -r '.recordingId')
 
   # ディレクトリ確認
-  ls -la ./storage/rooms/$ROOM_ID/$RECORDING_ID/
+  ls -la ./recordings-data/rooms/$ROOM_ID/$RECORDING_ID/
   # 期待: ディレクトリが作成されている
   ```
 - [ ] Room無しでRecording作成（既存の挙動）
   ```bash
   RECORDING_ID=$(curl -s -X POST http://localhost:3000/api/recordings | jq -r '.recordingId')
-  ls -la ./storage/$RECORDING_ID/
+  ls -la ./recordings-data/$RECORDING_ID/
   # 期待: ディレクトリが作成されている
   ```
 
@@ -879,8 +879,8 @@ Room (room-abc123)
 
 **Tasks:**
 - [ ] LocalFileSystemChunkRepositoryのストレージパス生成ロジック拡張
-  - roomIdが指定された場合: `./storage/rooms/{roomId}/{recordingId}/`
-  - roomIdが未指定の場合: `./storage/{recordingId}/`（既存の挙動）
+  - roomIdが指定された場合: `./recordings-data/rooms/{roomId}/{recordingId}/`
+  - roomIdが未指定の場合: `./recordings-data/{recordingId}/`（既存の挙動）
 - [ ] ディレクトリ作成処理
 
 **Test:**
@@ -901,13 +901,13 @@ Room (room-abc123)
     --data-binary @chunk-001.fmp4
 
   # ストレージパス確認
-  ls -la ./storage/rooms/$ROOM_ID/$RECORDING_ID/
+  ls -la ./recordings-data/rooms/$ROOM_ID/$RECORDING_ID/
   # 期待: init.mp4, chunk-001.fmp4 が存在
   ```
 - [ ] Room未指定の場合（既存の挙動）
   ```bash
   RECORDING_ID=$(curl -s -X POST http://localhost:3000/api/recordings | jq -r '.recordingId')
-  ls -la ./storage/$RECORDING_ID/
+  ls -la ./recordings-data/$RECORDING_ID/
   # 期待: 正常にチャンクが保存される
   ```
 
@@ -1473,7 +1473,7 @@ Room (room-abc123)
 - [ ] Room一覧から消える
 - [ ] ストレージから削除される
   ```bash
-  ls ./storage/rooms/
+  ls ./recordings-data/rooms/
   # 削除したRoomのディレクトリが存在しない
   ```
 

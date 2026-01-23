@@ -112,7 +112,7 @@ Maycast Recorderは、3つの動作モードを持ちます。
 
 **技術的特徴:**
 * **Storage:** Room単位でRecordingを管理
-  - `./storage/rooms/{room_id}/{recording_id}/chunk-*.fmp4`
+  - `./recordings-data/rooms/{room_id}/{recording_id}/chunk-*.fmp4`
 * **WebSocket:** Room単位でリアルタイム状態同期
 * **一括制御:** Director指示を全Guestにブロードキャスト
 
@@ -163,7 +163,7 @@ Maycast Recorderは、3つの動作モードを持ちます。
 
 * **Framework:** **TypeScript + Express**
 * **Storage Strategy:** **抽象化されたStorage Layer**
-* **Dev Mode:** ローカルファイルシステム (`./storage/`) - Node.js fs/promises使用
+* **Dev Mode:** ローカルファイルシステム (`./recordings-data/`) - Node.js fs/promises使用
 * **SaaS Mode:** Cloudflare R2 / AWS S3 - AWS SDK v3使用
 * 環境変数一つで保存先を切り替え。サーバーはステートレス（ディスクを持たない）構成。
 

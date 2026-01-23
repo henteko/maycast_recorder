@@ -48,8 +48,8 @@ COPY --from=builder /app/packages/server/package.json ./packages/server/
 COPY --from=builder /app/package.json ./
 
 # ストレージディレクトリを作成
-RUN mkdir -p /app/storage && \
-    chown -R node:node /app/storage
+RUN mkdir -p /app/recordings-data && \
+    chown -R node:node /app/recordings-data
 
 USER node
 

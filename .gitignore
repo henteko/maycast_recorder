@@ -49,5 +49,8 @@ nginx/certs/
 nginx/certs-dev/
 nginx/webroot/
 
+# Recording data
+recordings-data/
+
 # Claude
 .claude/

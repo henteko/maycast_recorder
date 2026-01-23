@@ -443,9 +443,9 @@ task check            # コンパイルチェック
    docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
    ```
 4. **ログ監視**: nginx/serverのログを定期確認
-5. **バックアップ**: `server-storage`ボリュームを定期的にバックアップ
+5. **バックアップ**: `recordings-data`ボリュームを定期的にバックアップ
    ```bash
-   docker run --rm -v maycast_recorder_server-storage:/data -v $(pwd):/backup alpine tar czf /backup/storage-backup-$(date +%Y%m%d).tar.gz -C /data .
+   docker run --rm -v maycast_recorder_recordings-data:/data -v $(pwd):/backup alpine tar czf /backup/recordings-backup-$(date +%Y%m%d).tar.gz -C /data .
    ```
 
 ### パフォーマンス
@@ -515,10 +515,10 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --scale se
 
 ```bash
 # サーバー上のストレージを確認
-docker compose -f docker-compose.yml -f docker-compose.prod.yml exec server ls -lh /app/storage
+docker compose -f docker-compose.yml -f docker-compose.prod.yml exec server ls -lh /app/recordings-data
 
 # 手動で削除（例: 30日以上前のデータ）
-docker compose -f docker-compose.yml -f docker-compose.prod.yml exec server find /app/storage -type f -mtime +30 -delete
+docker compose -f docker-compose.yml -f docker-compose.prod.yml exec server find /app/recordings-data -type f -mtime +30 -delete
 ```
 
 ## ライセンス

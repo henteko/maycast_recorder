@@ -9,7 +9,7 @@ export class LocalFileSystemStorage implements StorageBackend {
   private basePath: string;
 
   /**
-   * @param basePath ストレージのベースパス（例: "./storage"）
+   * @param basePath ストレージのベースパス（例: "./recordings-data"）
    */
   constructor(basePath: string) {
     this.basePath = basePath;

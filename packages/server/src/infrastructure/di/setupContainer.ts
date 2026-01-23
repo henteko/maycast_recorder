@@ -23,7 +23,7 @@ import type { IChunkRepository } from '../../domain/repositories/IChunkRepositor
  *
  * @param storagePath ストレージのベースパス
  */
-export function setupContainer(storagePath: string = './storage'): DIContainer {
+export function setupContainer(storagePath: string = './recordings-data'): DIContainer {
   const container = DIContainer.getInstance();
 
   // すでにセットアップ済みの場合はスキップ

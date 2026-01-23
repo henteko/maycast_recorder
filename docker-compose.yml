@@ -27,11 +27,11 @@ services:
     environment:
       - NODE_ENV=${NODE_ENV:-development}
       - PORT=3000
-      - STORAGE_PATH=/app/storage
+      - STORAGE_PATH=/app/recordings-data
       - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost}
     volumes:
       - ./packages/server/src:/app/packages/server/src:ro
-      - server-storage:/app/storage
+      - recordings-data:/app/recordings-data
     expose:
       - "3000"
     restart: unless-stopped
@@ -73,5 +73,5 @@ networks:
     driver: bridge
 
 volumes:
-  server-storage:
+  recordings-data:
   certbot-webroot:
