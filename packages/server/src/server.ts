@@ -14,13 +14,17 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const LOG_LEVEL = process.env.LOG_LEVEL || 'info';
 const STORAGE_PATH = process.env.STORAGE_PATH || './storage';
+const CORS_ORIGIN = process.env.CORS_ORIGIN || 'http://localhost:5173';
 
 // Initialize storage
 const recordingStorage = new RecordingStorage();
 const chunkStorage = new LocalFileSystemStorage(STORAGE_PATH);
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: CORS_ORIGIN,
+  credentials: true,
+}));
 app.use(morgan(LOG_LEVEL === 'debug' ? 'dev' : 'combined'));
 app.use(express.json());
 

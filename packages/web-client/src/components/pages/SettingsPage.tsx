@@ -2,6 +2,7 @@ import React from 'react';
 import { Cog6ToothIcon, CheckIcon } from '@heroicons/react/24/solid';
 import { DeviceSelector } from '../molecules/DeviceSelector';
 import { QualityPresetSelector } from '../molecules/QualityPresetSelector';
+import { ServerUrlSettings } from '../molecules/ServerUrlSettings';
 import type { RecorderSettings, QualityPreset } from '../../types/settings';
 
 interface SettingsPageProps {
@@ -10,6 +11,7 @@ interface SettingsPageProps {
   onSave: () => void;
   videoDevices: MediaDeviceInfo[];
   audioDevices: MediaDeviceInfo[];
+  showServerSettings?: boolean; // Remote Modeでのみtrue
 }
 
 export const SettingsPage: React.FC<SettingsPageProps> = ({
@@ -18,6 +20,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   onSave,
   videoDevices,
   audioDevices,
+  showServerSettings = false,
 }) => {
   return (
     <div className="flex flex-col h-full bg-maycast-bg text-maycast-text">
@@ -66,6 +69,17 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
               onChange={(value: QualityPreset) => onSettingsChange({ ...settings, qualityPreset: value })}
             />
           </div>
+
+          {/* Server Settings Card - Remote Modeのみ表示 */}
+          {showServerSettings && (
+            <div className="bg-maycast-panel/30 backdrop-blur-md p-6 rounded-2xl border border-maycast-border/40 shadow-xl">
+              <h2 className="text-lg font-bold text-maycast-text mb-4 flex items-center gap-2">
+                サーバー設定
+              </h2>
+
+              <ServerUrlSettings />
+            </div>
+          )}
 
           {/* Save Button */}
           <button
