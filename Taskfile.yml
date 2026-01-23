@@ -4,6 +4,7 @@ vars:
   WASM_PKG_DIR: packages/wasm-core/pkg
   COMMON_TYPES_DIR: packages/common-types
   CLIENT_DIR: packages/web-client
+  SERVER_DIR: packages/server
 
 tasks:
   # Development tasks
@@ -26,13 +27,20 @@ tasks:
     cmds:
       - cargo watch -i pkg -s "wasm-pack build --target web --out-dir pkg"
 
+  dev:server:
+    desc: Start server development mode with auto-reload
+    dir: '{{.SERVER_DIR}}'
+    cmds:
+      - npm run dev
+
   # Build tasks
   build:
-    desc: Build everything (common-types + WASM + client)
+    desc: Build everything (common-types + WASM + client + server)
     cmds:
       - task: build:common-types
       - task: build:wasm
       - task: build:client
+      - task: build:server
 
   build:common-types:
     desc: Build common TypeScript type definitions
@@ -66,12 +74,25 @@ tasks:
     cmds:
       - npm run build
 
+  build:server:
+    desc: Build server for production
+    dir: '{{.SERVER_DIR}}'
+    cmds:
+      - npm run build
+    sources:
+      - src/**/*.ts
+      - tsconfig.json
+    generates:
+      - dist/**/*.js
+      - dist/**/*.d.ts
+
   # Test tasks
   test:
     desc: Run all tests
     cmds:
       - task: test:rust
       - task: test:wasm
+      - task: test:server
 
   test:rust:
     desc: Run Rust unit tests
@@ -84,6 +105,12 @@ tasks:
     cmds:
       - wasm-pack test --headless --chrome
 
+  test:server:
+    desc: Run server unit tests
+    dir: '{{.SERVER_DIR}}'
+    cmds:
+      - npm run test
+
   test:e2e:
     desc: Run E2E tests (Phase 1A-6+)
     cmds:
@@ -95,6 +122,7 @@ tasks:
     cmds:
       - task: lint:rust
       - task: lint:ts
+      - task: lint:server
 
   lint:rust:
     desc: Run cargo clippy
@@ -104,6 +132,12 @@ tasks:
   lint:ts:
     desc: Run ESLint on TypeScript files
     dir: '{{.CLIENT_DIR}}'
+    cmds:
+      - npm run lint
+
+  lint:server:
+    desc: Run ESLint on server TypeScript files
+    dir: '{{.SERVER_DIR}}'
     cmds:
       - npm run lint
 
@@ -146,6 +180,7 @@ tasks:
       - task: clean:common-types
       - task: clean:wasm
       - task: clean:client
+      - task: clean:server
       - cargo clean
 
   clean:common-types:
@@ -165,6 +200,13 @@ tasks:
     dir: '{{.CLIENT_DIR}}'
     cmds:
       - rm -rf dist
+      - rm -rf node_modules
+
+  clean:server:
+    desc: Clean server build artifacts
+    dir: '{{.SERVER_DIR}}'
+    cmds:
+      - npm run clean || rm -rf dist
       - rm -rf node_modules
 
   # Utility tasks
