@@ -4,6 +4,20 @@
  */
 export interface StorageBackend {
   /**
+   * Init Segmentを保存
+   * @param recordingId Recording ID
+   * @param data Init Segmentのバイナリデータ
+   */
+  putInitSegment(recordingId: string, data: Buffer): Promise<void>;
+
+  /**
+   * Init Segmentを取得
+   * @param recordingId Recording ID
+   * @returns Init Segmentのバイナリデータ
+   */
+  getInitSegment(recordingId: string): Promise<Buffer>;
+
+  /**
    * チャンクを保存
    * @param recordingId Recording ID
    * @param chunkId チャンクID（例: "chunk-001"）

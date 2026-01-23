@@ -69,7 +69,11 @@ export const useEncoders = ({ wasmInitialized, settings, storageStrategy, onStat
       console.log('✅ Muxer initialized with codec configs, init segment size:', initSegment.length, 'bytes')
 
       if (recordingIdRef.current) {
+        console.log('💾 [useEncoders] Saving init segment for recording:', recordingIdRef.current)
         await storageStrategy.saveInitSegment(recordingIdRef.current, initSegment)
+        console.log('✅ [useEncoders] Init segment saved successfully')
+      } else {
+        console.warn('⚠️ [useEncoders] Recording ID not set, cannot save init segment')
       }
     } catch (err) {
       console.error('❌ Failed to initialize Muxer:', err)

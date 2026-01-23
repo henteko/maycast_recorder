@@ -23,10 +23,47 @@ export class LocalFileSystemStorage implements StorageBackend {
   }
 
   /**
+   * Init Segmentのファイルパスを取得
+   */
+  private getInitSegmentPath(recordingId: string): string {
+    return path.join(this.getRecordingPath(recordingId), 'init.fmp4');
+  }
+
+  /**
    * チャンクのファイルパスを取得
    */
   private getChunkPath(recordingId: string, chunkId: string): string {
     return path.join(this.getRecordingPath(recordingId), `${chunkId}.fmp4`);
+  }
+
+  /**
+   * Init Segmentを保存
+   */
+  async putInitSegment(recordingId: string, data: Buffer): Promise<void> {
+    const recordingPath = this.getRecordingPath(recordingId);
+    const initSegmentPath = this.getInitSegmentPath(recordingId);
+
+    // ディレクトリが存在しない場合は作成
+    await fs.mkdir(recordingPath, { recursive: true });
+
+    // Init Segmentを保存
+    await fs.writeFile(initSegmentPath, data);
+  }
+
+  /**
+   * Init Segmentを取得
+   */
+  async getInitSegment(recordingId: string): Promise<Buffer> {
+    const initSegmentPath = this.getInitSegmentPath(recordingId);
+
+    try {
+      return await fs.readFile(initSegmentPath);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        throw new Error(`Init segment not found: ${recordingId}`);
+      }
+      throw error;
+    }
   }
 
   /**
@@ -68,11 +105,16 @@ export class LocalFileSystemStorage implements StorageBackend {
     try {
       const files = await fs.readdir(recordingPath);
 
-      // .fmp4ファイルのみをフィルタリングし、拡張子を除去してソート
+      // .fmp4ファイルのみをフィルタリングし、init.fmp4を除外し、拡張子を除去して数値順にソート
       const chunkIds = files
-        .filter(file => file.endsWith('.fmp4'))
+        .filter(file => file.endsWith('.fmp4') && file !== 'init.fmp4')
         .map(file => file.replace('.fmp4', ''))
-        .sort();
+        .sort((a, b) => {
+          // 数値として比較
+          const numA = parseInt(a, 10);
+          const numB = parseInt(b, 10);
+          return numA - numB;
+        });
 
       return chunkIds;
     } catch (error) {

@@ -136,6 +136,30 @@ export class RecordingAPIClient {
   }
 
   /**
+   * Init Segmentをアップロード
+   */
+  async uploadInitSegment(
+    recordingId: string,
+    data: Uint8Array
+  ): Promise<void> {
+    const response = await fetch(
+      `${this.baseUrl}/api/recordings/${recordingId}/init-segment`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/octet-stream',
+        },
+        body: data as BodyInit,
+      }
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to upload init segment: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+  }
+
+  /**
    * チャンクをアップロード
    */
   async uploadChunk(
@@ -160,5 +184,19 @@ export class RecordingAPIClient {
       const errorText = await response.text();
       throw new Error(`Failed to upload chunk: ${response.status} ${response.statusText} - ${errorText}`);
     }
+  }
+
+  /**
+   * Recordingをダウンロード
+   */
+  async downloadRecording(recordingId: string): Promise<Blob> {
+    const response = await fetch(`${this.baseUrl}/api/recordings/${recordingId}/download`);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to download recording: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+
+    return response.blob();
   }
 }

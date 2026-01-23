@@ -19,6 +19,10 @@ export class RemoteStorageStrategy implements IStorageStrategy {
   private chunkUploaderMap: Map<LocalRecordingId, ChunkUploader> = new Map();
   // ローカルRecording IDとリモートRecording IDのマッピング
   private serverRecordingIdMap: Map<LocalRecordingId, RemoteRecordingId> = new Map();
+  // 完了したRecordingのマッピング（ダウンロード用）
+  private completedRecordingsMap: Map<LocalRecordingId, RemoteRecordingId> = new Map();
+  // 最後に完了したローカルRecording ID
+  private lastCompletedLocalRecordingId: LocalRecordingId | null = null;
 
   async initSession(recordingId: RecordingId): Promise<void> {
     const localRecordingId = asLocalRecordingId(recordingId);
@@ -74,8 +78,23 @@ export class RemoteStorageStrategy implements IStorageStrategy {
     // OPFS保存（ローカルIDを使用）
     await storage.saveInitSegment(data);
 
-    // TODO: Phase 2A-6 以降 - init segmentのサーバーアップロード（オプション）
-    console.log(`💾 [RemoteStorageStrategy] Init segment saved to OPFS (local=${localRecordingId})`);
+    // サーバーアップロード
+    const recordingManager = this.recordingManagerMap.get(localRecordingId);
+    const remoteRecordingId = this.serverRecordingIdMap.get(localRecordingId);
+
+    if (recordingManager && remoteRecordingId) {
+      try {
+        console.log(`📡 [RemoteStorageStrategy] Uploading init segment to server... (remote=${remoteRecordingId})`);
+        const apiClient = recordingManager.getAPIClient();
+        await apiClient.uploadInitSegment(remoteRecordingId, data);
+        console.log(`✅ [RemoteStorageStrategy] Init segment uploaded to server (${data.length} bytes)`);
+      } catch (err) {
+        console.error('❌ Failed to upload init segment to server:', err);
+        // サーバーエラーでもローカルには保存済み
+      }
+    } else {
+      console.warn(`⚠️ Server upload not available, init segment saved locally only (local=${localRecordingId})`);
+    }
   }
 
   async saveChunk(
@@ -150,6 +169,12 @@ export class RemoteStorageStrategy implements IStorageStrategy {
       console.warn(`⚠️ Server upload not available, recording saved locally only (local=${localRecordingId})`);
     }
 
+    // 完了したRecordingのマッピングを保存（ダウンロード用）
+    if (remoteRecordingId) {
+      this.completedRecordingsMap.set(localRecordingId, remoteRecordingId);
+      this.lastCompletedLocalRecordingId = localRecordingId;
+    }
+
     // クリーンアップ
     this.storageMap.delete(localRecordingId);
     this.recordingManagerMap.delete(localRecordingId);
@@ -167,5 +192,44 @@ export class RemoteStorageStrategy implements IStorageStrategy {
       };
     }
     return { uploaded: 0, total: 0 };
+  }
+
+  /**
+   * サーバーからRecordingをダウンロード
+   */
+  async downloadFromServer(localRecordingId: RecordingId): Promise<Blob> {
+    const localId = asLocalRecordingId(localRecordingId);
+
+    // まずcompletedRecordingsMapから検索、なければserverRecordingIdMapから検索
+    let remoteRecordingId = this.completedRecordingsMap.get(localId);
+    if (!remoteRecordingId) {
+      remoteRecordingId = this.serverRecordingIdMap.get(localId);
+    }
+
+    if (!remoteRecordingId) {
+      throw new Error(`No server recording found for local recording: ${localId}`);
+    }
+
+    console.log(`📥 [RemoteStorageStrategy] Downloading from server: local=${localId}, remote=${remoteRecordingId}`);
+
+    // サーバーからダウンロード
+    const serverUrl = getServerUrl();
+    const response = await fetch(`${serverUrl}/api/recordings/${remoteRecordingId}/download`);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to download from server: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+
+    const blob = await response.blob();
+    console.log(`✅ [RemoteStorageStrategy] Download completed: ${blob.size} bytes`);
+    return blob;
+  }
+
+  /**
+   * 最後に完了したRecordingのローカルIDを取得
+   */
+  getLastCompletedRecordingId(): LocalRecordingId | null {
+    return this.lastCompletedLocalRecordingId;
   }
 }

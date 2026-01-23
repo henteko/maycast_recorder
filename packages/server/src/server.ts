@@ -34,7 +34,7 @@ app.use('/api', createChunksRouter(recordingStorage, chunkStorage));
 app.use(express.json());
 
 // その他のAPI routes
-app.use('/api', createRecordingsRouter(recordingStorage));
+app.use('/api', createRecordingsRouter(recordingStorage, chunkStorage));
 
 // Health check endpoint
 app.get('/health', (_req, res) => {

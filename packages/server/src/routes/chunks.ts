@@ -11,6 +11,56 @@ export function createChunksRouter(
   const router = express.Router();
 
   /**
+   * POST /api/recordings/:recording_id/init-segment
+   * Init Segmentをアップロード
+   */
+  router.post(
+    '/recordings/:recording_id/init-segment',
+    express.raw({ type: 'application/octet-stream', limit: '50mb' }),
+    async (req, res): Promise<void> => {
+      const { recording_id } = req.params;
+
+      // Recordingの存在確認
+      const recording = recordingStorage.getRecording(recording_id);
+      if (!recording) {
+        res.status(404).json({ error: 'Recording not found' });
+        return;
+      }
+
+      // Recording状態の確認
+      if (recording.state !== 'recording' && recording.state !== 'standby') {
+        res.status(400).json({
+          error: `Cannot upload init segment in state: ${recording.state}. Recording must be in 'standby' or 'recording' state.`
+        });
+        return;
+      }
+
+      // バイナリデータの取得
+      if (!Buffer.isBuffer(req.body)) {
+        res.status(400).json({ error: 'Invalid request body. Expected binary data.' });
+        return;
+      }
+
+      const data = req.body as Buffer;
+
+      try {
+        // Init Segmentを保存
+        await chunkStorage.putInitSegment(recording_id, data);
+
+        console.log(`✅ [InitSegment] Init segment uploaded for recording ${recording_id}: ${data.length} bytes`);
+
+        res.status(201).json({
+          message: 'Init segment uploaded successfully',
+          size: data.length
+        });
+      } catch (error) {
+        console.error('Error uploading init segment:', error);
+        res.status(500).json({ error: 'Failed to upload init segment' });
+      }
+    }
+  );
+
+  /**
    * POST /api/recordings/:recording_id/chunks?chunk_id=123
    * チャンクをアップロード
    */

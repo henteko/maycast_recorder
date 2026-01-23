@@ -14,6 +14,7 @@ import { loadSettings, saveSettings } from './types/settings';
 import type { RecorderSettings } from './types/settings';
 import { StandaloneStorageStrategy } from './storage-strategies/StandaloneStorageStrategy';
 import { RemoteStorageStrategy } from './storage-strategies/RemoteStorageStrategy';
+import type { RecordingId } from '@maycast/common-types';
 
 // モード判定用のコンポーネント
 function ModeRouter() {
@@ -51,6 +52,34 @@ function ModeRouter() {
     console.log('✅ Settings saved:', settings);
   };
 
+  // Remote Mode用のダウンロードハンドラー
+  const handleDownload = async (recordingId: RecordingId) => {
+    if (isRemoteMode && storageStrategy instanceof RemoteStorageStrategy) {
+      try {
+        console.log('📥 [App] Downloading from server...');
+        const blob = await storageStrategy.downloadFromServer(recordingId);
+
+        // Blobをダウンロード
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `recording-${recordingId}.mp4`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        console.log('✅ [App] Download completed');
+      } catch (err) {
+        console.error('❌ [App] Download failed:', err);
+        alert('Failed to download recording from server');
+      }
+    } else {
+      // Standalone Modeの場合は既存のダウンロード処理
+      await downloadRecordingById(recordingId);
+    }
+  };
+
   return (
     <MainLayout
       sidebar={
@@ -66,7 +95,7 @@ function ModeRouter() {
           settings={settings}
           storageStrategy={storageStrategy}
           onSessionComplete={loadRecordings}
-          onDownload={downloadRecordingById}
+          onDownload={handleDownload}
           downloadProgress={downloadProgress}
         />
       )}
