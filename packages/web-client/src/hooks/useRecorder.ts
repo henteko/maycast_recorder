@@ -1,20 +1,22 @@
 import { useRef, useState, useCallback } from 'react';
-import { ChunkStorage, generateRecordingId } from '../storage/chunk-storage';
+import { generateRecordingId } from '../storage/chunk-storage';
 import type { ChunkStats } from '../types/webcodecs';
 import type { RecorderSettings } from '../types/settings';
 import { QUALITY_PRESETS } from '../types/settings';
 import type { MediaStreamOptions } from './useMediaStream';
 import type { RecordingId } from '@maycast/common-types';
+import type { IStorageStrategy } from '../storage-strategies/IStorageStrategy';
 
 type ScreenState = 'standby' | 'recording' | 'completed'
 
 interface UseRecorderProps {
   videoEncoderRef: React.RefObject<VideoEncoder | null>
   audioEncoderRef: React.RefObject<AudioEncoder | null>
-  chunkStorageRef: React.RefObject<ChunkStorage | null>
+  storageStrategy: IStorageStrategy
   initializeEncoders: (stream: MediaStream) => void
   closeEncoders: () => Promise<void>
   resetEncoders: () => void
+  setRecordingId: (recordingId: RecordingId) => void
   startCapture: (options?: MediaStreamOptions) => Promise<MediaStream | null>
   settings: RecorderSettings
   onSessionComplete?: () => void | Promise<void>
@@ -23,10 +25,11 @@ interface UseRecorderProps {
 export const useRecorder = ({
   videoEncoderRef,
   audioEncoderRef,
-  chunkStorageRef,
+  storageStrategy,
   initializeEncoders,
   closeEncoders,
   resetEncoders,
+  setRecordingId,
   startCapture,
   settings,
   onSessionComplete,
@@ -54,11 +57,9 @@ export const useRecorder = ({
 
     const recordingId = generateRecordingId();
     recordingIdRef.current = recordingId;
-    const chunkStorage = new ChunkStorage(recordingId);
-    chunkStorageRef.current = chunkStorage;
 
     try {
-      await chunkStorage.initSession()
+      await storageStrategy.initSession(recordingId)
     } catch (err) {
       console.error('❌ Failed to initialize session:', err)
       alert('Failed to initialize storage. Please check browser permissions.')
@@ -73,6 +74,9 @@ export const useRecorder = ({
       totalSize: 0,
     })
     resetEncoders()
+
+    // resetEncoders()の後にrecordingIdを設定（resetEncodersがrecordingIdをnullにするため）
+    setRecordingId(recordingId)
 
     console.log('🎬 Starting recording with settings:', settings)
 
@@ -154,7 +158,8 @@ export const useRecorder = ({
     console.log('🎬 Recording started')
   }, [
     closeEncoders,
-    chunkStorageRef,
+    storageStrategy,
+    setRecordingId,
     resetEncoders,
     settings,
     startCapture,
@@ -170,8 +175,8 @@ export const useRecorder = ({
 
     await closeEncoders()
 
-    if (chunkStorageRef.current) {
-      await chunkStorageRef.current.completeSession()
+    if (recordingIdRef.current) {
+      await storageStrategy.completeSession(recordingIdRef.current)
     }
 
     if (onSessionComplete) {
@@ -183,7 +188,7 @@ export const useRecorder = ({
     console.log('⏹️ Recording stopped')
     console.log('📊 Final stats:', stats)
     console.log('💾 Saved chunks:', savedChunks)
-  }, [closeEncoders, chunkStorageRef, onSessionComplete, stats, savedChunks])
+  }, [closeEncoders, storageStrategy, onSessionComplete, stats, savedChunks])
 
   const handleNewRecording = useCallback(() => {
     setScreenState('standby')
@@ -204,6 +209,9 @@ export const useRecorder = ({
     }
 
     try {
+      // Note: ChunkStorage is imported directly for deletion
+      // This should be refactored to use storage strategy in the future
+      const { ChunkStorage } = await import('../storage/chunk-storage')
       const storage = new ChunkStorage(recordingIdRef.current)
       await storage.deleteSession()
       if (onSessionComplete) {

@@ -1,17 +1,19 @@
 import { useRef, useCallback } from 'react'
-import type { ChunkStorage } from '../storage/chunk-storage'
 import type { ChunkStats } from '../types/webcodecs'
 import { QUALITY_PRESETS } from '../types/settings'
 import type { RecorderSettings } from '../types/settings'
+import type { IStorageStrategy } from '../storage-strategies/IStorageStrategy'
+import type { RecordingId } from '@maycast/common-types'
 
 interface UseEncodersProps {
   wasmInitialized: boolean
   settings: RecorderSettings
+  storageStrategy: IStorageStrategy
   onStatsUpdate: (updater: (prev: ChunkStats) => ChunkStats) => void
   onChunkSaved: () => void
 }
 
-export const useEncoders = ({ wasmInitialized, settings, onStatsUpdate, onChunkSaved }: UseEncodersProps) => {
+export const useEncoders = ({ wasmInitialized, settings, storageStrategy, onStatsUpdate, onChunkSaved }: UseEncodersProps) => {
   const videoEncoderRef = useRef<VideoEncoder | null>(null)
   const audioEncoderRef = useRef<AudioEncoder | null>(null)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -22,7 +24,7 @@ export const useEncoders = ({ wasmInitialized, settings, onStatsUpdate, onChunkS
   const activeStreamRef = useRef<MediaStream | null>(null)
   const baseVideoTimestampRef = useRef<number | null>(null)
   const baseAudioTimestampRef = useRef<number | null>(null)
-  const chunkStorageRef = useRef<ChunkStorage | null>(null)
+  const recordingIdRef = useRef<RecordingId | null>(null)
 
   const initializeMuxerWithConfigs = useCallback(async () => {
     if (!videoConfigRef.current || !audioConfigRef.current || !wasmInitialized || !activeStreamRef.current) {
@@ -66,13 +68,13 @@ export const useEncoders = ({ wasmInitialized, settings, onStatsUpdate, onChunkS
       muxerRef.current = muxer
       console.log('✅ Muxer initialized with codec configs, init segment size:', initSegment.length, 'bytes')
 
-      if (chunkStorageRef.current) {
-        await chunkStorageRef.current.saveInitSegment(initSegment)
+      if (recordingIdRef.current) {
+        await storageStrategy.saveInitSegment(recordingIdRef.current, initSegment)
       }
     } catch (err) {
       console.error('❌ Failed to initialize Muxer:', err)
     }
-  }, [wasmInitialized, settings.qualityPreset])
+  }, [wasmInitialized, settings.qualityPreset, storageStrategy])
 
   const initializeEncoders = useCallback((activeStream: MediaStream) => {
     if (!activeStream || !wasmInitialized) return
@@ -112,15 +114,15 @@ export const useEncoders = ({ wasmInitialized, settings, onStatsUpdate, onChunkS
         const buffer = new Uint8Array(chunk.byteLength)
         chunk.copyTo(buffer)
 
-        if (muxerRef.current && chunkStorageRef.current) {
+        if (muxerRef.current && recordingIdRef.current) {
           try {
             const fragment = muxerRef.current.push_video(buffer, relativeTimestamp, isKeyframe)
             if (fragment.length > 0) {
-              chunkStorageRef.current.saveChunk(fragment, relativeTimestamp).then((chunkId) => {
+              storageStrategy.saveChunk(recordingIdRef.current, fragment, relativeTimestamp).then((chunkId) => {
                 onChunkSaved()
-                console.log(`📦 fMP4 fragment saved to OPFS: #${chunkId}, ${fragment.length} bytes`)
+                console.log(`📦 fMP4 fragment saved: #${chunkId}, ${fragment.length} bytes`)
               }).catch((err) => {
-                console.error('❌ Failed to save chunk to OPFS:', err)
+                console.error('❌ Failed to save chunk:', err)
               })
             }
           } catch (err) {
@@ -170,15 +172,15 @@ export const useEncoders = ({ wasmInitialized, settings, onStatsUpdate, onChunkS
         const buffer = new Uint8Array(chunk.byteLength)
         chunk.copyTo(buffer)
 
-        if (muxerRef.current && chunkStorageRef.current) {
+        if (muxerRef.current && recordingIdRef.current) {
           try {
             const fragment = muxerRef.current.push_audio(buffer, relativeTimestamp)
             if (fragment.length > 0) {
-              chunkStorageRef.current.saveChunk(fragment, relativeTimestamp).then((chunkId) => {
+              storageStrategy.saveChunk(recordingIdRef.current, fragment, relativeTimestamp).then((chunkId) => {
                 onChunkSaved()
-                console.log(`📦 fMP4 fragment saved to OPFS: #${chunkId}, ${fragment.length} bytes`)
+                console.log(`📦 fMP4 fragment saved: #${chunkId}, ${fragment.length} bytes`)
               }).catch((err) => {
-                console.error('❌ Failed to save chunk to OPFS:', err)
+                console.error('❌ Failed to save chunk:', err)
               })
             }
           } catch (err) {
@@ -201,7 +203,7 @@ export const useEncoders = ({ wasmInitialized, settings, onStatsUpdate, onChunkS
 
     audioEncoderRef.current.configure(audioConfig)
     console.log('✅ AudioEncoder configured:', audioConfig)
-  }, [wasmInitialized, settings.qualityPreset, initializeMuxerWithConfigs, onStatsUpdate, onChunkSaved])
+  }, [wasmInitialized, settings.qualityPreset, initializeMuxerWithConfigs, storageStrategy, onStatsUpdate, onChunkSaved])
 
   const closeEncoders = useCallback(async () => {
     if (videoEncoderRef.current) {
@@ -237,14 +239,19 @@ export const useEncoders = ({ wasmInitialized, settings, onStatsUpdate, onChunkS
     activeStreamRef.current = null
     baseVideoTimestampRef.current = null
     baseAudioTimestampRef.current = null
+    recordingIdRef.current = null
+  }, [])
+
+  const setRecordingId = useCallback((recordingId: RecordingId) => {
+    recordingIdRef.current = recordingId
   }, [])
 
   return {
     videoEncoderRef,
     audioEncoderRef,
-    chunkStorageRef,
     initializeEncoders,
     closeEncoders,
     resetEncoders,
+    setRecordingId,
   }
 }

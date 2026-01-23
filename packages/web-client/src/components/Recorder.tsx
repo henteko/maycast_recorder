@@ -8,6 +8,7 @@ import init from 'maycast-wasm-core'
 import type { RecorderSettings } from '../types/settings'
 import type { ScreenState } from '../types/recorder'
 import type { DownloadProgress } from '../hooks/useDownload'
+import type { IStorageStrategy } from '../storage-strategies/IStorageStrategy'
 
 import { MainHeader } from './organisms/MainHeader'
 import { RecoveryModal } from './organisms/RecoveryModal'
@@ -25,6 +26,7 @@ export interface RecorderExports {
 
 interface RecorderProps {
   settings: RecorderSettings;
+  storageStrategy: IStorageStrategy;
   onSessionComplete?: () => void | Promise<void>;
   onDownload?: (recordingId: RecordingId) => Promise<void>;
   downloadProgress?: DownloadProgress;
@@ -33,6 +35,7 @@ interface RecorderProps {
 
 export const Recorder: React.FC<RecorderProps> = ({
   settings: externalSettings,
+  storageStrategy,
   onSessionComplete,
   onDownload,
   downloadProgress = { isDownloading: false, current: 0, total: 0 },
@@ -57,13 +60,14 @@ export const Recorder: React.FC<RecorderProps> = ({
   const {
     videoEncoderRef,
     audioEncoderRef,
-    chunkStorageRef,
     initializeEncoders,
     closeEncoders,
     resetEncoders,
+    setRecordingId,
   } = useEncoders({
     wasmInitialized,
     settings,
+    storageStrategy,
     onStatsUpdate: (updater) => setStats(updater),
     onChunkSaved: () => setSavedChunks(prev => prev + 1),
   })
@@ -84,10 +88,11 @@ export const Recorder: React.FC<RecorderProps> = ({
   } = useRecorder({
     videoEncoderRef,
     audioEncoderRef,
-    chunkStorageRef,
+    storageStrategy,
     initializeEncoders,
     closeEncoders,
     resetEncoders,
+    setRecordingId,
     startCapture,
     settings,
     onSessionComplete,

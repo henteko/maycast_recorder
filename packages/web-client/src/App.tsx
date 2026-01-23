@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Recorder } from './components/Recorder';
 import { RemoteRecorder } from './modes/remote/RemoteRecorder';
@@ -13,6 +13,7 @@ import { useDownload } from './hooks/useDownload';
 import { useDevices } from './hooks/useDevices';
 import { loadSettings, saveSettings } from './types/settings';
 import type { RecorderSettings } from './types/settings';
+import { StandaloneStorageStrategy } from './storage-strategies/StandaloneStorageStrategy';
 
 function App() {
   const [currentPage, setCurrentPage] = useState<NavigationPage>('recorder');
@@ -27,6 +28,9 @@ function App() {
     clearAllRecordings,
   } = useSessionManager();
   const { downloadProgress, downloadRecordingById } = useDownload();
+
+  // Standalone Mode用のストレージ戦略
+  const standaloneStorageStrategy = useMemo(() => new StandaloneStorageStrategy(), []);
 
   const handleNavigate = (page: NavigationPage) => {
     setCurrentPage(page);
@@ -56,6 +60,7 @@ function App() {
               {currentPage === 'recorder' && (
                 <Recorder
                   settings={settings}
+                  storageStrategy={standaloneStorageStrategy}
                   onSessionComplete={loadRecordings}
                   onDownload={downloadRecordingById}
                   downloadProgress={downloadProgress}
