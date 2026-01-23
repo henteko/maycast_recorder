@@ -5,6 +5,7 @@ import dotenv from 'dotenv';
 import { setupContainer } from './infrastructure/di/setupContainer.js';
 import { createRecordingsRouter } from './presentation/routes/recordings.js';
 import { createChunksRouter } from './presentation/routes/chunks.js';
+import { errorHandler } from './presentation/middleware/errorHandler.js';
 import type { RecordingController } from './presentation/controllers/RecordingController.js';
 import type { ChunkController } from './presentation/controllers/ChunkController.js';
 
@@ -52,11 +53,8 @@ app.use((_req, res) => {
   res.status(404).json({ error: 'Not Found' });
 });
 
-// Error handler
-app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  console.error('Error:', err);
-  res.status(500).json({ error: 'Internal Server Error' });
-});
+// Error handler (must be last)
+app.use(errorHandler);
 
 // Start server
 app.listen(PORT, () => {

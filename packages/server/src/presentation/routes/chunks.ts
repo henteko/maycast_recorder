@@ -1,5 +1,6 @@
 import express from 'express';
 import type { ChunkController } from '../controllers/ChunkController';
+import { asyncHandler } from '../middleware/errorHandler';
 
 /**
  * Chunks Router (Refactored)
@@ -13,17 +14,17 @@ export function createChunksRouter(chunkController: ChunkController): express.Ro
    * POST /api/recordings/:id/init-segment
    * Init Segmentをアップロード
    */
-  router.post('/recordings/:id/init-segment', (req, res) => {
-    chunkController.uploadInitSegment(req, res);
-  });
+  router.post('/recordings/:id/init-segment', asyncHandler(async (req, res) => {
+    await chunkController.uploadInitSegment(req, res);
+  }));
 
   /**
    * POST /api/recordings/:id/chunks?chunk_id=N
    * チャンクをアップロード
    */
-  router.post('/recordings/:id/chunks', (req, res) => {
-    chunkController.uploadChunk(req, res);
-  });
+  router.post('/recordings/:id/chunks', asyncHandler(async (req, res) => {
+    await chunkController.uploadChunk(req, res);
+  }));
 
   return router;
 }
