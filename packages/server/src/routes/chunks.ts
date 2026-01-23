@@ -9,14 +9,21 @@ export function createChunksRouter(
   const router = express.Router();
 
   /**
-   * POST /api/recordings/:recording_id/chunks/:chunk_id
+   * POST /api/recordings/:recording_id/chunks?chunk_id=123
    * チャンクをアップロード
    */
   router.post(
-    '/recordings/:recording_id/chunks/:chunk_id',
+    '/recordings/:recording_id/chunks',
     express.raw({ type: 'application/octet-stream', limit: '50mb' }),
     async (req, res): Promise<void> => {
-      const { recording_id, chunk_id } = req.params;
+      const { recording_id } = req.params;
+      const chunk_id = req.query.chunk_id as string;
+
+      // chunk_idのバリデーション
+      if (!chunk_id) {
+        res.status(400).json({ error: 'chunk_id query parameter is required' });
+        return;
+      }
 
       // Recordingの存在確認
       const recording = recordingStorage.getRecording(recording_id);

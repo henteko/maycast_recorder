@@ -35,8 +35,10 @@ function ModeRouter() {
   const isRemoteMode = location.pathname === '/remote';
   const storageStrategy = useMemo(() => {
     if (isRemoteMode) {
+      console.log('🔄 [App] Using RemoteStorageStrategy');
       return new RemoteStorageStrategy();
     }
+    console.log('🔄 [App] Using StandaloneStorageStrategy');
     return new StandaloneStorageStrategy();
   }, [isRemoteMode]);
 

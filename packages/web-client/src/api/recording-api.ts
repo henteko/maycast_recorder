@@ -64,6 +64,7 @@ export class RecordingAPIClient {
    * 新しいRecordingを作成
    */
   async createRecording(): Promise<CreateRecordingResponse> {
+    console.log(`📡 [RecordingAPIClient] POST ${this.baseUrl}/api/recordings`);
     const response = await fetch(`${this.baseUrl}/api/recordings`, {
       method: 'POST',
       headers: {
@@ -72,10 +73,13 @@ export class RecordingAPIClient {
     });
 
     if (!response.ok) {
+      console.error(`❌ [RecordingAPIClient] Failed to create recording: ${response.status} ${response.statusText}`);
       throw new Error(`Failed to create recording: ${response.statusText}`);
     }
 
-    return response.json();
+    const data = await response.json();
+    console.log(`✅ [RecordingAPIClient] Recording created:`, data);
+    return data;
   }
 
   /**
@@ -140,7 +144,7 @@ export class RecordingAPIClient {
     data: Uint8Array
   ): Promise<void> {
     const response = await fetch(
-      `${this.baseUrl}/api/recordings/${recordingId}/chunks/${chunkId}`,
+      `${this.baseUrl}/api/recordings/${recordingId}/chunks?chunk_id=${chunkId}`,
       {
         method: 'POST',
         headers: {

@@ -26,11 +26,15 @@ app.use(cors({
   credentials: true,
 }));
 app.use(morgan(LOG_LEVEL === 'debug' ? 'dev' : 'combined'));
+
+// API routes - チャンクルーターを先にマウント（express.json()の前）
+app.use('/api', createChunksRouter(recordingStorage, chunkStorage));
+
+// JSON middleware（チャンクルーター以降のルートに適用）
 app.use(express.json());
 
-// API routes
+// その他のAPI routes
 app.use('/api', createRecordingsRouter(recordingStorage));
-app.use('/api', createChunksRouter(recordingStorage, chunkStorage));
 
 // Health check endpoint
 app.get('/health', (_req, res) => {

@@ -1,4 +1,11 @@
 import { RecordingAPIClient } from '../../api/recording-api';
+import type { RecordingId } from '@maycast/common-types';
+import type { ChunkUploadStatus } from './types';
+import {
+  saveUploadState,
+  updateUploadState,
+  listUploadStates,
+} from './upload-state-storage';
 
 export interface ChunkUploadTask {
   chunkId: string;
@@ -45,13 +52,23 @@ export class ChunkUploader {
   /**
    * チャンクをキューに追加
    */
-  addChunk(chunkId: string, data: Uint8Array): void {
+  async addChunk(chunkId: string, data: Uint8Array): Promise<void> {
     this.queue.set(chunkId, {
       chunkId,
       data,
       status: 'pending',
       retryCount: 0,
     });
+
+    // IndexedDBに状態を保存
+    const uploadStatus: ChunkUploadStatus = {
+      recordingId: this.recordingId as RecordingId,
+      chunkId: parseInt(chunkId, 10),
+      state: 'pending',
+      retryCount: 0,
+      lastAttempt: Date.now(),
+    };
+    await saveUploadState(uploadStatus);
 
     // キュー処理を開始
     this.processQueue();
@@ -108,26 +125,51 @@ export class ChunkUploader {
    * タスクをアップロード
    */
   private async uploadTask(task: ChunkUploadTask): Promise<void> {
+    const chunkIdNum = parseInt(task.chunkId, 10);
     task.status = 'uploading';
     this.activeUploads++;
+
+    // IndexedDBに状態更新
+    await updateUploadState(this.recordingId as RecordingId, chunkIdNum, {
+      state: 'uploading',
+      retryCount: task.retryCount + 1,
+    });
 
     try {
       await this.apiClient.uploadChunk(this.recordingId, task.chunkId, task.data);
       task.status = 'completed';
       console.log(`✅ Chunk uploaded: ${task.chunkId}`);
+
+      // IndexedDBに成功を記録
+      await updateUploadState(this.recordingId as RecordingId, chunkIdNum, {
+        state: 'uploaded',
+      });
     } catch (error) {
       console.error(`❌ Failed to upload chunk ${task.chunkId}:`, error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
 
       // リトライ
       if (task.retryCount < this.maxRetries) {
         task.retryCount++;
         task.status = 'pending';
-        task.error = error instanceof Error ? error.message : 'Unknown error';
+        task.error = errorMessage;
         console.log(`🔄 Retrying chunk ${task.chunkId} (attempt ${task.retryCount}/${this.maxRetries})`);
+
+        // IndexedDBにリトライ状態を記録
+        await updateUploadState(this.recordingId as RecordingId, chunkIdNum, {
+          state: 'pending',
+          error: errorMessage,
+        });
       } else {
         task.status = 'failed';
-        task.error = error instanceof Error ? error.message : 'Unknown error';
+        task.error = errorMessage;
         console.error(`💥 Chunk upload failed after ${this.maxRetries} retries: ${task.chunkId}`);
+
+        // IndexedDBに失敗を記録
+        await updateUploadState(this.recordingId as RecordingId, chunkIdNum, {
+          state: 'failed',
+          error: errorMessage,
+        });
       }
     } finally {
       this.activeUploads--;
@@ -169,5 +211,13 @@ export class ChunkUploader {
    */
   getFailedChunks(): ChunkUploadTask[] {
     return Array.from(this.queue.values()).filter(t => t.status === 'failed');
+  }
+
+  /**
+   * IndexedDBからアップロード状態を復元
+   */
+  async loadUploadStates(): Promise<void> {
+    const states = await listUploadStates(this.recordingId as RecordingId);
+    console.log(`📋 Loaded ${states.length} upload states from IndexedDB`);
   }
 }

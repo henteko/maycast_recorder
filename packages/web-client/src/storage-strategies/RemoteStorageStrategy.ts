@@ -1,35 +1,81 @@
 /**
- * RemoteStorageStrategy - Remote Mode用のストレージ戦略（スタブ実装）
+ * RemoteStorageStrategy - Remote Mode用のストレージ戦略
  *
- * Phase 2A-5-4で完全実装予定
- * 現在はStandaloneStorageStrategyと同じ動作（OPFSのみ）
+ * OPFS + サーバーへの並行アップロード
  */
 
 import { ChunkStorage } from '../storage/chunk-storage';
 import type { IStorageStrategy } from './IStorageStrategy';
 import type { RecordingId } from '@maycast/common-types';
+import { RecordingManager } from '../modes/remote/RecordingManager';
+import { ChunkUploader } from '../modes/remote/ChunkUploader';
+import { getServerUrl } from '../modes/remote/serverConfig';
+import type { LocalRecordingId, RemoteRecordingId } from '../types/recording-id';
+import { asLocalRecordingId, asRemoteRecordingId } from '../types/recording-id';
 
 export class RemoteStorageStrategy implements IStorageStrategy {
-  private storageMap: Map<RecordingId, ChunkStorage> = new Map();
+  private storageMap: Map<LocalRecordingId, ChunkStorage> = new Map();
+  private recordingManagerMap: Map<LocalRecordingId, RecordingManager> = new Map();
+  private chunkUploaderMap: Map<LocalRecordingId, ChunkUploader> = new Map();
+  // ローカルRecording IDとリモートRecording IDのマッピング
+  private serverRecordingIdMap: Map<LocalRecordingId, RemoteRecordingId> = new Map();
 
   async initSession(recordingId: RecordingId): Promise<void> {
+    const localRecordingId = asLocalRecordingId(recordingId);
+    console.log('🚀 [RemoteStorageStrategy] Initializing session (local):', localRecordingId);
+
+    // OPFS初期化（ローカルIDを使用）
     const storage = new ChunkStorage(recordingId);
     await storage.initSession();
-    this.storageMap.set(recordingId, storage);
+    this.storageMap.set(localRecordingId, storage);
 
-    // TODO: Phase 2A-5-4 - サーバーにRecording作成リクエストを送信
-    console.log('🚧 [RemoteStorageStrategy] TODO: Create recording on server');
+    // サーバー接続
+    const serverUrl = getServerUrl();
+    console.log('🌐 [RemoteStorageStrategy] Server URL:', serverUrl);
+
+    const recordingManager = new RecordingManager(serverUrl);
+    this.recordingManagerMap.set(localRecordingId, recordingManager);
+
+    try {
+      // サーバーにRecording作成
+      console.log('📡 [RemoteStorageStrategy] Creating recording on server...');
+      const serverRecordingIdString = await recordingManager.createRecording();
+      const remoteRecordingId = asRemoteRecordingId(serverRecordingIdString);
+      console.log(`✅ Recording created on server (remote): ${remoteRecordingId}`);
+
+      // ローカルIDとリモートIDのマッピングを保存
+      this.serverRecordingIdMap.set(localRecordingId, remoteRecordingId);
+      console.log(`🔗 [RemoteStorageStrategy] Mapping: local=${localRecordingId} -> remote=${remoteRecordingId}`);
+
+      // Recording状態を'recording'に更新
+      console.log('📡 [RemoteStorageStrategy] Updating recording state to "recording"...');
+      await recordingManager.updateState('recording');
+
+      // ChunkUploader初期化（リモートIDを使用）
+      const apiClient = recordingManager.getAPIClient();
+      const chunkUploader = new ChunkUploader(remoteRecordingId, apiClient);
+      this.chunkUploaderMap.set(localRecordingId, chunkUploader);
+
+      console.log(`✅ Remote recording session initialized: local=${localRecordingId}, remote=${remoteRecordingId}`);
+    } catch (err) {
+      console.error('❌ Failed to create recording on server:', err);
+      // サーバーエラーでも録画は継続（OPFS保存のみ）
+      console.warn('⚠️ Recording will continue with local storage only');
+    }
   }
 
   async saveInitSegment(recordingId: RecordingId, data: Uint8Array): Promise<void> {
-    const storage = this.storageMap.get(recordingId);
+    const localRecordingId = asLocalRecordingId(recordingId);
+    const storage = this.storageMap.get(localRecordingId);
     if (!storage) {
-      throw new Error(`ChunkStorage not initialized for recording: ${recordingId}`);
+      throw new Error(`ChunkStorage not initialized for local recording: ${localRecordingId}`);
     }
+
+    // OPFS保存（ローカルIDを使用）
     await storage.saveInitSegment(data);
 
-    // TODO: Phase 2A-5-4 - サーバーにinit segmentをアップロード
-    console.log('🚧 [RemoteStorageStrategy] TODO: Upload init segment to server');
+    // TODO: Phase 2A-6 以降 - init segmentのサーバーアップロード（オプション）
+    console.log(`💾 [RemoteStorageStrategy] Init segment saved to OPFS (local=${localRecordingId})`);
   }
 
   async saveChunk(
@@ -37,32 +83,89 @@ export class RemoteStorageStrategy implements IStorageStrategy {
     data: Uint8Array,
     timestamp: number
   ): Promise<number> {
-    const storage = this.storageMap.get(recordingId);
+    const localRecordingId = asLocalRecordingId(recordingId);
+    const storage = this.storageMap.get(localRecordingId);
     if (!storage) {
-      throw new Error(`ChunkStorage not initialized for recording: ${recordingId}`);
+      throw new Error(`ChunkStorage not initialized for local recording: ${localRecordingId}`);
     }
+
+    // OPFS保存（バックアップとして、ローカルIDを使用）
     const chunkId = await storage.saveChunk(data, timestamp);
 
-    // TODO: Phase 2A-5-4 - サーバーにチャンクをアップロード（非同期）
-    console.log(`🚧 [RemoteStorageStrategy] TODO: Upload chunk #${chunkId} to server`);
+    // サーバーアップロード（非同期、録画をブロックしない）
+    const chunkUploader = this.chunkUploaderMap.get(localRecordingId);
+    const remoteRecordingId = this.serverRecordingIdMap.get(localRecordingId);
+
+    if (chunkUploader && remoteRecordingId) {
+      try {
+        await chunkUploader.addChunk(chunkId.toString(), data);
+        console.log(`📤 [RemoteStorageStrategy] Chunk #${chunkId} queued for upload (local=${localRecordingId}, remote=${remoteRecordingId})`);
+      } catch (err) {
+        console.error(`❌ Failed to queue chunk #${chunkId} for upload:`, err);
+        // アップロード失敗してもOPFSには保存されているので録画継続
+      }
+    } else {
+      console.warn(`⚠️ ChunkUploader not available, chunk #${chunkId} saved to OPFS only (local=${localRecordingId})`);
+    }
 
     return chunkId;
   }
 
   async completeSession(recordingId: RecordingId): Promise<void> {
-    const storage = this.storageMap.get(recordingId);
+    const localRecordingId = asLocalRecordingId(recordingId);
+    const storage = this.storageMap.get(localRecordingId);
     if (!storage) {
-      throw new Error(`ChunkStorage not initialized for recording: ${recordingId}`);
+      throw new Error(`ChunkStorage not initialized for local recording: ${localRecordingId}`);
     }
-    await storage.completeSession();
-    this.storageMap.delete(recordingId);
 
-    // TODO: Phase 2A-5-4 - 全チャンクのアップロード完了を待機し、状態を'synced'に更新
-    console.log('🚧 [RemoteStorageStrategy] TODO: Wait for all chunks upload and update state to synced');
+    // OPFS完了（ローカルIDを使用）
+    await storage.completeSession();
+
+    // 全チャンクのアップロード完了を待機
+    const chunkUploader = this.chunkUploaderMap.get(localRecordingId);
+    const recordingManager = this.recordingManagerMap.get(localRecordingId);
+    const remoteRecordingId = this.serverRecordingIdMap.get(localRecordingId);
+
+    if (chunkUploader && recordingManager && remoteRecordingId) {
+      try {
+        console.log(`⏳ [RemoteStorageStrategy] Waiting for all chunks to upload... (remote=${remoteRecordingId})`);
+        await chunkUploader.waitForCompletion();
+
+        const stats = chunkUploader.getStats();
+        console.log(`✅ Upload completed: ${stats.uploadedChunks}/${stats.totalChunks} chunks (remote=${remoteRecordingId})`);
+
+        if (stats.failedChunks > 0) {
+          console.warn(`⚠️ ${stats.failedChunks} chunks failed to upload`);
+          await recordingManager.updateState('finalizing');
+        } else {
+          // 全チャンク成功
+          await recordingManager.updateState('synced');
+          console.log(`✅ Recording synced to server (local=${localRecordingId}, remote=${remoteRecordingId})`);
+        }
+      } catch (err) {
+        console.error('❌ Failed to complete server sync:', err);
+        // サーバーエラーでもローカルには保存済み
+      }
+    } else {
+      console.warn(`⚠️ Server upload not available, recording saved locally only (local=${localRecordingId})`);
+    }
+
+    // クリーンアップ
+    this.storageMap.delete(localRecordingId);
+    this.recordingManagerMap.delete(localRecordingId);
+    this.chunkUploaderMap.delete(localRecordingId);
+    this.serverRecordingIdMap.delete(localRecordingId);
   }
 
   getUploadProgress(): { uploaded: number; total: number } {
-    // TODO: Phase 2A-5-4 - 実際のアップロード進捗を返す
+    // 最新のRecordingのアップロード進捗を返す（ローカルIDキーで検索）
+    for (const chunkUploader of this.chunkUploaderMap.values()) {
+      const stats = chunkUploader.getStats();
+      return {
+        uploaded: stats.uploadedChunks,
+        total: stats.totalChunks,
+      };
+    }
     return { uploaded: 0, total: 0 };
   }
 }

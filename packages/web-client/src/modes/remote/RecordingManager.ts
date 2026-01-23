@@ -23,9 +23,10 @@ export class RecordingManager {
    * 新しいRecordingを作成
    */
   async createRecording(): Promise<string> {
+    console.log('📡 [RecordingManager] Calling createRecording API...');
     const response = await this.apiClient.createRecording();
     this.recordingId = response.recording_id;
-    console.log(`📝 Recording created: ${this.recordingId}`);
+    console.log(`📝 [RecordingManager] Recording created: ${this.recordingId}`);
     return this.recordingId;
   }
 
