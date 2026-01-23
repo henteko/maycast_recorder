@@ -27,6 +27,12 @@ export type {
   Recording,
 } from './recording.js';
 
+// API types
+export type {
+  CreateRecordingResponse,
+  UpdateStateRequest,
+} from './api-types.js';
+
 // Room types
 export type { RoomId, RoomState, Room } from './room.js';
 

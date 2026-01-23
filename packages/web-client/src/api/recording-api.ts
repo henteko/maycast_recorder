@@ -3,41 +3,25 @@
  * サーバーのRecording管理APIとの通信を担当
  */
 
-export interface CreateRecordingResponse {
-  recording_id: string;
-  created_at: string;
-  state: 'standby' | 'recording' | 'finalizing' | 'synced';
-}
+import type {
+  RecordingState,
+  RecordingMetadata,
+  CreateRecordingResponse,
+} from '@maycast/common-types';
 
+/**
+ * サーバーから返されるRecording情報
+ * (API Response用の型)
+ */
 export interface RecordingInfo {
   id: string;
-  state: 'standby' | 'recording' | 'finalizing' | 'synced';
+  state: RecordingState;
   created_at: string;
   started_at?: string;
   finished_at?: string;
   metadata?: RecordingMetadata;
   chunk_count: number;
   room_id?: string;
-}
-
-export interface RecordingMetadata {
-  displayName?: string;
-  deviceInfo?: {
-    browser: string;
-    os: string;
-    screenResolution: string;
-  };
-  videoConfig?: {
-    width: number;
-    height: number;
-    frameRate: number;
-    bitrate: number;
-  };
-  audioConfig?: {
-    sampleRate: number;
-    channelCount: number;
-    bitrate: number;
-  };
 }
 
 export class RecordingAPIClient {

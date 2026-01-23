@@ -1,4 +1,5 @@
-import { RecordingAPIClient, type RecordingMetadata } from '../../api/recording-api';
+import { RecordingAPIClient } from '../../api/recording-api';
+import type { RecordingMetadata, RecordingState } from '@maycast/common-types';
 
 /**
  * RecordingManager
@@ -45,7 +46,7 @@ export class RecordingManager {
   /**
    * Recording状態を更新
    */
-  async updateState(state: 'standby' | 'recording' | 'finalizing' | 'synced'): Promise<void> {
+  async updateState(state: RecordingState): Promise<void> {
     if (!this.recordingId) {
       throw new Error('Recording not created yet');
     }
