@@ -37,6 +37,7 @@ export class ChunkUploader {
   private recordingId: string;
   private apiClient: RecordingAPIClient;
   private isProcessing = false;
+  private processingPromise: Promise<void> | null = null;
 
   constructor(
     recordingId: string,
@@ -85,7 +86,16 @@ export class ChunkUploader {
     });
 
     // キュー処理を開始（すぐに開始）
-    this.processQueue();
+    this.startProcessing();
+  }
+
+  /**
+   * キュー処理を開始（既に処理中の場合は何もしない）
+   */
+  private startProcessing(): void {
+    if (!this.processingPromise) {
+      this.processingPromise = this.processQueue();
+    }
   }
 
   /**
@@ -112,6 +122,7 @@ export class ChunkUploader {
     }
 
     this.isProcessing = false;
+    this.processingPromise = null;
   }
 
   /**
@@ -216,16 +227,33 @@ export class ChunkUploader {
    */
   isAllCompleted(): boolean {
     const stats = this.getStats();
-    return stats.totalChunks > 0 && stats.pendingChunks === 0 && stats.failedChunks === 0;
+    // チャンクが0個の場合は完了とみなす
+    if (stats.totalChunks === 0) {
+      return true;
+    }
+    // すべてのチャンクがアップロード済みで、失敗がない場合
+    return stats.pendingChunks === 0 && stats.failedChunks === 0;
   }
 
   /**
    * アップロード完了を待機
    */
   async waitForCompletion(): Promise<void> {
+    // まず進行中のprocessQueueを待つ
+    if (this.processingPromise) {
+      await this.processingPromise;
+    }
+
+    // すべてのチャンクが完了するまで待機
     while (!this.isAllCompleted()) {
+      // まだアップロード中のタスクがあるか、処理中の場合は待機
+      if (this.processingPromise) {
+        await this.processingPromise;
+      }
       await new Promise(resolve => setTimeout(resolve, 500));
     }
+
+    console.log('✅ [ChunkUploader] All chunks uploaded successfully');
   }
 
   /**

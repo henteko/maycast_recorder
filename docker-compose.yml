@@ -1,0 +1,77 @@
+services:
+  # nginx リバースプロキシ（HTTP/2対応）
+  nginx:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
+      - ./nginx/logs:/var/log/nginx
+      - certbot-webroot:/var/www/certbot:ro
+    depends_on:
+      - server
+      - web-client
+    restart: unless-stopped
+    networks:
+      - maycast-network
+
+  # Expressサーバー
+  server:
+    build:
+      context: .
+      dockerfile: ./packages/server/Dockerfile
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+      - PORT=3000
+      - STORAGE_PATH=/app/storage
+      - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost}
+    volumes:
+      - ./packages/server/src:/app/packages/server/src:ro
+      - server-storage:/app/storage
+    expose:
+      - "3000"
+    restart: unless-stopped
+    networks:
+      - maycast-network
+
+  # Webクライアント
+  web-client:
+    build:
+      context: .
+      dockerfile: ./packages/web-client/Dockerfile
+      target: ${BUILD_TARGET:-development}
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+      - VITE_SERVER_URL=${VITE_SERVER_URL:-http://localhost}
+    volumes:
+      - ./packages/web-client/src:/app/packages/web-client/src:ro
+      - ./packages/web-client/public:/app/packages/web-client/public:ro
+    expose:
+      - "5173"
+    restart: unless-stopped
+    networks:
+      - maycast-network
+
+  # Certbot（本番環境のみ）
+  certbot:
+    image: certbot/certbot:latest
+    volumes:
+      - ./nginx/certs:/etc/letsencrypt
+      - certbot-webroot:/var/www/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+    networks:
+      - maycast-network
+    profiles:
+      - production
+
+networks:
+  maycast-network:
+    driver: bridge
+
+volumes:
+  server-storage:
+  certbot-webroot:

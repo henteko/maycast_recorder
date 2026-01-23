@@ -1,0 +1,22 @@
+services:
+  nginx:
+    volumes:
+      - ./nginx/certs-dev:/etc/nginx/certs:ro
+
+  server:
+    command: npm run dev --workspace=@maycast/server
+    environment:
+      - LOG_LEVEL=debug
+    volumes:
+      # 開発環境ではnode_modulesボリュームを使用しない（イメージのものを使用）
+      - ./packages/server/src:/app/packages/server/src:ro
+      - server-storage:/app/storage
+
+  web-client:
+    command: ["npm", "run", "dev", "--workspace=web-client", "--", "--host", "0.0.0.0"]
+    ports:
+      - "5173:5173"
+    volumes:
+      # 開発環境ではnode_modulesボリュームを使用しない（イメージのものを使用）
+      - ./packages/web-client/src:/app/packages/web-client/src:ro
+      - ./packages/web-client/public:/app/packages/web-client/public:ro

@@ -42,3 +42,13 @@ build/
 
 # Task runner
 .task/
+
+# Docker
+nginx/logs/
+nginx/certs/
+nginx/certs-dev/
+nginx/webroot/
+storage/
+
+# Claude
+.claude/

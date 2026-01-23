@@ -223,4 +223,77 @@ tasks:
       - command -v wasm-pack || echo "❌ wasm-pack not found (install with 'cargo install wasm-pack')"
       - command -v node || echo "❌ node not found"
       - command -v npm || echo "❌ npm not found"
+      - command -v docker || echo "❌ docker not found"
+      - command -v docker-compose || echo "❌ docker-compose not found"
       - echo "✅ All checks complete"
+
+  # Docker tasks
+  docker:dev:up:
+    desc: Start development environment with Docker Compose
+    cmds:
+      - docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+      - echo "✅ Development environment started"
+      - echo "📍 Access at http://localhost"
+
+  docker:dev:down:
+    desc: Stop development environment
+    cmds:
+      - docker-compose -f docker-compose.yml -f docker-compose.dev.yml down
+      - echo "✅ Development environment stopped"
+
+  docker:dev:logs:
+    desc: Show development logs
+    cmds:
+      - docker-compose -f docker-compose.yml -f docker-compose.dev.yml logs -f
+
+  docker:dev:build:
+    desc: Build development Docker images
+    cmds:
+      - docker-compose -f docker-compose.yml -f docker-compose.dev.yml build
+
+  docker:dev:restart:
+    desc: Restart development environment
+    cmds:
+      - task: docker:dev:down
+      - task: docker:dev:up
+
+  docker:prod:up:
+    desc: Start production environment with Docker Compose
+    cmds:
+      - docker-compose -f docker-compose.yml -f docker-compose.prod.yml --profile production up -d
+      - echo "✅ Production environment started"
+      - echo "📍 Access at https://{{.DOMAIN_NAME}}"
+
+  docker:prod:down:
+    desc: Stop production environment
+    cmds:
+      - docker-compose -f docker-compose.yml -f docker-compose.prod.yml down
+      - echo "✅ Production environment stopped"
+
+  docker:prod:logs:
+    desc: Show production logs
+    cmds:
+      - docker-compose -f docker-compose.yml -f docker-compose.prod.yml logs -f
+
+  docker:prod:build:
+    desc: Build production Docker images
+    cmds:
+      - docker-compose -f docker-compose.yml -f docker-compose.prod.yml build
+
+  docker:certs:dev:
+    desc: Generate self-signed certificates for development
+    cmds:
+      - ./scripts/generate-dev-certs.sh
+      - echo "✅ Development certificates generated"
+
+  docker:certs:prod:
+    desc: Initialize Let's Encrypt certificates for production
+    cmds:
+      - ./scripts/init-letsencrypt.sh
+      - echo "✅ Production certificates initialized"
+
+  docker:clean:
+    desc: Remove all Docker containers, volumes, and images
+    cmds:
+      - docker-compose -f docker-compose.yml -f docker-compose.dev.yml down -v --rmi all
+      - echo "✅ Docker environment cleaned"

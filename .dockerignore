@@ -1,0 +1,60 @@
+# Git
+.git
+.gitignore
+
+# Dependencies
+node_modules
+npm-debug.log
+yarn-error.log
+
+# Build outputs
+dist
+build
+.next
+out
+
+# Development
+.vscode
+.idea
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Testing
+coverage
+.nyc_output
+
+# Environment
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Docker
+docker-compose*.yml
+Dockerfile
+.dockerignore
+
+# Rust
+target/
+Cargo.lock
+
+# Documentation
+docs/
+README.md
+
+# Storage (開発環境用)
+storage/
+*.db
+*.sqlite
+
+# Nginx
+nginx/logs/
+nginx/certs/
+nginx/certs-dev/
+
+# Misc
+.task/
+.claude/
