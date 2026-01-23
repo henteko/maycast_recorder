@@ -1,7 +1,7 @@
 import React from 'react';
 import { PlayIcon, StopIcon } from '@heroicons/react/24/solid';
 import { StatusBadge } from '../atoms/StatusBadge';
-import type { ScreenState } from '../../types/recorder';
+import type { ScreenState } from '../../../types/recorder';
 
 interface MainHeaderProps {
   screenState: ScreenState;

@@ -1,4 +1,4 @@
-import { RecordingAPIClient } from '../../api/recording-api';
+import { RecordingAPIClient } from '../../infrastructure/api/recording-api';
 import type { RecordingMetadata, RecordingState } from '@maycast/common-types';
 
 /**

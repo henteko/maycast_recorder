@@ -4,7 +4,7 @@
  * OPFS + サーバーへの並行アップロード
  */
 
-import { ChunkStorage } from '../storage/chunk-storage';
+import { ChunkStorage } from '../infrastructure/storage/chunk-storage';
 import type { IStorageStrategy } from './IStorageStrategy';
 import type { RecordingId } from '@maycast/common-types';
 import { RecordingManager } from '../modes/remote/RecordingManager';

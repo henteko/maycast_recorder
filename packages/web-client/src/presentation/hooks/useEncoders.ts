@@ -1,8 +1,8 @@
 import { useRef, useCallback } from 'react'
-import type { ChunkStats } from '../types/webcodecs'
-import { QUALITY_PRESETS } from '../types/settings'
-import type { RecorderSettings } from '../types/settings'
-import type { IStorageStrategy } from '../storage-strategies/IStorageStrategy'
+import type { ChunkStats } from '../../types/webcodecs'
+import { QUALITY_PRESETS } from '../../types/settings'
+import type { RecorderSettings } from '../../types/settings'
+import type { IStorageStrategy } from '../../storage-strategies/IStorageStrategy'
 import type { RecordingId } from '@maycast/common-types'
 
 interface UseEncodersProps {

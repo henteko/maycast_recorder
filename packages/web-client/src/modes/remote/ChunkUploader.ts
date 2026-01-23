@@ -1,4 +1,4 @@
-import { RecordingAPIClient } from '../../api/recording-api';
+import { RecordingAPIClient } from '../../infrastructure/api/recording-api';
 import type { RecordingId } from '@maycast/common-types';
 import type { ChunkUploadStatus } from './types';
 import {

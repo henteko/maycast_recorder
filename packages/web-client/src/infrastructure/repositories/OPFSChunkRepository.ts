@@ -1,7 +1,7 @@
 import type { RecordingId, ChunkId, ChunkMetadata } from '@maycast/common-types';
 import type { IChunkRepository, ChunkData } from '../../domain/repositories/IChunkRepository';
-import * as OPFS from '../../storage/opfs';
-import * as metadata from '../../storage/metadata';
+import * as OPFS from '../storage/opfs';
+import * as metadata from '../storage/metadata';
 
 /**
  * OPFS + IndexedDB を使用した Chunk Repository の実装

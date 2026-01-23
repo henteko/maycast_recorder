@@ -1,7 +1,7 @@
 import { CogIcon } from '@heroicons/react/24/solid'
 import { DeviceSelector } from '../molecules/DeviceSelector'
 import { QualityPresetSelector } from '../molecules/QualityPresetSelector'
-import type { RecorderSettings, QualityPreset } from '../../types/settings'
+import type { RecorderSettings, QualityPreset } from '../../../types/settings'
 
 interface SettingsModalProps {
   isOpen: boolean

@@ -3,7 +3,7 @@ import { Cog6ToothIcon, CheckIcon } from '@heroicons/react/24/solid';
 import { DeviceSelector } from '../molecules/DeviceSelector';
 import { QualityPresetSelector } from '../molecules/QualityPresetSelector';
 import { ServerUrlSettings } from '../molecules/ServerUrlSettings';
-import type { RecorderSettings, QualityPreset } from '../../types/settings';
+import type { RecorderSettings, QualityPreset } from '../../../types/settings';
 
 interface SettingsPageProps {
   settings: RecorderSettings;

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import type { RecordingId } from '@maycast/common-types';
-import { useDI } from '../infrastructure/di';
-import type { DownloadRecordingUseCase } from '../domain/usecases/DownloadRecording.usecase';
+import { useDI } from '../../infrastructure/di';
+import type { DownloadRecordingUseCase } from '../../domain/usecases/DownloadRecording.usecase';
 
 export interface DownloadProgress {
   isDownloading: boolean;

@@ -4,7 +4,7 @@ import { OPFSChunkRepository } from '../repositories/OPFSChunkRepository';
 import { BrowserMediaStreamService } from '../services/BrowserMediaStreamService';
 import { NoOpUploadStrategy } from '../services/NoOpUploadStrategy';
 import { RemoteUploadStrategy } from '../services/RemoteUploadStrategy';
-import { RecordingAPIClient } from '../../api/recording-api';
+import { RecordingAPIClient } from '../api/recording-api';
 import { getServerUrl } from '../../modes/remote/serverConfig';
 
 // Use Cases

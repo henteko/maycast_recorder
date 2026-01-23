@@ -1,5 +1,5 @@
 import express from 'express';
-import type { ChunkController } from '../presentation/controllers/ChunkController';
+import type { ChunkController } from '../controllers/ChunkController';
 
 /**
  * Chunks Router (Refactored)

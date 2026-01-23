@@ -1,7 +1,7 @@
 import type { RecordingId, RecordingState, RecordingMetadata, Recording } from '@maycast/common-types';
 import { RecordingEntity, RecordingNotFoundError } from '@maycast/common-types';
 import type { IRecordingRepository } from '../../domain/repositories/IRecordingRepository';
-import * as metadata from '../../storage/metadata';
+import * as metadata from '../storage/metadata';
 
 /**
  * IndexedDB を使用した Recording Repository の実装

@@ -1,11 +1,11 @@
 import { useRef, useState, useCallback } from 'react';
-import { generateRecordingId } from '../storage/chunk-storage';
-import type { ChunkStats } from '../types/webcodecs';
-import type { RecorderSettings } from '../types/settings';
-import { QUALITY_PRESETS } from '../types/settings';
+import { generateRecordingId } from '../../infrastructure/storage/chunk-storage';
+import type { ChunkStats } from '../../types/webcodecs';
+import type { RecorderSettings } from '../../types/settings';
+import { QUALITY_PRESETS } from '../../types/settings';
 import type { MediaStreamOptions } from './useMediaStream';
 import type { RecordingId } from '@maycast/common-types';
-import type { IStorageStrategy } from '../storage-strategies/IStorageStrategy';
+import type { IStorageStrategy } from '../../storage-strategies/IStorageStrategy';
 
 type ScreenState = 'standby' | 'recording' | 'completed'
 
@@ -211,7 +211,7 @@ export const useRecorder = ({
     try {
       // Note: ChunkStorage is imported directly for deletion
       // This should be refactored to use storage strategy in the future
-      const { ChunkStorage } = await import('../storage/chunk-storage')
+      const { ChunkStorage } = await import('../../infrastructure/storage/chunk-storage')
       const storage = new ChunkStorage(recordingIdRef.current)
       await storage.deleteSession()
       if (onSessionComplete) {

@@ -1,5 +1,5 @@
 import { VideoCameraIcon, MicrophoneIcon } from '@heroicons/react/24/solid'
-import type { ChunkStats } from '../../types/webcodecs'
+import type { ChunkStats } from '../../../types/webcodecs'
 
 interface StatsPanelProps {
   stats: ChunkStats

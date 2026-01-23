@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { Recording, RecordingId } from '@maycast/common-types';
-import { useDI } from '../infrastructure/di';
-import type { ListRecordingsUseCase } from '../domain/usecases/ListRecordings.usecase';
-import type { DeleteRecordingUseCase } from '../domain/usecases/DeleteRecording.usecase';
-import type { CompleteRecordingUseCase } from '../domain/usecases/CompleteRecording.usecase';
+import { useDI } from '../../infrastructure/di';
+import type { ListRecordingsUseCase } from '../../domain/usecases/ListRecordings.usecase';
+import type { DeleteRecordingUseCase } from '../../domain/usecases/DeleteRecording.usecase';
+import type { CompleteRecordingUseCase } from '../../domain/usecases/CompleteRecording.usecase';
 
 export const useSessionManager = () => {
   const [savedRecordings, setSavedRecordings] = useState<Recording[]>([]);

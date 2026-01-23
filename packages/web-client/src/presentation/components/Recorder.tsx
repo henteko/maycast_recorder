@@ -5,10 +5,10 @@ import { useEncoders } from '../hooks/useEncoders'
 import { useRecorder } from '../hooks/useRecorder'
 // @ts-expect-error - maycast-wasm-core has no type definitions
 import init from 'maycast-wasm-core'
-import type { RecorderSettings } from '../types/settings'
-import type { ScreenState } from '../types/recorder'
+import type { RecorderSettings } from '../../types/settings'
+import type { ScreenState } from '../../types/recorder'
 import type { DownloadProgress } from '../hooks/useDownload'
-import type { IStorageStrategy } from '../storage-strategies/IStorageStrategy'
+import type { IStorageStrategy } from '../../storage-strategies/IStorageStrategy'
 
 import { MainHeader } from './organisms/MainHeader'
 import { RecoveryModal } from './organisms/RecoveryModal'

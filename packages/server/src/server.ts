@@ -3,8 +3,8 @@ import cors from 'cors';
 import morgan from 'morgan';
 import dotenv from 'dotenv';
 import { setupContainer } from './infrastructure/di/setupContainer.js';
-import { createRecordingsRouter } from './routes/recordings.js';
-import { createChunksRouter } from './routes/chunks.js';
+import { createRecordingsRouter } from './presentation/routes/recordings.js';
+import { createChunksRouter } from './presentation/routes/chunks.js';
 import type { RecordingController } from './presentation/controllers/RecordingController.js';
 import type { ChunkController } from './presentation/controllers/ChunkController.js';
 

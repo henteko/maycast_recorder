@@ -4,7 +4,7 @@ import type {
   UploadProgress,
 } from '../../domain/services/IUploadStrategy';
 import { ChunkUploader } from '../../modes/remote/ChunkUploader';
-import { RecordingAPIClient } from '../../api/recording-api';
+import { RecordingAPIClient } from '../api/recording-api';
 
 /**
  * サーバーへアップロードを行う Upload Strategy の実装

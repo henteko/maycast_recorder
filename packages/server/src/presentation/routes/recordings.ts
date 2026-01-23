@@ -1,5 +1,5 @@
 import express from 'express';
-import type { RecordingController } from '../presentation/controllers/RecordingController';
+import type { RecordingController } from '../controllers/RecordingController';
 
 /**
  * Recordings Router (Refactored)

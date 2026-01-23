@@ -1,4 +1,4 @@
-import type { QualityPreset } from '../../types/settings'
+import type { QualityPreset } from '../../../types/settings'
 
 interface QualityPresetSelectorProps {
   value: QualityPreset
