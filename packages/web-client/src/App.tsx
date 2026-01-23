@@ -17,8 +17,8 @@ import { RemoteStorageStrategy } from './storage-strategies/RemoteStorageStrateg
 import type { RecordingId } from '@maycast/common-types';
 import { DIProvider, setupContainer } from './infrastructure/di';
 
-// モード判定用のコンポーネント
-function ModeRouter() {
+// DIProvider内で実行されるメインコンテンツ
+function ModeContent() {
   const location = useLocation();
   const [currentPage, setCurrentPage] = useState<NavigationPage>('recorder');
   const [settings, setSettings] = useState<RecorderSettings>(loadSettings());
@@ -42,12 +42,6 @@ function ModeRouter() {
     }
     console.log('🔄 [App] Using StandaloneStorageStrategy');
     return new StandaloneStorageStrategy();
-  }, [isRemoteMode]);
-
-  // DIコンテナのセットアップ
-  const diContainer = useMemo(() => {
-    const mode = isRemoteMode ? 'remote' : 'standalone';
-    return setupContainer(mode);
   }, [isRemoteMode]);
 
   const handleNavigate = (page: NavigationPage) => {
@@ -88,45 +82,61 @@ function ModeRouter() {
   };
 
   return (
+    <MainLayout
+      sidebar={
+        <Sidebar
+          currentPage={currentPage}
+          onNavigate={handleNavigate}
+          systemHealth={systemHealth}
+        />
+      }
+    >
+      {currentPage === 'recorder' && (
+        <Recorder
+          settings={settings}
+          storageStrategy={storageStrategy}
+          onSessionComplete={loadRecordings}
+          onDownload={handleDownload}
+          downloadProgress={downloadProgress}
+        />
+      )}
+      {currentPage === 'library' && (
+        <LibraryPage
+          recordings={savedRecordings}
+          onDownload={downloadRecordingById}
+          onDelete={deleteRecording}
+          onClearAll={clearAllRecordings}
+          isDownloading={downloadProgress.isDownloading}
+        />
+      )}
+      {currentPage === 'settings' && (
+        <SettingsPage
+          settings={settings}
+          onSettingsChange={setSettings}
+          onSave={handleSaveSettings}
+          videoDevices={videoDevices}
+          audioDevices={audioDevices}
+          showServerSettings={isRemoteMode}
+        />
+      )}
+    </MainLayout>
+  );
+}
+
+// モード判定とDIコンテナのセットアップ
+function ModeRouter() {
+  const location = useLocation();
+
+  // パスに応じてDIコンテナを初期化
+  const diContainer = useMemo(() => {
+    const isRemoteMode = location.pathname === '/remote';
+    const mode = isRemoteMode ? 'remote' : 'standalone';
+    return setupContainer(mode);
+  }, [location.pathname]);
+
+  return (
     <DIProvider container={diContainer}>
-      <MainLayout
-        sidebar={
-          <Sidebar
-            currentPage={currentPage}
-            onNavigate={handleNavigate}
-            systemHealth={systemHealth}
-          />
-        }
-      >
-        {currentPage === 'recorder' && (
-          <Recorder
-            settings={settings}
-            storageStrategy={storageStrategy}
-            onSessionComplete={loadRecordings}
-            onDownload={handleDownload}
-            downloadProgress={downloadProgress}
-          />
-        )}
-        {currentPage === 'library' && (
-          <LibraryPage
-            recordings={savedRecordings}
-            onDownload={downloadRecordingById}
-            onDelete={deleteRecording}
-            onClearAll={clearAllRecordings}
-            isDownloading={downloadProgress.isDownloading}
-          />
-        )}
-        {currentPage === 'settings' && (
-          <SettingsPage
-            settings={settings}
-            onSettingsChange={setSettings}
-            onSave={handleSaveSettings}
-            videoDevices={videoDevices}
-            audioDevices={audioDevices}
-            showServerSettings={isRemoteMode}
-          />
-        )}
-      </MainLayout>
+      <ModeContent />
     </DIProvider>
   );
 }
