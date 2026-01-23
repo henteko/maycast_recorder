@@ -1,3 +1,22 @@
+/**
+ * useRecorder Hook
+ *
+ * 録画セッションのライフサイクル管理を担当
+ *
+ * ## 現在の設計
+ * - IStorageStrategyを使用してチャンク保存を抽象化
+ * - VideoEncoder/AudioEncoderとの密結合
+ *
+ * ## 将来のリファクタリング候補
+ * - TODO: StartRecordingUseCase / StopRecordingUseCase の導入を検討
+ * - TODO: エンコーダー管理の分離を検討
+ * - TODO: セッション状態管理のUse Case化を検討
+ *
+ * NOTE: 現在はIStorageStrategyという適切な抽象化があるため、
+ *       無理にUse Caseを導入する必要はない。リアルタイムエンコーディングの
+ *       複雑さを考慮すると、現在の設計は実用的。
+ */
+
 import { useRef, useState, useCallback } from 'react';
 import { generateRecordingId } from '../../infrastructure/storage/chunk-storage';
 import type { ChunkStats } from '../../types/webcodecs';

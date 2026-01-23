@@ -1,3 +1,22 @@
+/**
+ * useEncoders Hook
+ *
+ * VideoEncoder/AudioEncoderとWASM Muxerの管理を担当
+ *
+ * ## 現在の設計
+ * - IStorageStrategyを使用してチャンク保存を抽象化
+ * - WASMベースのMuxerと密結合
+ * - リアルタイムエンコーディング処理
+ *
+ * ## 将来のリファクタリング候補
+ * - TODO: SaveChunkUseCaseの使用を検討（ただしリアルタイム性の考慮が必要）
+ * - TODO: エンコーダー設定のValue Objectを検討
+ * - TODO: Muxer管理の分離を検討
+ *
+ * NOTE: エンコーディングはリアルタイムで行われ、パフォーマンスが重要。
+ *       Use Caseの導入により、オーバーヘッドが発生する可能性があるため慎重に検討。
+ */
+
 import { useRef, useCallback } from 'react'
 import type { ChunkStats } from '../../types/webcodecs'
 import { QUALITY_PRESETS } from '../../types/settings'

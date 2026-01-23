@@ -1,3 +1,12 @@
+/**
+ * useSystemHealth Hook
+ *
+ * システムヘルス情報（CPU負荷、ストレージ使用量、ネットワーク状態）を監視
+ *
+ * ブラウザAPIを直接使用してリアルタイムのシステム情報を提供
+ * Use Caseを介する必要がない純粋なUI情報
+ */
+
 import { useState, useEffect } from 'react';
 import type { SystemHealth } from '../components/organisms/SidebarFooter';
 
