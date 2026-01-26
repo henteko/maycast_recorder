@@ -6,175 +6,30 @@
 
 ---
 
-## Phase 3: 堅牢性機能実装
+## Phase 3: Resume Upload 機能実装
 
-**Goal:** 「失敗しない」ための4層防御を完成させる
+**Goal:** ブラウザ再起動後、未送信チャンクを自動検出して再アップロードする
 
----
-
-### Phase 3.1: Manifest型定義とインフラ準備
-
-**Goal:** ManifestとChunkハッシュの型定義および基礎インフラを準備
-
-**Tasks:**
-- [ ] `@maycast/common-types`に`ChunkManifest`型定義を追加
-  ```typescript
-  interface ChunkInfo {
-    chunkId: number;
-    hash: string;        // Blake3ハッシュ
-    size: number;        // バイト数
-    timestamp: number;   // 録画開始からの相対時間（us）
-  }
-
-  interface RecordingManifest {
-    recordingId: string;
-    chunks: ChunkInfo[];
-    totalChunks: number;
-    totalSize: number;
-    createdAt: string;
-    completedAt?: string;
-  }
-  ```
-- [ ] `Recording`エンティティに`manifest`フィールドを追加
-- [ ] サーバー側で`Manifest`を保存するAPI設計
-  - `PUT /api/recordings/:id/manifest` エンドポイント追加
-
-**Test:**
-- [ ] 型定義のコンパイルが成功する
-- [ ] サーバー側で空のManifestを作成できる
-  ```bash
-  curl -X PUT http://localhost:3000/api/recordings/{recording_id}/manifest \
-    -H "Content-Type: application/json" \
-    -d '{"recordingId":"test-001","chunks":[],"totalChunks":0,"totalSize":0,"createdAt":"2026-01-24T00:00:00Z"}'
-  ```
-
-**Deliverable:**
-- Manifest型定義
-- Manifest保存API
+**既存実装の活用:**
+- `UploadStateStorage` (IndexedDB でアップロード状態管理) - 実装済み
+- `ChunkUploader` (リトライ機能、状態追跡含む) - 実装済み
+- `RecoveryModal` (UI) - 実装済み
 
 ---
 
-### Phase 3.2: クライアント側Manifestビルダー実装
-
-**Goal:** 録画中にManifestを構築し、OPFSとメモリの両方で管理
-
-**Tasks:**
-- [ ] `ManifestBuilder`クラス実装（`/packages/web-client/src/infrastructure/manifest/`）
-  ```typescript
-  class ManifestBuilder {
-    addChunk(chunkId: number, hash: string, size: number, timestamp: number): void
-    build(): RecordingManifest
-    save(): Promise<void>  // OPFSに保存
-    load(recordingId: string): Promise<RecordingManifest | null>
-  }
-  ```
-- [ ] チャンク保存時にハッシュ計算とManifest更新
-- [ ] `StandaloneStorageStrategy`と`RemoteStorageStrategy`に統合
-- [ ] OPFS内にManifestをJSON形式で保存（`/{recordingId}/manifest.json`）
-
-**Test:**
-- [ ] 10秒の録画を実行
-- [ ] OPFSに`manifest.json`が作成される
-- [ ] ブラウザコンソールでManifestの内容を確認
-  ```javascript
-  // DevTools Console
-  const manifest = await manifestBuilder.load('recording-001');
-  console.log(manifest);
-  // 期待: { chunks: [...], totalChunks: 5, totalSize: 1234567, ... }
-  ```
-- [ ] 各チャンクのハッシュが一意である
-
-**Deliverable:**
-- クライアント側Manifest構築機能
-- OPFS永続化
-
----
-
-### Phase 3.3: サーバー側Manifest検証実装
-
-**Goal:** アップロード完了時、サーバー側でManifestとチャンクの整合性を検証
-
-**Tasks:**
-- [ ] `VerifyManifest.usecase.ts` 実装
-  - クライアントから送信されたManifestを受け取る
-  - サーバー上の実際のチャンクファイルと照合
-  - ハッシュ一致確認
-  - 欠損チャンク検出
-- [ ] `POST /api/recordings/:id/verify` エンドポイント実装
-  - リクエスト: `{ manifest: RecordingManifest }`
-  - レスポンス: `{ verified: boolean, missingChunks: number[], errors: string[] }`
-- [ ] RemoteStorageStrategyの`completeSession()`でManifest検証を呼び出す
-
-**Test:**
-- [ ] 正常シナリオ: すべてのチャンクが存在する場合
-  ```bash
-  # 録画完了後、検証APIを実行
-  curl -X POST http://localhost:3000/api/recordings/{recording_id}/verify \
-    -H "Content-Type: application/json" \
-    -d @manifest.json
-  # 期待レスポンス: {"verified":true,"missingChunks":[],"errors":[]}
-  ```
-- [ ] エラーシナリオ: チャンクを手動削除して検証
-  ```bash
-  # チャンク削除
-  rm ./recordings-data/{recording_id}/chunk-005.fmp4
-  # 検証実行
-  curl -X POST http://localhost:3000/api/recordings/{recording_id}/verify \
-    -H "Content-Type: application/json" \
-    -d @manifest.json
-  # 期待レスポンス: {"verified":false,"missingChunks":[5],"errors":["Chunk 5 is missing"]}
-  ```
-
-**Deliverable:**
-- サーバー側Manifest検証機能
-- 欠損チャンク検出
-
----
-
-### Phase 3.4: 欠損チャンク再送信プロトコル（NACK）
-
-**Goal:** 欠損チャンクをクライアントに通知し、再送信させる
-
-**Tasks:**
-- [ ] サーバー側で欠損チャンクリストを返す
-  - `POST /api/recordings/:id/verify` のレスポンスに`missingChunks`配列を含める
-- [ ] クライアント側で欠損チャンクを検出
-  - 検証APIのレスポンスで`verified: false`の場合、`missingChunks`をログ出力
-- [ ] OPFSから欠損チャンクを取得して再アップロード
-  - `ChunkUploader`に`retryMissingChunks(missingChunks: number[])`メソッド追加
-- [ ] 再検証して完全性を確認
-
-**Test:**
-- [ ] チャンクを手動削除して欠損状態を作る
-  ```bash
-  rm ./recordings-data/{recording_id}/chunk-003.fmp4
-  ```
-- [ ] クライアント側で検証→再送信→再検証の流れを実行
-- [ ] ブラウザコンソールで以下のログを確認:
-  ```
-  ⚠️ [Verify] Missing chunks detected: [3]
-  🔄 [ChunkUploader] Retrying missing chunks: [3]
-  ✅ [Verify] All chunks verified successfully
-  ```
-
-**Deliverable:**
-- 欠損チャンク再送信機能
-- 完全性保証プロトコル
-
----
-
-### Phase 3.5: Resume Upload機能 - 未送信チャンク検出
+### Phase 3.1: 未送信チャンク検出機能
 
 **Goal:** ブラウザ再起動後、OPFS内の未送信チャンクを検出
 
 **Tasks:**
-- [ ] `UploadStateStorage`を拡張（既存実装を活用）
-  - 各チャンクのアップロード状態を記録（`pending`, `uploading`, `completed`, `failed`）
 - [ ] `detectUnfinishedRecordings()`関数実装
   - OPFSとIndexedDBを走査
   - `state: 'recording'`または`state: 'finalizing'`のRecordingを検出
-  - 未送信チャンク（`status !== 'completed'`）をリストアップ
-- [ ] 起動時にバックグラウンドで実行
+  - UploadStateStorageから未送信チャンク（`status !== 'uploaded'`）をリストアップ
+- [ ] アプリ起動時にバックグラウンドで実行
+
+**実装場所:**
+- `/packages/web-client/src/modes/remote/resume-upload.ts`
 
 **Test:**
 - [ ] Remote Modeで録画中にブラウザを強制終了
@@ -190,7 +45,7 @@
   ```
 - [ ] IndexedDBで未送信チャンクのリストを確認
   ```javascript
-  // DevTools Application tab -> IndexedDB -> upload-state
+  // DevTools Application tab -> IndexedDB -> upload_states
   ```
 
 **Deliverable:**
@@ -198,7 +53,7 @@
 
 ---
 
-### Phase 3.6: Resume Upload機能 - バックグラウンド再送信
+### Phase 3.2: バックグラウンド再送信機能
 
 **Goal:** 検出した未送信チャンクをバックグラウンドでアップロード
 
@@ -212,8 +67,11 @@
   }
   ```
 - [ ] 未送信チャンクをキューに追加
-- [ ] バックグラウンドでChunkUploaderを使用してアップロード
+- [ ] バックグラウンドでChunkUploaderを使用してアップロード（既存実装を活用）
 - [ ] アップロード完了後、Recording状態を`synced`に更新
+
+**実装場所:**
+- `/packages/web-client/src/modes/remote/ResumeUploadManager.ts`
 
 **Test:**
 - [ ] 前のステップで検出した未送信チャンクを再アップロード
@@ -237,12 +95,12 @@
 
 ---
 
-### Phase 3.7: Resume Upload機能 - UI実装
+### Phase 3.3: Resume Upload UI実装
 
 **Goal:** 再アップロード進捗を表示するUI
 
 **Tasks:**
-- [ ] `ResumeUploadModal.tsx`コンポーネント実装
+- [ ] 既存の`RecoveryModal.tsx`を拡張
   - 未完了Recordingリスト表示
   - 各Recordingの進捗バー
   - 「Resume All」「Skip」ボタン
@@ -265,6 +123,9 @@
 └─────────────────────────────────────────┘
 ```
 
+**実装場所:**
+- `/packages/web-client/src/presentation/components/organisms/RecoveryModal.tsx` (既存)
+
 **Test:**
 - [ ] 未完了Recordingが存在する状態でアプリを起動
 - [ ] Resume Upload Modalが自動で表示される
@@ -277,212 +138,14 @@
 
 ---
 
-### Phase 3.8: Delta Sync - サーバー側チャンクリスト取得API
-
-**Goal:** サーバー上に存在するチャンクリストを返すAPI
-
-**Tasks:**
-- [ ] `GET /api/recordings/:id/chunks` エンドポイント実装
-  - レスポンス: `{ chunks: [{ chunkId: number, hash: string, size: number }] }`
-- [ ] LocalFileSystemChunkRepositoryに`listChunks()`メソッド追加
-- [ ] ハッシュとサイズも含めて返す
-
-**Test:**
-- [ ] curlでチャンクリストを取得
-  ```bash
-  curl http://localhost:3000/api/recordings/{recording_id}/chunks
-  # 期待レスポンス:
-  # {
-  #   "chunks": [
-  #     {"chunkId": 1, "hash": "abc123...", "size": 123456},
-  #     {"chunkId": 2, "hash": "def456...", "size": 234567},
-  #     ...
-  #   ]
-  # }
-  ```
-
-**Deliverable:**
-- サーバー側チャンクリストAPI
-
----
-
-### Phase 3.9: Delta Sync - クライアント側差分検出
-
-**Goal:** クライアント側でサーバーとの差分を検出
-
-**Tasks:**
-- [ ] `DeltaSyncManager`クラス実装
-  ```typescript
-  class DeltaSyncManager {
-    async detectDelta(recordingId: string): Promise<number[]>
-    async syncMissingChunks(recordingId: string): Promise<void>
-  }
-  ```
-- [ ] サーバーからチャンクリストを取得
-- [ ] OPFS内のチャンクリストと比較
-- [ ] 差分（サーバーに存在しないチャンク）を検出
-
-**Test:**
-- [ ] サーバー側でチャンクを手動削除
-  ```bash
-  rm ./recordings-data/{recording_id}/chunk-004.fmp4
-  ```
-- [ ] クライアント側で差分検出を実行
-  ```javascript
-  const delta = await deltaSyncManager.detectDelta('recording-001');
-  console.log('Missing chunks on server:', delta);
-  // 期待: [4]
-  ```
-
-**Deliverable:**
-- 差分検出機能
-
----
-
-### Phase 3.10: Delta Sync - ネットワーク切断シナリオテスト
-
-**Goal:** ネットワーク切断→復旧時の差分同期をテスト
-
-**Tasks:**
-- [ ] ネットワーク切断シミュレーション環境準備
-  - Chrome DevTools -> Network -> Offline
-- [ ] 録画中にネットワークを切断
-- [ ] OPFSにのみチャンクが保存される
-- [ ] ネットワーク復旧
-- [ ] Delta Syncで差分アップロード
-
-**Test Scenario:**
-1. Remote Modeで録画開始
-2. 10秒録画後、ネットワークをOfflineに設定（DevTools）
-3. さらに10秒録画（OPFSにのみ保存）
-4. 録画停止
-5. ネットワークをOnlineに戻す
-6. Delta Sync実行
-7. ブラウザコンソールで以下を確認:
-   ```
-   🔍 [DeltaSync] Detecting delta...
-   📦 [DeltaSync] Missing chunks on server: [6, 7, 8, 9, 10]
-   🔄 [DeltaSync] Syncing missing chunks...
-   ✅ [DeltaSync] All chunks synced successfully
-   ```
-
-**Deliverable:**
-- ネットワーク復旧時の自動差分同期
-
----
-
-### Phase 3.11: Crash Recovery - 未完了Recording検出UI
-
-**Goal:** ブラウザ再起動後、未完了Recordingを検出してユーザーに通知
-
-**Tasks:**
-- [ ] `RecoveryModal.tsx`コンポーネント拡張（既存実装を活用）
-  - 未完了Recordingリスト表示
-  - Standalone Mode: 「Export」「Delete」ボタン
-  - Remote Mode: 「Resume Upload」「Delete」ボタン
-- [ ] アプリ起動時に未完了Recordingを検出
-- [ ] 検出された場合、Modalを自動表示
-
-**UI Design (Standalone Mode):**
-```
-┌─────────────────────────────────────────┐
-│  Recover Previous Recordings            │
-├─────────────────────────────────────────┤
-│  Found 2 unfinished recordings:         │
-│                                         │
-│  📹 recording-001                        │
-│  Duration: ~15 sec                      │
-│  [Export MP4]  [Delete]                 │
-│                                         │
-│  📹 recording-002                        │
-│  Duration: ~30 sec                      │
-│  [Export MP4]  [Delete]                 │
-└─────────────────────────────────────────┘
-```
-
-**UI Design (Remote Mode):**
-```
-┌─────────────────────────────────────────┐
-│  Recover Previous Recordings            │
-├─────────────────────────────────────────┤
-│  Found 1 unfinished recording:          │
-│                                         │
-│  📹 recording-001                        │
-│  Pending chunks: 5                      │
-│  [Resume Upload]  [Delete]              │
-└─────────────────────────────────────────┘
-```
-
-**Test:**
-- [ ] 録画中にブラウザを強制終了
-- [ ] 再起動時、Recovery Modalが表示される
-- [ ] 未完了Recordingの情報が正しく表示される
-
-**Deliverable:**
-- Crash Recovery UI
-
----
-
-### Phase 3.12: Crash Recovery - Standalone Mode完全統合
-
-**Goal:** Standalone Modeでの完全なクラッシュリカバリー
-
-**Tasks:**
-- [ ] 「Export MP4」ボタン実装
-  - OPFS内のチャンクを結合
-  - MP4ファイルとしてダウンロード
-  - ダウンロード完了後、OPFSから削除
-- [ ] 「Delete」ボタン実装
-  - OPFS内のRecordingを削除
-  - IndexedDBのメタデータも削除
-
-**Test:**
-- [ ] Standalone Modeで録画中にブラウザを強制終了
-- [ ] 再起動→Recovery Modal表示
-- [ ] 「Export MP4」クリック
-- [ ] MP4ファイルがダウンロードされる
-- [ ] VLCで再生できる
-- [ ] OPFSから削除される
-
-**Deliverable:**
-- Standalone Mode Crash Recovery完全実装
-
----
-
-### Phase 3.13: Crash Recovery - Remote Mode完全統合
-
-**Goal:** Remote Modeでの完全なクラッシュリカバリー
-
-**Tasks:**
-- [ ] 「Resume Upload」ボタン実装
-  - Phase 3.6のResumeUploadManagerを呼び出し
-  - 未送信チャンクをアップロード
-  - Recording ID維持
-- [ ] アップロード完了後、OPFS削除（オプショナル）
-
-**Test:**
-- [ ] Remote Modeで録画中にブラウザを強制終了
-- [ ] 再起動→Recovery Modal表示
-- [ ] 「Resume Upload」クリック
-- [ ] 未送信チャンクがアップロードされる
-- [ ] サーバー側で完全なRecordingが生成される
-- [ ] サーバーからMP4をダウンロードして再生できる
-
-**Deliverable:**
-- Remote Mode Crash Recovery完全実装
-
----
-
 **Overall Phase 3 Deliverable:**
-- **完全な堅牢性機能**
-  - Manifest & Verification
-  - 欠損チャンク検出・再送信
-  - Resume Upload（バックグラウンド再アップロード）
-  - Delta Sync（差分同期）
-  - Crash Recovery（両モード対応）
-- **ゼロデータ損失**
-  - 電源断、ブラウザクラッシュ、ネットワーク切断に耐える
-  - すべてのモードでデータ損失ゼロを保証
+- **Resume Upload機能完成**
+  - ブラウザ再起動後、未送信チャンクを自動検出
+  - バックグラウンドで再アップロード
+  - 進捗表示UI
+- **データ損失の防止**
+  - ブラウザクラッシュや強制終了時でもデータを保護
+  - 再起動後に自動復元
 
 ---
 
@@ -3112,7 +2775,7 @@ After:  "Upload failed. Please check your internet connection and try again."
 | Phase 2A-5-4 | **Remote Mode完全統合・UI共通化完成**<br>• RemoteStorageStrategy実装<br>• `/remote` が `/solo` と同じUIを使用<br>• 録画中、チャンクがOPFSとサーバーに並行保存される<br>• 録画停止時、全チャンクのアップロード完了を待つ<br>• ネットワークエラー時も録画が継続される<br>• 両モードが独立して動作する |
 | Phase 2A-6 | **ハッシュ検証・冪等性実装完成**<br>• Blake3ハッシュ検証が動作する<br>• 同じチャンクを再度アップロードしても正常に処理される（冪等性）<br>• ハッシュ改ざん時にエラーが返る |
 | Phase 2A-7 | **ダウンロード機能完成**<br>• サーバー側でチャンクをストリーム結合できる<br>• `GET /api/recordings/:id/download` でMP4をダウンロードできる<br>• ダウンロードしたMP4が正常に再生できる<br>• **Phase 2完了：Remote Mode完全実装** |
-| Phase 3 | ネットワーク切断・復旧シナリオで0バイトのデータ損失 |
+| Phase 3 | **Resume Upload機能完成**<br>• ブラウザ再起動後、未送信チャンクが自動検出される<br>• バックグラウンドで再アップロードが完了する<br>• Resume Upload UIが正しく動作する<br>• サーバー側で完全なRecordingが復元される |
 | Phase 4 | **Room/Director Mode完成**<br>• Directorが Roomを作成できる<br>• Guest URLで複数ゲストが参加できる<br>• 3人のゲストを同時制御し、全員が「Synced」状態に到達<br>• Stop & Flushプロトコルが正常に動作する |
 | Phase 5 | 高負荷時でも収録停止が発生しない |
 | Phase 6 | ユーザビリティテストで90%以上が「使いやすい」と評価 |
@@ -3143,7 +2806,7 @@ After:  "Upload failed. Please check your internet connection and try again."
   - **Phase 2A-5-4:** Remote Mode統合。UI完全共通化、並行アップロード実現
 - **Phase 2A-6:** ハッシュ検証・冪等性。データ整合性の保証
 - **Phase 2A-7:** ダウンロード機能。MP4ストリーム結合配信、Phase 2完了
-- **Phase 3:** 堅牢性の核心。妥協しない
+- **Phase 3:** Resume Upload機能。既存実装（UploadStateStorage, ChunkUploader）を活用して短期間で実装可能
 - **Phase 4:** Director Modeはプロダクトの差別化要因
 - **Phase 5-6:** UXの洗練。ユーザーテストを繰り返す
 - **Phase 7:** ビジネス要件に応じて調整
@@ -3185,7 +2848,7 @@ After:  "Upload failed. Please check your internet connection and try again."
    - Phase 2A-7: ダウンロード機能実装（チャンク結合→MP4配信）
 9. **Phase 2A-7 完了時点で、Recording作成→アップロード→ダウンロードの完全なフローが検証完了**
 10. **Phase 3以降:**
-    - Phase 3: 堅牢性機能（Manifest、Resume Upload、Delta Sync）
+    - Phase 3: Resume Upload機能（未送信チャンク検出、バックグラウンド再送信、UI実装）
     - Phase 4: Room機能・Director Mode（WebSocket実装、複数Recording管理、各RecordingのMP4ダウンロード）
 
 ## 推奨される Taskfile コマンド体系
