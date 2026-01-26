@@ -11,9 +11,20 @@
 **Goal:** ブラウザ再起動後、未送信チャンクを自動検出して再アップロードする
 
 **既存実装の活用:**
-- `UploadStateStorage` (IndexedDB でアップロード状態管理) - 実装済み
-- `ChunkUploader` (リトライ機能、状態追跡含む) - 実装済み
-- `RecoveryModal` (UI) - 実装済み
+- ✅ **`UploadStateStorage`** (`packages/web-client/src/modes/remote/upload-state-storage.ts`) - IndexedDB でアップロード状態管理（完全実装済み）
+  - `ChunkUploadStatus` 型で `state: 'pending' | 'uploading' | 'uploaded' | 'failed'` を管理
+  - `listUploadStates(recordingId)` で未送信チャンク一覧取得可能
+  - Blake3 ハッシュ、リトライ回数、エラー情報を記録
+- ✅ **`ChunkUploader`** (`packages/web-client/src/modes/remote/ChunkUploader.ts`) - リトライ機能、状態追跡含む（完全実装済み）
+  - 最大リトライ回数: 3回、最大並行アップロード数: 5
+  - `getStats()` で進捗取得、`waitForCompletion()` で完了待機
+  - `loadUploadStates()` メソッドで既存アップロード状態を復元可能
+- ⏳ **`RecoveryModal`** (`packages/web-client/src/presentation/components/organisms/RecoveryModal.tsx`) - 復旧UI（部分実装済み）
+  - 現在は単一Recording復旧のみ対応
+  - Phase 3.3 で複数Recording表示と進捗バーに拡張予定
+- ⏳ **未完了Recording検出** (`packages/web-client/src/presentation/hooks/useSessionManager.ts`) - 基本ロジック実装済み
+  - アプリ起動時に `state !== 'synced' && chunkCount > 0` のRecordingを検出
+  - Phase 3.1 で `detectUnfinishedRecordings()` 専用関数化予定
 
 ---
 
@@ -21,15 +32,33 @@
 
 **Goal:** ブラウザ再起動後、OPFS内の未送信チャンクを検出
 
+**既存実装との関係:**
+- ⏳ **部分実装済み:** `useSessionManager.ts` L25-26 で未完了Recording検出ロジックが存在
+  ```typescript
+  const incompleteRecordings = result.recordings.filter(
+    r => r.state !== 'synced' && r.chunkCount > 0
+  );
+  ```
+- ✅ **利用可能な既存API:**
+  - `UploadStateStorage.listUploadStates(recordingId)` - 全アップロード状態取得
+  - `ChunkRepository.listChunks(recordingId)` - OPFS内チャンク一覧
+  - `RecordingRepository.listRecordings()` - 全Recording取得
+
 **Tasks:**
-- [ ] `detectUnfinishedRecordings()`関数実装
+- [ ] `detectUnfinishedRecordings()`関数実装（新規）
+  - `useSessionManager.ts` のロジックを専用関数に分離
   - OPFSとIndexedDBを走査
   - `state: 'recording'`または`state: 'finalizing'`のRecordingを検出
   - UploadStateStorageから未送信チャンク（`status !== 'uploaded'`）をリストアップ
-- [ ] アプリ起動時にバックグラウンドで実行
+    ```typescript
+    const uploadStates = await uploadStateStorage.listUploadStates(recordingId);
+    const pendingChunks = uploadStates.filter(s => s.state !== 'uploaded');
+    ```
+- [ ] アプリ起動時にバックグラウンドで実行（既に `useSessionManager.ts` で実装済み）
 
 **実装場所:**
-- `/packages/web-client/src/modes/remote/resume-upload.ts`
+- `/packages/web-client/src/modes/remote/resume-upload.ts` （新規作成）
+- 既存の `useSessionManager.ts` から一部ロジックを移行
 
 **Test:**
 - [ ] Remote Modeで録画中にブラウザを強制終了
@@ -57,21 +86,44 @@
 
 **Goal:** 検出した未送信チャンクをバックグラウンドでアップロード
 
+**既存実装との関係:**
+- ✅ **再利用可能な既存コンポーネント:**
+  - `ChunkUploader.addChunk(chunkId, data)` - チャンクをキューに追加
+  - `ChunkUploader.getStats()` - 進捗状況取得
+  - `ChunkUploader.waitForCompletion()` - アップロード完了待機
+  - `RecordingManager.completeRecording()` - Recording状態を `synced` に更新
+  - `OPFSChunkRepository.getChunkData(recordingId, chunkId)` - OPFS からチャンクデータ読み込み
+
+**実装戦略:**
+1. OPFS から元のチャンクデータを読み込み (`ChunkRepository.getChunkData()`)
+2. 新しい `ChunkUploader` インスタンスを作成して再度追加
+3. 既存のリトライロジックで自動処理（最大3回リトライ、並行数5）
+4. `waitForCompletion()` で完了を待機
+5. 成功時: `RecordingManager.completeRecording()` で状態を `synced` に遷移
+
 **Tasks:**
-- [ ] `ResumeUploadManager`クラス実装
+- [ ] `ResumeUploadManager`クラス実装（新規）
   ```typescript
   class ResumeUploadManager {
+    constructor(
+      private chunkRepository: IChunkRepository,
+      private uploadStateStorage: UploadStateStorage,
+      private recordingManager: RecordingManager
+    ) {}
+
     async resumeRecording(recordingId: string): Promise<void>
     async uploadPendingChunks(recordingId: string, chunkIds: number[]): Promise<void>
     getProgress(): { current: number; total: number }
   }
   ```
-- [ ] 未送信チャンクをキューに追加
+- [ ] 未送信チャンクをキューに追加（`ChunkUploader.addChunk()` 利用）
 - [ ] バックグラウンドでChunkUploaderを使用してアップロード（既存実装を活用）
-- [ ] アップロード完了後、Recording状態を`synced`に更新
+- [ ] アップロード完了後、Recording状態を`synced`に更新（`RecordingManager.completeRecording()` 利用）
+- [ ] DI コンテナに `ResumeUploadManager` を登録 (`setupContainer.ts`)
 
 **実装場所:**
-- `/packages/web-client/src/modes/remote/ResumeUploadManager.ts`
+- `/packages/web-client/src/modes/remote/ResumeUploadManager.ts` （新規作成）
+- `/packages/web-client/src/infrastructure/di/setupContainer.ts` （登録追加）
 
 **Test:**
 - [ ] 前のステップで検出した未送信チャンクを再アップロード
@@ -99,14 +151,34 @@
 
 **Goal:** 再アップロード進捗を表示するUI
 
+**既存実装との関係:**
+- ⏳ **部分実装済み:** `RecoveryModal.tsx` で単一Recording復旧UIが存在
+  - 現在の機能: セッション情報表示、「復元する」「破棄する」ボタン
+  - 拡張必要: 複数Recording表示、進捗バー、新しいボタンレイアウト
+- ✅ **再利用可能なコンポーネント:**
+  - `ProgressBar.tsx` - 既存の進捗バーコンポーネント
+  - `ChunkUploader.getStats()` - リアルタイム進捗データ取得
+    ```typescript
+    interface ChunkUploaderStats {
+      totalChunks: number;
+      uploadedChunks: number;
+      failedChunks: number;
+      pendingChunks: number;
+    }
+    ```
+
 **Tasks:**
 - [ ] 既存の`RecoveryModal.tsx`を拡張
-  - 未完了Recordingリスト表示
-  - 各Recordingの進捗バー
-  - 「Resume All」「Skip」ボタン
-- [ ] アプリ起動時に自動表示
+  - Props に `recordings: Recording[]` を追加（複数対応）
+  - 未完了Recordingリスト表示（マッピング処理）
+  - 各Recordingの進捗バー（`ProgressBar` コンポーネント利用）
+  - 「Resume All」「Skip」ボタン（既存の `onRecover`, `onDiscard` を拡張）
+- [ ] アプリ起動時に自動表示（既に `useSessionManager.ts` で実装済み）
   - 未完了Recordingが存在する場合のみ
+  - `showRecoveryModal` state で制御
 - [ ] 進捗状態をリアルタイム更新
+  - `ResumeUploadManager.getProgress()` をポーリング（500ms間隔）
+  - React state 更新でプログレスバーを再描画
 
 **UI Design:**
 ```
@@ -124,7 +196,7 @@
 ```
 
 **実装場所:**
-- `/packages/web-client/src/presentation/components/organisms/RecoveryModal.tsx` (既存)
+- `/packages/web-client/src/presentation/components/organisms/RecoveryModal.tsx` (既存を拡張)
 
 **Test:**
 - [ ] 未完了Recordingが存在する状態でアプリを起動
@@ -146,6 +218,31 @@
 - **データ損失の防止**
   - ブラウザクラッシュや強制終了時でもデータを保護
   - 再起動後に自動復元
+
+---
+
+### Phase 3 実装状況サマリー (2026-01-26時点)
+
+**完全実装済みコンポーネント (再利用可能):**
+- ✅ `UploadStateStorage` - IndexedDB アップロード状態管理 (100%)
+- ✅ `ChunkUploader` - リトライ、並行アップロード機能 (100%)
+- ✅ `RecordingManager` - サーバー Recording ライフサイクル管理 (100%)
+- ✅ `RemoteStorageStrategy` - OPFS + リモート同期戦略 (100%)
+- ✅ `RecordingAPIClient` - サーバーAPI通信 (100%)
+- ✅ サーバー側実装 - チャンク受信、保存、ハッシュ検証 (100%)
+
+**部分実装済みコンポーネント (拡張予定):**
+- ⏳ `useSessionManager.ts` - 未完了Recording検出ロジック (70%)
+- ⏳ `RecoveryModal.tsx` - 単一Recording復旧UI (60%)
+
+**未実装コンポーネント (Phase 3で新規作成):**
+- ❌ `detectUnfinishedRecordings()` - 専用検出関数 (Phase 3.1)
+- ❌ `ResumeUploadManager` - バックグラウンド再送信管理 (Phase 3.2)
+
+**実装の利点:**
+- 既存の堅牢なインフラ（リトライ、ハッシュ検証、状態管理）を最大限活用
+- 短期間で実装可能な設計（拡張ポイントが明確）
+- テスト済みコンポーネントの組み合わせによる高い信頼性
 
 ---
 
