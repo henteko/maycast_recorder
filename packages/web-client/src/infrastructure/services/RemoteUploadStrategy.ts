@@ -3,7 +3,7 @@ import type {
   UploadParams,
   UploadProgress,
 } from '../../domain/services/IUploadStrategy';
-import { ChunkUploader } from '../../modes/remote/ChunkUploader';
+import { ChunkUploader } from '../upload/ChunkUploader';
 import { RecordingAPIClient } from '../api/recording-api';
 
 /**

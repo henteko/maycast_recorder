@@ -7,7 +7,7 @@ import { PlayIcon, StopIcon, TrashIcon, UsersIcon } from '@heroicons/react/24/so
 import type { RoomInfo } from '../../../infrastructure/api/room-api';
 import { RecordingAPIClient } from '../../../infrastructure/api/recording-api';
 import type { GuestInfo } from '@maycast/common-types';
-import { getServerUrl } from '../../../modes/remote/serverConfig';
+import { getServerUrl } from '../../../infrastructure/config/serverConfig';
 import { RoomStateBadge } from '../atoms/RoomStateBadge';
 import { Button } from '../atoms/Button';
 import { GuestUrlInput } from '../molecules/GuestUrlInput';

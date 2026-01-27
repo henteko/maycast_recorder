@@ -3,7 +3,7 @@
  */
 
 import type { RecordingId } from '@maycast/common-types';
-import type { ChunkUploadStatus } from './types';
+import type { ChunkUploadStatus } from '../upload/types';
 
 const DB_NAME = 'maycast_upload_states';
 const DB_VERSION = 1;

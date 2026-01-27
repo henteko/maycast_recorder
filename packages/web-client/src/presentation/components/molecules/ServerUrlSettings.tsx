@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ServerIcon, CheckCircleIcon, XCircleIcon } from '@heroicons/react/24/solid';
-import { getServerUrl, setServerUrl, getDefaultServerUrl } from '../../../modes/remote/serverConfig';
+import { getServerUrl, setServerUrl, getDefaultServerUrl } from '../../../infrastructure/config/serverConfig';
 import { RecordingAPIClient } from '../../../infrastructure/api/recording-api';
 
 export const ServerUrlSettings: React.FC = () => {

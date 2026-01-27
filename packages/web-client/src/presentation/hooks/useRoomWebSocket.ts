@@ -10,7 +10,7 @@ import { getWebSocketRoomClient, resetWebSocketRoomClient } from '../../infrastr
 import { RoomAPIClient, RoomNotFoundError } from '../../infrastructure/api/room-api';
 import type { RoomInfo } from '../../infrastructure/api/room-api';
 import type { RoomState, RoomStateChanged } from '@maycast/common-types';
-import { getServerUrl } from '../../modes/remote/serverConfig';
+import { getServerUrl } from '../../infrastructure/config/serverConfig';
 
 export interface UseRoomWebSocketResult {
   room: RoomInfo | null;

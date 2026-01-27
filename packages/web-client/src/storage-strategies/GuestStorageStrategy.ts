@@ -5,19 +5,19 @@
  * OPFS + サーバーへの並行アップロード（Room内Recording）
  */
 
-import { ChunkStorage } from '../../infrastructure/storage/chunk-storage';
-import type { IStorageStrategy } from '../../storage-strategies/IStorageStrategy';
+import { ChunkStorage } from '../infrastructure/storage/chunk-storage';
+import type { IStorageStrategy } from './IStorageStrategy';
 import type { RecordingId, RoomId } from '@maycast/common-types';
-import { RecordingManager } from '../remote/RecordingManager';
-import { ChunkUploader } from '../remote/ChunkUploader';
-import { getServerUrl } from '../remote/serverConfig';
-import type { LocalRecordingId, RemoteRecordingId } from '../../types/recording-id';
-import { asLocalRecordingId, asRemoteRecordingId } from '../../types/recording-id';
+import { RecordingManager } from '../infrastructure/recording/RecordingManager';
+import { ChunkUploader } from '../infrastructure/upload/ChunkUploader';
+import { getServerUrl } from '../infrastructure/config/serverConfig';
+import type { LocalRecordingId, RemoteRecordingId } from '../types/recording-id';
+import { asLocalRecordingId, asRemoteRecordingId } from '../types/recording-id';
 import {
   saveRemoteMapping,
   updateInitSegmentUploaded,
   deleteRemoteMapping,
-} from '../remote/remote-recording-mapping';
+} from '../infrastructure/recording/remote-recording-mapping';
 
 export class GuestStorageStrategy implements IStorageStrategy {
   private roomId: RoomId;

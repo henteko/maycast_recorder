@@ -5,7 +5,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { ArrowDownTrayIcon, CheckIcon } from '@heroicons/react/24/solid';
 import { RecordingAPIClient, type RecordingInfo } from '../../../infrastructure/api/recording-api';
-import { getServerUrl } from '../../../modes/remote/serverConfig';
+import { getServerUrl } from '../../../infrastructure/config/serverConfig';
 import { Button } from '../atoms/Button';
 import { RecordingDownloadItem } from '../molecules/RecordingDownloadItem';
 

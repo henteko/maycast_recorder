@@ -8,7 +8,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { RoomAPIClient, RoomNotFoundError } from '../../infrastructure/api/room-api';
 import type { RoomInfo } from '../../infrastructure/api/room-api';
 import type { RoomState } from '@maycast/common-types';
-import { getServerUrl } from '../../modes/remote/serverConfig';
+import { getServerUrl } from '../../infrastructure/config/serverConfig';
 
 export interface UseRoomMetadataResult {
   room: RoomInfo | null;

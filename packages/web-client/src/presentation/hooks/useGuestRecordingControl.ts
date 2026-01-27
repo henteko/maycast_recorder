@@ -8,9 +8,9 @@
 import { useRef, useState, useEffect, useMemo, useCallback } from 'react';
 import type { RecorderExports } from '../components/Recorder';
 import { useRoomWebSocket } from './useRoomWebSocket';
-import { GuestStorageStrategy } from '../../modes/guest/GuestStorageStrategy';
+import { GuestStorageStrategy } from '../../storage-strategies/GuestStorageStrategy';
 import { getWebSocketRoomClient } from '../../infrastructure/websocket/WebSocketRoomClient';
-import { getServerUrl } from '../../modes/remote/serverConfig';
+import { getServerUrl } from '../../infrastructure/config/serverConfig';
 import type { GuestSyncState, RecordingId, RoomState } from '@maycast/common-types';
 
 interface UseGuestRecordingControlOptions {

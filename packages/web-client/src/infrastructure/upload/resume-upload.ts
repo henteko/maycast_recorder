@@ -7,8 +7,8 @@ import type { Recording } from '@maycast/common-types';
 import type { IRecordingRepository } from '../../domain/repositories/IRecordingRepository';
 import type { IChunkRepository } from '../../domain/repositories/IChunkRepository';
 import type { ChunkUploadStatus } from './types';
-import { getRemoteMapping, listRemoteMappings, type RemoteRecordingMapping } from './remote-recording-mapping';
-import { listUploadStates } from './upload-state-storage';
+import { getRemoteMapping, listRemoteMappings, type RemoteRecordingMapping } from '../recording/remote-recording-mapping';
+import { listUploadStates } from '../storage/upload-state-storage';
 
 /**
  * 未完了Recordingの情報

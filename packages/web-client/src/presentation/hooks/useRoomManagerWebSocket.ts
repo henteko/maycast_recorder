@@ -18,7 +18,7 @@ import type {
   GuestSyncComplete,
   GuestSyncError,
 } from '@maycast/common-types';
-import { getServerUrl } from '../../modes/remote/serverConfig';
+import { getServerUrl } from '../../infrastructure/config/serverConfig';
 
 export interface UseRoomManagerWebSocketResult {
   rooms: RoomInfo[];

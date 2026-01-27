@@ -4,9 +4,9 @@ import { useDI } from '../../infrastructure/di';
 import type { ListRecordingsUseCase } from '../../domain/usecases/ListRecordings.usecase';
 import type { DeleteRecordingUseCase } from '../../domain/usecases/DeleteRecording.usecase';
 import type { CompleteRecordingUseCase } from '../../domain/usecases/CompleteRecording.usecase';
-import type { ResumeUploadManager } from '../../modes/remote/ResumeUploadManager';
-import { detectUnfinishedRecordings, type UnfinishedRecording } from '../../modes/remote/resume-upload';
-import type { UploadProgress } from '../../modes/remote/types';
+import type { ResumeUploadManager } from '../../infrastructure/upload/ResumeUploadManager';
+import { detectUnfinishedRecordings, type UnfinishedRecording } from '../../infrastructure/upload/resume-upload';
+import type { UploadProgress } from '../../infrastructure/upload/types';
 import type { IRecordingRepository } from '../../domain/repositories/IRecordingRepository';
 import type { IChunkRepository } from '../../domain/repositories/IChunkRepository';
 

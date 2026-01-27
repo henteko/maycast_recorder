@@ -5,8 +5,8 @@ import { BrowserMediaStreamService } from '../services/BrowserMediaStreamService
 import { NoOpUploadStrategy } from '../services/NoOpUploadStrategy';
 import { RemoteUploadStrategy } from '../services/RemoteUploadStrategy';
 import { RecordingAPIClient } from '../api/recording-api';
-import { getServerUrl } from '../../modes/remote/serverConfig';
-import { ResumeUploadManager } from '../../modes/remote/ResumeUploadManager';
+import { getServerUrl } from '../config/serverConfig';
+import { ResumeUploadManager } from '../upload/ResumeUploadManager';
 
 // Use Cases
 import { StartRecordingUseCase } from '../../domain/usecases/StartRecording.usecase';

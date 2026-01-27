@@ -5,11 +5,11 @@
  */
 
 import { useState } from 'react';
-import { useRoomManagerWebSocket } from '../../presentation/hooks/useRoomManagerWebSocket';
+import { useRoomManagerWebSocket } from '../../hooks/useRoomManagerWebSocket';
 import type { GuestInfo } from '@maycast/common-types';
-import { DirectorHeader } from '../../presentation/components/organisms/DirectorHeader';
-import { RoomCard } from '../../presentation/components/organisms/RoomCard';
-import { EmptyRoomState } from '../../presentation/components/organisms/EmptyRoomState';
+import { DirectorHeader } from '../organisms/DirectorHeader';
+import { RoomCard } from '../organisms/RoomCard';
+import { EmptyRoomState } from '../organisms/EmptyRoomState';
 
 export const DirectorPage: React.FC = () => {
   const {

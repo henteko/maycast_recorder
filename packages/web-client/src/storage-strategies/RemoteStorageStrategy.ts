@@ -7,16 +7,16 @@
 import { ChunkStorage } from '../infrastructure/storage/chunk-storage';
 import type { IStorageStrategy } from './IStorageStrategy';
 import type { RecordingId } from '@maycast/common-types';
-import { RecordingManager } from '../modes/remote/RecordingManager';
-import { ChunkUploader } from '../modes/remote/ChunkUploader';
-import { getServerUrl } from '../modes/remote/serverConfig';
+import { RecordingManager } from '../infrastructure/recording/RecordingManager';
+import { ChunkUploader } from '../infrastructure/upload/ChunkUploader';
+import { getServerUrl } from '../infrastructure/config/serverConfig';
 import type { LocalRecordingId, RemoteRecordingId } from '../types/recording-id';
 import { asLocalRecordingId, asRemoteRecordingId } from '../types/recording-id';
 import {
   saveRemoteMapping,
   updateInitSegmentUploaded,
   deleteRemoteMapping,
-} from '../modes/remote/remote-recording-mapping';
+} from '../infrastructure/recording/remote-recording-mapping';
 
 export class RemoteStorageStrategy implements IStorageStrategy {
   private storageMap: Map<LocalRecordingId, ChunkStorage> = new Map();

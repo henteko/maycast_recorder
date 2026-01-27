@@ -6,23 +6,23 @@
  */
 
 import { useState } from 'react';
-import { Recorder } from '../../presentation/components/Recorder';
-import { LibraryPage } from '../../presentation/components/pages/LibraryPage';
-import { SettingsPage } from '../../presentation/components/pages/SettingsPage';
-import { MainLayout } from '../../presentation/components/templates/MainLayout';
-import { Sidebar } from '../../presentation/components/organisms/Sidebar';
-import { ResumeUploadModal } from '../../presentation/components/organisms/RecoveryModal';
-import { LoadingScreen } from '../../presentation/components/molecules/LoadingScreen';
-import { RoomNotFoundScreen } from '../../presentation/components/molecules/RoomNotFoundScreen';
-import { SyncCompleteScreen } from '../../presentation/components/molecules/SyncCompleteScreen';
-import type { NavigationPage } from '../../presentation/components/organisms/SidebarNavigation';
-import { useSystemHealth } from '../../presentation/hooks/useSystemHealth';
-import { useSessionManager } from '../../presentation/hooks/useSessionManager';
-import { useDownload } from '../../presentation/hooks/useDownload';
-import { useDevices } from '../../presentation/hooks/useDevices';
-import { useGuestRecordingControl } from '../../presentation/hooks/useGuestRecordingControl';
-import { loadSettings, saveSettings } from '../../types/settings';
-import type { RecorderSettings } from '../../types/settings';
+import { Recorder } from '../Recorder';
+import { LibraryPage } from './LibraryPage';
+import { SettingsPage } from './SettingsPage';
+import { MainLayout } from '../templates/MainLayout';
+import { Sidebar } from '../organisms/Sidebar';
+import { ResumeUploadModal } from '../organisms/RecoveryModal';
+import { LoadingScreen } from '../molecules/LoadingScreen';
+import { RoomNotFoundScreen } from '../molecules/RoomNotFoundScreen';
+import { SyncCompleteScreen } from '../molecules/SyncCompleteScreen';
+import type { NavigationPage } from '../organisms/SidebarNavigation';
+import { useSystemHealth } from '../../hooks/useSystemHealth';
+import { useSessionManager } from '../../hooks/useSessionManager';
+import { useDownload } from '../../hooks/useDownload';
+import { useDevices } from '../../hooks/useDevices';
+import { useGuestRecordingControl } from '../../hooks/useGuestRecordingControl';
+import { loadSettings, saveSettings } from '../../../types/settings';
+import type { RecorderSettings } from '../../../types/settings';
 
 // 時間表示のフォーマット関数
 const formatElapsedTime = (seconds: number): string => {

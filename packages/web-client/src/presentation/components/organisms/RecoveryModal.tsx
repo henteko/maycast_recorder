@@ -1,7 +1,7 @@
 import { ArrowPathIcon, CheckIcon, TrashIcon, CloudArrowUpIcon, XMarkIcon } from '@heroicons/react/24/solid';
 import type { Recording } from '@maycast/common-types';
-import type { UnfinishedRecording } from '../../../modes/remote/resume-upload';
-import type { UploadProgress } from '../../../modes/remote/types';
+import type { UnfinishedRecording } from '../../../infrastructure/upload/resume-upload';
+import type { UploadProgress } from '../../../infrastructure/upload/types';
 
 interface RecoveryModalProps {
   isOpen: boolean;

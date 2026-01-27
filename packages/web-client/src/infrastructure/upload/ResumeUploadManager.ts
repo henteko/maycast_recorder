@@ -10,8 +10,8 @@ import { RecordingAPIClient } from '../../infrastructure/api/recording-api';
 import { ChunkUploader } from './ChunkUploader';
 import type { UnfinishedRecording } from './resume-upload';
 import type { UploadProgress } from './types';
-import { deleteUploadStates } from './upload-state-storage';
-import { deleteRemoteMapping, updateInitSegmentUploaded } from './remote-recording-mapping';
+import { deleteUploadStates } from '../storage/upload-state-storage';
+import { deleteRemoteMapping, updateInitSegmentUploaded } from '../recording/remote-recording-mapping';
 
 /**
  * 再送信結果

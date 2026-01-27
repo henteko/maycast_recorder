@@ -5,7 +5,7 @@ import {
   saveUploadState,
   updateUploadState,
   listUploadStates,
-} from './upload-state-storage';
+} from '../storage/upload-state-storage';
 import { blake3 } from '@noble/hashes/blake3.js';
 import { bytesToHex } from '@noble/hashes/utils.js';
 
