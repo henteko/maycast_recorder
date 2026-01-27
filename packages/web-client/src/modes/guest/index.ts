@@ -2,5 +2,5 @@
  * Guest Mode exports
  */
 
-export { GuestRecorder } from './GuestRecorder';
+export { GuestPage } from './GuestPage';
 export { GuestStorageStrategy } from './GuestStorageStrategy';

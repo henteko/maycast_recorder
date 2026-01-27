@@ -22,6 +22,16 @@ export interface RecorderExports {
   screenState: ScreenState;
   recordingIdRef: React.MutableRefObject<RecordingId | null>;
   savedChunks: number;
+  isRecording: boolean;
+  wasmInitialized: boolean;
+  startRecording: () => void;
+  stopRecording: () => void;
+}
+
+interface GuestModeConfig {
+  roomId: string;
+  isWebSocketConnected: boolean;
+  waitingMessage?: string;
 }
 
 interface RecorderProps {
@@ -31,6 +41,10 @@ interface RecorderProps {
   onDownload?: (recordingId: RecordingId) => Promise<void>;
   downloadProgress?: DownloadProgress;
   exportRef?: React.Ref<RecorderExports>;
+  /** Hide manual recording controls (for Guest mode where Director controls recording) */
+  hideControls?: boolean;
+  /** Guest mode configuration */
+  guestMode?: GuestModeConfig;
 }
 
 export const Recorder: React.FC<RecorderProps> = ({
@@ -40,6 +54,8 @@ export const Recorder: React.FC<RecorderProps> = ({
   onDownload,
   downloadProgress = { isDownloading: false, current: 0, total: 0 },
   exportRef,
+  hideControls = false,
+  guestMode,
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null)
   const { stream, error, startCapture } = useMediaStream()
@@ -138,12 +154,16 @@ export const Recorder: React.FC<RecorderProps> = ({
     }
   }, [stream])
 
-  // Export recorder state to parent
+  // Export recorder state and controls to parent
   useImperativeHandle(exportRef, () => ({
     screenState,
     recordingIdRef,
     savedChunks,
-  }), [screenState, recordingIdRef, savedChunks]);
+    isRecording,
+    wasmInitialized,
+    startRecording,
+    stopRecording,
+  }), [screenState, recordingIdRef, savedChunks, isRecording, wasmInitialized, startRecording, stopRecording]);
 
   const formatElapsedTime = (seconds: number): string => {
     const hours = Math.floor(seconds / 3600);
@@ -202,12 +222,55 @@ export const Recorder: React.FC<RecorderProps> = ({
         formatElapsedTime={formatElapsedTime}
       />
 
-      <MainHeader
-        screenState={screenState}
-        isRecording={isRecording}
-        wasmInitialized={wasmInitialized}
-        onStartStop={handleStartStop}
-      />
+      {guestMode ? (
+        <div className="flex items-center justify-between px-8 py-6 border-b border-maycast-border">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 px-4 py-2 bg-maycast-primary/20 backdrop-blur-sm rounded-full border border-maycast-primary/30">
+              <span className="text-maycast-primary/80 font-semibold">Guest</span>
+            </div>
+            <span className="text-maycast-text-secondary font-medium">
+              Room: {guestMode.roomId.substring(0, 8)}
+            </span>
+            {guestMode.isWebSocketConnected ? (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-maycast-safe/20 backdrop-blur-sm rounded-full border border-maycast-safe/30">
+                <div className="relative">
+                  <div className="w-2 h-2 bg-maycast-safe rounded-full" />
+                  <div className="absolute inset-0 w-2 h-2 bg-maycast-safe rounded-full animate-ping opacity-75" />
+                </div>
+                <span className="text-maycast-safe/80 font-medium text-sm">Live</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-yellow-500/20 backdrop-blur-sm rounded-full border border-yellow-500/30">
+                <span className="text-yellow-400/80 font-medium text-sm">Polling</span>
+              </div>
+            )}
+          </div>
+          <div className="flex items-center gap-3">
+            {isRecording && (
+              <div className="flex items-center gap-2 px-4 py-2 bg-maycast-rec/20 backdrop-blur-sm rounded-full border border-maycast-rec/30">
+                <div className="relative">
+                  <div className="w-2 h-2 bg-maycast-rec rounded-full animate-pulse" />
+                  <div className="absolute inset-0 w-2 h-2 bg-maycast-rec rounded-full animate-ping opacity-75" />
+                </div>
+                <span className="text-maycast-rec/80 font-semibold">{formatElapsedTime(elapsedTime)}</span>
+              </div>
+            )}
+            {!isRecording && screenState === 'standby' && guestMode.waitingMessage && (
+              <div className="flex items-center gap-2 px-4 py-2 bg-yellow-500/20 backdrop-blur-sm rounded-full border border-yellow-500/30">
+                <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse" />
+                <span className="text-yellow-400/80 font-medium text-sm">{guestMode.waitingMessage}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
+        <MainHeader
+          screenState={screenState}
+          isRecording={isRecording}
+          wasmInitialized={wasmInitialized}
+          onStartStop={hideControls ? () => {} : handleStartStop}
+        />
+      )}
 
       <div className="flex-1 overflow-y-auto px-8">
         {error && (
