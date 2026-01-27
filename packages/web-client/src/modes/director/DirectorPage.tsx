@@ -4,7 +4,7 @@
  * Room一覧表示、作成、状態制御を行う
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   PlusIcon,
   PlayIcon,
@@ -15,10 +15,14 @@ import {
   ArrowPathIcon,
   SignalIcon,
   SignalSlashIcon,
+  ArrowDownTrayIcon,
+  DocumentArrowDownIcon,
 } from '@heroicons/react/24/solid';
 import { useRoomManagerWebSocket } from '../../presentation/hooks/useRoomManagerWebSocket';
 import type { RoomInfo } from '../../infrastructure/api/room-api';
+import { RecordingAPIClient, type RecordingInfo } from '../../infrastructure/api/recording-api';
 import type { RoomState, GuestInfo, GuestSyncState } from '@maycast/common-types';
+import { getServerUrl } from '../../modes/remote/serverConfig';
 
 /**
  * Room状態に応じたバッジを表示
@@ -81,6 +85,173 @@ const GuestSyncBadge: React.FC<{ syncState: GuestSyncState }> = ({ syncState }) 
 };
 
 /**
+ * Recording ダウンロードアイテム
+ */
+const RecordingDownloadItem: React.FC<{
+  recordingId: string;
+  recording: RecordingInfo | null;
+  isLoading: boolean;
+  onDownload: (recordingId: string) => void;
+  isDownloading: boolean;
+}> = ({ recordingId, recording, isLoading, onDownload, isDownloading }) => {
+  const duration = recording ? RecordingAPIClient.calculateDuration(recording) : null;
+
+  return (
+    <div className="flex items-center justify-between bg-maycast-bg px-3 py-2 rounded-lg">
+      <div className="flex items-center gap-3">
+        <DocumentArrowDownIcon className="w-4 h-4 text-maycast-accent" />
+        <div>
+          <span className="text-sm font-mono text-maycast-text">
+            {recordingId.substring(0, 8)}...
+          </span>
+          {recording && (
+            <div className="flex items-center gap-2 text-xs text-maycast-text-secondary">
+              {duration !== null && (
+                <span>{RecordingAPIClient.formatDuration(duration)}</span>
+              )}
+              {recording.chunk_count > 0 && (
+                <span>• {recording.chunk_count} chunks</span>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+      <button
+        onClick={() => onDownload(recordingId)}
+        disabled={isLoading || isDownloading}
+        className="p-2 bg-maycast-primary/20 hover:bg-maycast-primary/30 rounded-lg transition-colors disabled:opacity-50"
+        title="Download MP4"
+      >
+        {isDownloading ? (
+          <div className="w-4 h-4 border-2 border-maycast-primary border-t-transparent rounded-full animate-spin" />
+        ) : (
+          <ArrowDownTrayIcon className="w-4 h-4 text-maycast-primary" />
+        )}
+      </button>
+    </div>
+  );
+};
+
+/**
+ * Recordings ダウンロードセクション
+ */
+const RecordingsDownloadSection: React.FC<{
+  recordingIds: string[];
+  onDownloadAll: () => void;
+  isDownloadingAll: boolean;
+}> = ({ recordingIds, onDownloadAll, isDownloadingAll }) => {
+  const [recordings, setRecordings] = useState<Map<string, RecordingInfo>>(new Map());
+  const [loadingIds, setLoadingIds] = useState<Set<string>>(new Set());
+  const [downloadingIds, setDownloadingIds] = useState<Set<string>>(new Set());
+
+  // Recording情報を取得
+  useEffect(() => {
+    const fetchRecordings = async () => {
+      const serverUrl = getServerUrl();
+      const apiClient = new RecordingAPIClient(serverUrl);
+
+      for (const recordingId of recordingIds) {
+        if (recordings.has(recordingId)) continue;
+
+        setLoadingIds((prev) => new Set(prev).add(recordingId));
+        try {
+          const info = await apiClient.getRecording(recordingId);
+          setRecordings((prev) => new Map(prev).set(recordingId, info));
+        } catch (err) {
+          console.error(`Failed to fetch recording ${recordingId}:`, err);
+        } finally {
+          setLoadingIds((prev) => {
+            const next = new Set(prev);
+            next.delete(recordingId);
+            return next;
+          });
+        }
+      }
+    };
+
+    fetchRecordings();
+  }, [recordingIds]);
+
+  // 個別ダウンロード
+  const handleDownload = useCallback(async (recordingId: string) => {
+    setDownloadingIds((prev) => new Set(prev).add(recordingId));
+    try {
+      const serverUrl = getServerUrl();
+      const apiClient = new RecordingAPIClient(serverUrl);
+      const blob = await apiClient.downloadRecording(recordingId);
+
+      // ダウンロードリンクを作成
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `recording-${recordingId.substring(0, 8)}.mp4`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error(`Failed to download recording ${recordingId}:`, err);
+      alert(`Failed to download recording: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setDownloadingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(recordingId);
+        return next;
+      });
+    }
+  }, []);
+
+  if (recordingIds.length === 0) {
+    return (
+      <div className="text-sm text-maycast-text-secondary text-center py-2">
+        No recordings available
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <label className="text-xs text-maycast-text-secondary">
+          Recordings ({recordingIds.length})
+        </label>
+        {recordingIds.length > 1 && (
+          <button
+            onClick={onDownloadAll}
+            disabled={isDownloadingAll}
+            className="flex items-center gap-1 px-2 py-1 text-xs bg-maycast-primary/20 hover:bg-maycast-primary/30 text-maycast-primary rounded-lg transition-colors disabled:opacity-50"
+          >
+            {isDownloadingAll ? (
+              <>
+                <div className="w-3 h-3 border-2 border-maycast-primary border-t-transparent rounded-full animate-spin" />
+                Downloading...
+              </>
+            ) : (
+              <>
+                <ArrowDownTrayIcon className="w-3 h-3" />
+                Download All
+              </>
+            )}
+          </button>
+        )}
+      </div>
+      <div className="space-y-2">
+        {recordingIds.map((recordingId) => (
+          <RecordingDownloadItem
+            key={recordingId}
+            recordingId={recordingId}
+            recording={recordings.get(recordingId) || null}
+            isLoading={loadingIds.has(recordingId)}
+            onDownload={handleDownload}
+            isDownloading={downloadingIds.has(recordingId)}
+          />
+        ))}
+      </div>
+    </div>
+  );
+};
+
+/**
  * Roomカード
  */
 const RoomCard: React.FC<{
@@ -93,7 +264,47 @@ const RoomCard: React.FC<{
   isUpdating: boolean;
 }> = ({ room, guests, onStartRecording, onStopRecording, onFinalize, onDelete, isUpdating }) => {
   const [copied, setCopied] = useState(false);
+  const [isDownloadingAll, setIsDownloadingAll] = useState(false);
   const guestUrl = `${window.location.origin}/guest/${room.id}`;
+
+  // 全録画を一括ダウンロード
+  const handleDownloadAll = useCallback(async () => {
+    if (room.recording_ids.length === 0) return;
+
+    setIsDownloadingAll(true);
+    try {
+      const serverUrl = getServerUrl();
+      const apiClient = new RecordingAPIClient(serverUrl);
+
+      // 各録画を順番にダウンロード
+      for (let i = 0; i < room.recording_ids.length; i++) {
+        const recordingId = room.recording_ids[i];
+        try {
+          const blob = await apiClient.downloadRecording(recordingId);
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `recording-${recordingId.substring(0, 8)}.mp4`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+
+          // 連続ダウンロードの間に少し待機
+          if (i < room.recording_ids.length - 1) {
+            await new Promise((resolve) => setTimeout(resolve, 500));
+          }
+        } catch (err) {
+          console.error(`Failed to download recording ${recordingId}:`, err);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to download all recordings:', err);
+      alert(`Failed to download: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setIsDownloadingAll(false);
+    }
+  }, [room.recording_ids]);
 
   const copyGuestUrl = async () => {
     try {
@@ -190,6 +401,17 @@ const RoomCard: React.FC<{
         </div>
       )}
 
+      {/* Downloads (for finished rooms) */}
+      {room.state === 'finished' && room.recording_ids.length > 0 && (
+        <div className="mb-4">
+          <RecordingsDownloadSection
+            recordingIds={room.recording_ids}
+            onDownloadAll={handleDownloadAll}
+            isDownloadingAll={isDownloadingAll}
+          />
+        </div>
+      )}
+
       {/* Controls */}
       <div className="flex items-center gap-3">
         {room.state === 'idle' && (
@@ -228,9 +450,9 @@ const RoomCard: React.FC<{
             </button>
           </>
         )}
-        {room.state === 'finished' && (
+        {room.state === 'finished' && room.recording_ids.length === 0 && (
           <div className="flex-1 text-center text-maycast-text-secondary text-sm py-2.5">
-            Recording completed
+            Recording completed (no recordings)
           </div>
         )}
         <button

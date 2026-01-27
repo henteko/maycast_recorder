@@ -228,4 +228,47 @@ export class RecordingAPIClient {
 
     return response.blob();
   }
+
+  /**
+   * ダウンロードURLを取得（直接リンク用）
+   */
+  getDownloadUrl(recordingId: string): string {
+    return `${this.baseUrl}/api/recordings/${recordingId}/download`;
+  }
+
+  /**
+   * Recording時間を計算（秒）
+   */
+  static calculateDuration(recording: RecordingInfo): number | null {
+    if (!recording.started_at || !recording.finished_at) {
+      return null;
+    }
+    const start = new Date(recording.started_at).getTime();
+    const end = new Date(recording.finished_at).getTime();
+    return Math.floor((end - start) / 1000);
+  }
+
+  /**
+   * 時間をフォーマット (MM:SS or HH:MM:SS)
+   */
+  static formatDuration(seconds: number): string {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+
+    if (hours > 0) {
+      return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+    return `${minutes}:${secs.toString().padStart(2, '0')}`;
+  }
+
+  /**
+   * ファイルサイズをフォーマット
+   */
+  static formatFileSize(bytes: number): string {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+  }
 }
