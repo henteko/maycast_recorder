@@ -12,6 +12,11 @@ import { ChunkUploader } from '../modes/remote/ChunkUploader';
 import { getServerUrl } from '../modes/remote/serverConfig';
 import type { LocalRecordingId, RemoteRecordingId } from '../types/recording-id';
 import { asLocalRecordingId, asRemoteRecordingId } from '../types/recording-id';
+import {
+  saveRemoteMapping,
+  updateInitSegmentUploaded,
+  deleteRemoteMapping,
+} from '../modes/remote/remote-recording-mapping';
 
 export class RemoteStorageStrategy implements IStorageStrategy {
   private storageMap: Map<LocalRecordingId, ChunkStorage> = new Map();
@@ -47,9 +52,19 @@ export class RemoteStorageStrategy implements IStorageStrategy {
       const remoteRecordingId = asRemoteRecordingId(serverRecordingIdString);
       console.log(`✅ Recording created on server (remote): ${remoteRecordingId}`);
 
-      // ローカルIDとリモートIDのマッピングを保存
+      // ローカルIDとリモートIDのマッピングを保存（メモリ）
       this.serverRecordingIdMap.set(localRecordingId, remoteRecordingId);
       console.log(`🔗 [RemoteStorageStrategy] Mapping: local=${localRecordingId} -> remote=${remoteRecordingId}`);
+
+      // IndexedDBにマッピングを永続化（非ブロッキング）
+      saveRemoteMapping({
+        localRecordingId: localRecordingId as RecordingId,
+        remoteRecordingId,
+        initSegmentUploaded: false,
+        createdAt: Date.now(),
+      }).catch(err => {
+        console.warn('⚠️ [RemoteStorageStrategy] Failed to persist remote mapping:', err);
+      });
 
       // Recording状態を'recording'に更新
       console.log('📡 [RemoteStorageStrategy] Updating recording state to "recording"...');
@@ -92,6 +107,11 @@ export class RemoteStorageStrategy implements IStorageStrategy {
         const apiClient = recordingManager.getAPIClient();
         await apiClient.uploadInitSegment(remoteRecordingId, data);
         console.log(`✅ [RemoteStorageStrategy] Init segment uploaded to server (${data.length} bytes)`);
+
+        // IndexedDBのinitSegmentUploadedフラグを更新（非ブロッキング）
+        updateInitSegmentUploaded(recordingId, true).catch(err => {
+          console.warn('⚠️ [RemoteStorageStrategy] Failed to update initSegmentUploaded flag:', err);
+        });
       } catch (err) {
         console.error('❌ Failed to upload init segment to server:', err);
         // サーバーエラーでもローカルには保存済み
@@ -163,11 +183,16 @@ export class RemoteStorageStrategy implements IStorageStrategy {
 
         if (stats.failedChunks > 0) {
           console.warn(`⚠️ ${stats.failedChunks} chunks failed to upload, staying in 'finalizing' state`);
-          // finalizing状態のまま（既に設定済み）
+          // finalizing状態のまま（既に設定済み）、マッピングも保持
         } else {
           // 全チャンク成功 → synced状態に遷移
           await recordingManager.updateState('synced');
           console.log(`✅ Recording synced to server (local=${localRecordingId}, remote=${remoteRecordingId})`);
+
+          // IndexedDBからマッピングを削除（完全同期済み）
+          deleteRemoteMapping(recordingId).catch(err => {
+            console.warn('⚠️ [RemoteStorageStrategy] Failed to delete remote mapping:', err);
+          });
         }
       } catch (err) {
         console.error('❌ Failed to complete server sync:', err);

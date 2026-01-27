@@ -6,6 +6,7 @@ import { NoOpUploadStrategy } from '../services/NoOpUploadStrategy';
 import { RemoteUploadStrategy } from '../services/RemoteUploadStrategy';
 import { RecordingAPIClient } from '../api/recording-api';
 import { getServerUrl } from '../../modes/remote/serverConfig';
+import { ResumeUploadManager } from '../../modes/remote/ResumeUploadManager';
 
 // Use Cases
 import { StartRecordingUseCase } from '../../domain/usecases/StartRecording.usecase';
@@ -88,6 +89,16 @@ export function setupContainer(mode: 'standalone' | 'remote'): DIContainer {
 
   const listRecordingsUseCase = new ListRecordingsUseCase(recordingRepository);
   container.register('ListRecordingsUseCase', listRecordingsUseCase);
+
+  // ResumeUploadManager（Remote mode でのみ使用）
+  if (mode === 'remote') {
+    const resumeUploadManager = new ResumeUploadManager(
+      chunkRepository,
+      apiClient,
+      recordingRepository
+    );
+    container.register('ResumeUploadManager', resumeUploadManager);
+  }
 
   console.log(`✅ DIContainer setup complete (mode: ${mode})`);
 

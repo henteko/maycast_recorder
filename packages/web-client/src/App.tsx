@@ -16,6 +16,19 @@ import { StandaloneStorageStrategy } from './storage-strategies/StandaloneStorag
 import { RemoteStorageStrategy } from './storage-strategies/RemoteStorageStrategy';
 import type { RecordingId } from '@maycast/common-types';
 import { DIProvider, setupContainer } from './infrastructure/di';
+import { ResumeUploadModal } from './presentation/components/organisms/RecoveryModal';
+
+// 時間表示のフォーマット関数
+const formatElapsedTime = (seconds: number): string => {
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const secs = seconds % 60;
+
+  if (hours > 0) {
+    return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  }
+  return `${minutes}:${secs.toString().padStart(2, '0')}`;
+};
 
 // DIProvider内で実行されるメインコンテンツ
 function ModeContent() {
@@ -30,6 +43,14 @@ function ModeContent() {
     loadRecordings,
     deleteRecording,
     clearAllRecordings,
+    // Resume Upload 関連
+    unfinishedRecordings,
+    showResumeModal,
+    setShowResumeModal,
+    uploadProgress,
+    isResuming,
+    resumeAllRecordings,
+    skipResume,
   } = useSessionManager();
   const { downloadProgress, downloadRecordingById } = useDownload();
 
@@ -82,44 +103,60 @@ function ModeContent() {
   };
 
   return (
-    <MainLayout
-      sidebar={
-        <Sidebar
-          currentPage={currentPage}
-          onNavigate={handleNavigate}
-          systemHealth={systemHealth}
-        />
-      }
-    >
-      {currentPage === 'recorder' && (
-        <Recorder
-          settings={settings}
-          storageStrategy={storageStrategy}
-          onSessionComplete={loadRecordings}
-          onDownload={handleDownload}
-          downloadProgress={downloadProgress}
+    <>
+      {/* Resume Upload Modal (Remote Mode のみ) */}
+      {isRemoteMode && (
+        <ResumeUploadModal
+          isOpen={showResumeModal}
+          onClose={() => setShowResumeModal(false)}
+          unfinishedRecordings={unfinishedRecordings}
+          onResumeAll={resumeAllRecordings}
+          onSkip={skipResume}
+          uploadProgress={uploadProgress}
+          isUploading={isResuming}
+          formatElapsedTime={formatElapsedTime}
         />
       )}
-      {currentPage === 'library' && (
-        <LibraryPage
-          recordings={savedRecordings}
-          onDownload={downloadRecordingById}
-          onDelete={deleteRecording}
-          onClearAll={clearAllRecordings}
-          isDownloading={downloadProgress.isDownloading}
-        />
-      )}
-      {currentPage === 'settings' && (
-        <SettingsPage
-          settings={settings}
-          onSettingsChange={setSettings}
-          onSave={handleSaveSettings}
-          videoDevices={videoDevices}
-          audioDevices={audioDevices}
-          showServerSettings={isRemoteMode}
-        />
-      )}
-    </MainLayout>
+
+      <MainLayout
+        sidebar={
+          <Sidebar
+            currentPage={currentPage}
+            onNavigate={handleNavigate}
+            systemHealth={systemHealth}
+          />
+        }
+      >
+        {currentPage === 'recorder' && (
+          <Recorder
+            settings={settings}
+            storageStrategy={storageStrategy}
+            onSessionComplete={loadRecordings}
+            onDownload={handleDownload}
+            downloadProgress={downloadProgress}
+          />
+        )}
+        {currentPage === 'library' && (
+          <LibraryPage
+            recordings={savedRecordings}
+            onDownload={downloadRecordingById}
+            onDelete={deleteRecording}
+            onClearAll={clearAllRecordings}
+            isDownloading={downloadProgress.isDownloading}
+          />
+        )}
+        {currentPage === 'settings' && (
+          <SettingsPage
+            settings={settings}
+            onSettingsChange={setSettings}
+            onSave={handleSaveSettings}
+            videoDevices={videoDevices}
+            audioDevices={audioDevices}
+            showServerSettings={isRemoteMode}
+          />
+        )}
+      </MainLayout>
+    </>
   );
 }
 
