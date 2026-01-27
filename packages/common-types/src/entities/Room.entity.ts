@@ -6,9 +6,11 @@ import { InvalidRoomStateTransitionError } from '../errors/DomainErrors.js';
  * Room ドメインエンティティ
  *
  * ビジネスルール:
- * - 状態遷移は idle -> recording -> finished の順序のみ許可
+ * - 状態遷移は idle -> recording -> finalizing -> finished の順序
+ * - finalizing: Guest のアップロード完了待ち状態
  * - Recording の追加/削除は idle または recording 状態でのみ可能
  * - 状態遷移時に適切なタイムスタンプを記録
+ * - finished から idle へのリセットが可能（Room再利用）
  */
 export class RoomEntity {
   private constructor(
@@ -55,16 +57,46 @@ export class RoomEntity {
   }
 
   /**
-   * ビジネスルール: 録画終了
+   * ビジネスルール: 録画停止 → finalizing状態へ
    * recording 状態からのみ遷移可能
+   * Guestのアップロード完了を待つ状態
    */
-  finalize(): void {
+  startFinalizing(): void {
     if (this.state !== 'recording') {
       throw new InvalidRoomStateTransitionError(
-        `Cannot finalize from state: ${this.state}. Must be in 'recording' state.`
+        `Cannot start finalizing from state: ${this.state}. Must be in 'recording' state.`
+      );
+    }
+    this.state = 'finalizing';
+    this.updatedAt = new Date();
+  }
+
+  /**
+   * ビジネスルール: 録画終了（全Guest同期完了）
+   * finalizing 状態からのみ遷移可能
+   */
+  finalize(): void {
+    if (this.state !== 'finalizing') {
+      throw new InvalidRoomStateTransitionError(
+        `Cannot finalize from state: ${this.state}. Must be in 'finalizing' state.`
       );
     }
     this.state = 'finished';
+    this.updatedAt = new Date();
+  }
+
+  /**
+   * ビジネスルール: Roomをリセット（再利用）
+   * finished 状態からのみ遷移可能
+   */
+  reset(): void {
+    if (this.state !== 'finished') {
+      throw new InvalidRoomStateTransitionError(
+        `Cannot reset from state: ${this.state}. Must be in 'finished' state.`
+      );
+    }
+    this.state = 'idle';
+    this.recordingIds = [];
     this.updatedAt = new Date();
   }
 
@@ -101,6 +133,13 @@ export class RoomEntity {
    */
   isRecording(): boolean {
     return this.state === 'recording';
+  }
+
+  /**
+   * ファイナライズ中かどうか（Guest同期待ち）
+   */
+  isFinalizing(): boolean {
+    return this.state === 'finalizing';
   }
 
   /**

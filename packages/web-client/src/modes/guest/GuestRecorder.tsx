@@ -9,7 +9,7 @@
  * - Complete: 録画完了
  */
 
-import { useRef, useState, useEffect, useMemo } from 'react';
+import { useRef, useState, useEffect, useMemo, useCallback } from 'react';
 import { useMediaStream } from '../../presentation/hooks/useMediaStream';
 import { useRoomWebSocket } from '../../presentation/hooks/useRoomWebSocket';
 import { useEncoders } from '../../presentation/hooks/useEncoders';
@@ -21,6 +21,9 @@ import { loadSettings } from '../../types/settings';
 import { GuestStorageStrategy } from './GuestStorageStrategy';
 import { VideoPreview } from '../../presentation/components/organisms/VideoPreview';
 import { StatsPanel } from '../../presentation/components/organisms/StatsPanel';
+import { getWebSocketRoomClient } from '../../infrastructure/websocket/WebSocketRoomClient';
+import { getServerUrl } from '../../modes/remote/serverConfig';
+import type { GuestSyncState } from '@maycast/common-types';
 
 interface GuestRecorderProps {
   roomId: string;
@@ -44,7 +47,12 @@ export const GuestRecorder: React.FC<GuestRecorderProps> = ({ roomId }) => {
     error: roomError,
     isRoomNotFound,
     isWebSocketConnected,
+    setRecordingId: setWsRecordingId,
   } = useRoomWebSocket(roomId, 3000);
+
+  // 同期状態トラッキング
+  const [guestSyncState, setGuestSyncState] = useState<GuestSyncState>('idle');
+  const lastSyncEmitRef = useRef<number>(0);
 
   // GuestStorageStrategy（roomIdを渡す）
   const storageStrategy = useMemo(() => {
@@ -87,6 +95,47 @@ export const GuestRecorder: React.FC<GuestRecorderProps> = ({ roomId }) => {
     startCapture,
     settings,
   });
+
+  // WebSocket経由で同期状態を通知
+  const emitSyncUpdate = useCallback((state: GuestSyncState, force: boolean = false) => {
+    const now = Date.now();
+    // 500ms毎に制限（forceの場合は即時送信）
+    if (!force && now - lastSyncEmitRef.current < 500) {
+      return;
+    }
+
+    const remoteRecordingId = storageStrategy.getActiveRemoteRecordingId();
+    if (!remoteRecordingId) {
+      // リモートIDがまだ無い場合は静かにスキップ（初期化中は正常な状態）
+      return;
+    }
+
+    lastSyncEmitRef.current = now;
+
+    const serverUrl = getServerUrl();
+    const wsClient = getWebSocketRoomClient(serverUrl);
+    const progress = storageStrategy.getUploadProgress();
+
+    console.log(`📤 [GuestRecorder] Emitting sync update: state=${state}, ${progress.uploaded}/${progress.total}`);
+    wsClient.emitGuestSyncUpdate(roomId, remoteRecordingId, state, progress.uploaded, progress.total);
+  }, [roomId, storageStrategy]);
+
+  // 同期完了を通知
+  const emitSyncComplete = useCallback(() => {
+    const remoteRecordingId = storageStrategy.getActiveRemoteRecordingId();
+    if (!remoteRecordingId) {
+      // リモートIDがまだ無い場合は静かにスキップ
+      return;
+    }
+
+    const serverUrl = getServerUrl();
+    const wsClient = getWebSocketRoomClient(serverUrl);
+    const progress = storageStrategy.getUploadProgress();
+
+    console.log(`📤 [GuestRecorder] Emitting sync complete: ${progress.total} chunks`);
+    wsClient.emitGuestSyncComplete(roomId, remoteRecordingId, progress.total);
+  }, [roomId, storageStrategy]);
+
 
   // Initialize WASM
   useEffect(() => {
@@ -135,15 +184,78 @@ export const GuestRecorder: React.FC<GuestRecorderProps> = ({ roomId }) => {
     if (roomState === 'recording' && !hasStartedRecording && wasmInitialized) {
       console.log('🎬 [GuestRecorder] Director started recording, auto-starting...');
       setHasStartedRecording(true);
+      setGuestSyncState('recording');
       startRecording();
     }
 
-    // Room状態がfinishedになったら自動的に録画停止
-    if (roomState === 'finished' && hasStartedRecording && isRecording) {
-      console.log('🛑 [GuestRecorder] Director stopped recording, auto-stopping...');
+    // Room状態がfinalizingになったら自動的に録画停止
+    if (roomState === 'finalizing' && hasStartedRecording && isRecording) {
+      console.log('🛑 [GuestRecorder] Director stopped recording (finalizing), auto-stopping...');
+      setGuestSyncState('uploading');
+      // 同期更新はupload監視エフェクトで行う（リモートIDが利用可能になってから）
       stopRecording();
     }
-  }, [roomState, hasStartedRecording, wasmInitialized, isRecording, isRoomLoading, roomError, startRecording, stopRecording]);
+
+    // Room状態がfinishedになったら（強制終了の場合）
+    if (roomState === 'finished' && hasStartedRecording && isRecording) {
+      console.log('🛑 [GuestRecorder] Director force finished, auto-stopping...');
+      stopRecording();
+    }
+  }, [roomState, hasStartedRecording, wasmInitialized, isRecording, isRoomLoading, roomError, startRecording, stopRecording, emitSyncUpdate]);
+
+  // Recording IDをWebSocketに登録
+  useEffect(() => {
+    if (hasStartedRecording) {
+      // Recording開始後、少し待ってからリモートIDを取得
+      const checkInterval = setInterval(() => {
+        const remoteRecordingId = storageStrategy.getActiveRemoteRecordingId();
+        if (remoteRecordingId) {
+          console.log(`🔗 [GuestRecorder] Setting WebSocket recording ID: ${remoteRecordingId}`);
+          setWsRecordingId(remoteRecordingId);
+          clearInterval(checkInterval);
+        }
+      }, 500);
+
+      return () => clearInterval(checkInterval);
+    }
+  }, [hasStartedRecording, storageStrategy, setWsRecordingId]);
+
+  // アップロード進捗を監視して同期状態を更新
+  useEffect(() => {
+    if (guestSyncState !== 'uploading') return;
+
+    const checkProgress = () => {
+      // リモートRecording IDが利用可能になるまで待機
+      const remoteRecordingId = storageStrategy.getActiveRemoteRecordingId();
+      if (!remoteRecordingId) {
+        // IDがまだ無い場合は次回チェックまで待機
+        return false;
+      }
+
+      if (storageStrategy.isUploadComplete()) {
+        // アップロード完了
+        setGuestSyncState('synced');
+        emitSyncComplete();
+        return true;
+      }
+
+      // 進捗を通知
+      emitSyncUpdate('uploading');
+      return false;
+    };
+
+    // 初回チェック
+    if (checkProgress()) return;
+
+    // 定期的にチェック
+    const interval = setInterval(() => {
+      if (checkProgress()) {
+        clearInterval(interval);
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [guestSyncState, storageStrategy, emitSyncUpdate, emitSyncComplete]);
 
   // Guest画面状態を更新
   useEffect(() => {

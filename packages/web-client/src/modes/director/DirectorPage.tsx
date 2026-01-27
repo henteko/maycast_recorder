@@ -18,13 +18,13 @@ import {
 } from '@heroicons/react/24/solid';
 import { useRoomManagerWebSocket } from '../../presentation/hooks/useRoomManagerWebSocket';
 import type { RoomInfo } from '../../infrastructure/api/room-api';
-import type { RoomState } from '@maycast/common-types';
+import type { RoomState, GuestInfo, GuestSyncState } from '@maycast/common-types';
 
 /**
  * Room状態に応じたバッジを表示
  */
 const RoomStateBadge: React.FC<{ state: RoomState }> = ({ state }) => {
-  const stateConfig = {
+  const stateConfig: Record<RoomState, { label: string; bgColor: string; textColor: string; dotColor: string }> = {
     idle: {
       label: 'Idle',
       bgColor: 'bg-gray-500/20',
@@ -36,6 +36,12 @@ const RoomStateBadge: React.FC<{ state: RoomState }> = ({ state }) => {
       bgColor: 'bg-maycast-rec/20',
       textColor: 'text-maycast-rec',
       dotColor: 'bg-maycast-rec animate-pulse',
+    },
+    finalizing: {
+      label: 'Syncing',
+      bgColor: 'bg-yellow-500/20',
+      textColor: 'text-yellow-400',
+      dotColor: 'bg-yellow-400 animate-pulse',
     },
     finished: {
       label: 'Finished',
@@ -56,15 +62,36 @@ const RoomStateBadge: React.FC<{ state: RoomState }> = ({ state }) => {
 };
 
 /**
+ * Guest同期状態バッジ
+ */
+const GuestSyncBadge: React.FC<{ syncState: GuestSyncState }> = ({ syncState }) => {
+  const stateConfig: Record<GuestSyncState, { label: string; bgColor: string; textColor: string }> = {
+    idle: { label: 'Waiting', bgColor: 'bg-gray-500/20', textColor: 'text-gray-400' },
+    recording: { label: 'Recording', bgColor: 'bg-maycast-rec/20', textColor: 'text-maycast-rec' },
+    uploading: { label: 'Uploading', bgColor: 'bg-yellow-500/20', textColor: 'text-yellow-400' },
+    synced: { label: 'Synced', bgColor: 'bg-green-500/20', textColor: 'text-green-400' },
+    error: { label: 'Error', bgColor: 'bg-red-500/20', textColor: 'text-red-400' },
+  };
+  const config = stateConfig[syncState];
+  return (
+    <span className={`px-1.5 py-0.5 rounded text-xs ${config.bgColor} ${config.textColor}`}>
+      {config.label}
+    </span>
+  );
+};
+
+/**
  * Roomカード
  */
 const RoomCard: React.FC<{
   room: RoomInfo;
+  guests: GuestInfo[];
   onStartRecording: (roomId: string) => void;
   onStopRecording: (roomId: string) => void;
+  onFinalize: (roomId: string) => void;
   onDelete: (roomId: string) => void;
   isUpdating: boolean;
-}> = ({ room, onStartRecording, onStopRecording, onDelete, isUpdating }) => {
+}> = ({ room, guests, onStartRecording, onStopRecording, onFinalize, onDelete, isUpdating }) => {
   const [copied, setCopied] = useState(false);
   const guestUrl = `${window.location.origin}/guest/${room.id}`;
 
@@ -131,6 +158,38 @@ const RoomCard: React.FC<{
         )}
       </div>
 
+      {/* Guests */}
+      {guests.length > 0 && (
+        <div className="mb-4">
+          <label className="text-xs text-maycast-text-secondary mb-2 block">
+            Guests ({guests.length})
+          </label>
+          <div className="space-y-2">
+            {guests.map((guest) => (
+              <div
+                key={guest.recordingId}
+                className="flex items-center justify-between bg-maycast-bg px-3 py-2 rounded-lg"
+              >
+                <div className="flex items-center gap-2">
+                  <span className={`w-2 h-2 rounded-full ${guest.isConnected ? 'bg-green-400' : 'bg-gray-400'}`} />
+                  <span className="text-sm font-mono text-maycast-text-secondary">
+                    {guest.recordingId.substring(0, 8)}...
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {guest.syncState === 'uploading' && (
+                    <span className="text-xs text-maycast-text-secondary">
+                      {guest.uploadedChunks}/{guest.totalChunks}
+                    </span>
+                  )}
+                  <GuestSyncBadge syncState={guest.syncState} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Controls */}
       <div className="flex items-center gap-3">
         {room.state === 'idle' && (
@@ -153,6 +212,22 @@ const RoomCard: React.FC<{
             Stop Recording
           </button>
         )}
+        {room.state === 'finalizing' && (
+          <>
+            <div className="flex-1 flex items-center justify-center gap-2 text-yellow-400 text-sm py-2.5">
+              <div className="animate-spin rounded-full h-4 w-4 border-2 border-yellow-400 border-t-transparent" />
+              Waiting for guests to sync...
+            </div>
+            <button
+              onClick={() => onFinalize(room.id)}
+              disabled={isUpdating}
+              className="px-3 py-2 bg-green-600 hover:bg-green-500 rounded-xl text-white text-sm font-medium transition-colors disabled:opacity-50"
+              title="Force finish (skip waiting for guests)"
+            >
+              Force Finish
+            </button>
+          </>
+        )}
         {room.state === 'finished' && (
           <div className="flex-1 text-center text-maycast-text-secondary text-sm py-2.5">
             Recording completed
@@ -160,9 +235,9 @@ const RoomCard: React.FC<{
         )}
         <button
           onClick={() => onDelete(room.id)}
-          disabled={isUpdating || room.state === 'recording'}
+          disabled={isUpdating || room.state === 'recording' || room.state === 'finalizing'}
           className="p-2.5 bg-maycast-bg hover:bg-maycast-rec/20 rounded-xl transition-colors disabled:opacity-50"
-          title={room.state === 'recording' ? 'Stop recording before deleting' : 'Delete room'}
+          title={room.state === 'recording' || room.state === 'finalizing' ? 'Stop recording before deleting' : 'Delete room'}
         >
           <TrashIcon className="w-5 h-5 text-maycast-rec" />
         </button>
@@ -177,6 +252,7 @@ export const DirectorPage: React.FC = () => {
     isLoading,
     error,
     isWebSocketConnected,
+    guestsByRoom,
     createRoom,
     deleteRoom,
     updateRoomState,
@@ -199,6 +275,14 @@ export const DirectorPage: React.FC = () => {
 
   const handleStopRecording = async (roomId: string) => {
     setIsUpdating(true);
+    // recording -> finalizing（Guestの同期待ち状態へ）
+    await updateRoomState(roomId, 'finalizing');
+    setIsUpdating(false);
+  };
+
+  const handleFinalize = async (roomId: string) => {
+    setIsUpdating(true);
+    // finalizing -> finished（強制終了）
     await updateRoomState(roomId, 'finished');
     setIsUpdating(false);
   };
@@ -210,6 +294,13 @@ export const DirectorPage: React.FC = () => {
     setIsUpdating(true);
     await deleteRoom(roomId);
     setIsUpdating(false);
+  };
+
+  // Room毎のGuest配列を取得
+  const getGuestsForRoom = (roomId: string): GuestInfo[] => {
+    const roomGuests = guestsByRoom.get(roomId);
+    if (!roomGuests) return [];
+    return Array.from(roomGuests.values());
   };
 
   // Loading
@@ -295,8 +386,10 @@ export const DirectorPage: React.FC = () => {
               <RoomCard
                 key={room.id}
                 room={room}
+                guests={getGuestsForRoom(room.id)}
                 onStartRecording={handleStartRecording}
                 onStopRecording={handleStopRecording}
+                onFinalize={handleFinalize}
                 onDelete={handleDeleteRoom}
                 isUpdating={isUpdating}
               />

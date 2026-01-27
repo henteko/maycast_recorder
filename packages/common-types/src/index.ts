@@ -37,7 +37,7 @@ export type {
 } from './api-types.js';
 
 // Room types
-export type { RoomId, RoomState, Room } from './room.js';
+export type { RoomId, RoomState, Room, GuestSyncState, GuestInfo } from './room.js';
 
 // WebSocket message types
 export type {
@@ -49,5 +49,8 @@ export type {
   UploadProgress,
   DirectorCommand,
   DirectorCommandType,
+  GuestSyncStateChanged,
+  GuestSyncComplete,
+  GuestSyncError,
   WebSocketMessage,
 } from './websocket.js';

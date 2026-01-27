@@ -1,4 +1,4 @@
-import type { RoomId } from './room.js';
+import type { RoomId, GuestSyncState } from './room.js';
 import type { RecordingId, RecordingState } from './recording.js';
 import type { ChunkId } from './chunk.js';
 import type { RoomState } from './room.js';
@@ -80,6 +80,42 @@ export interface DirectorCommand {
 }
 
 /**
+ * WebSocket message: Guest sync state changed
+ */
+export interface GuestSyncStateChanged {
+  type: 'guest_sync_state_changed';
+  roomId: RoomId;
+  recordingId: RecordingId;
+  syncState: GuestSyncState;
+  uploadedChunks: number;
+  totalChunks: number;
+  timestamp: string;
+}
+
+/**
+ * WebSocket message: Guest sync complete
+ */
+export interface GuestSyncComplete {
+  type: 'guest_sync_complete';
+  roomId: RoomId;
+  recordingId: RecordingId;
+  totalChunks: number;
+  timestamp: string;
+}
+
+/**
+ * WebSocket message: Guest sync error
+ */
+export interface GuestSyncError {
+  type: 'guest_sync_error';
+  roomId: RoomId;
+  recordingId: RecordingId;
+  errorMessage: string;
+  failedChunks: number;
+  timestamp: string;
+}
+
+/**
  * Union type of all WebSocket messages
  */
 export type WebSocketMessage =
@@ -89,4 +125,7 @@ export type WebSocketMessage =
   | RecordingStateChanged
   | ChunkUploaded
   | UploadProgress
-  | DirectorCommand;
+  | DirectorCommand
+  | GuestSyncStateChanged
+  | GuestSyncComplete
+  | GuestSyncError;

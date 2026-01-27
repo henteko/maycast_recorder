@@ -9,17 +9,38 @@
 
 import { io, Socket } from 'socket.io-client';
 import type {
-  RoomState,
   RoomStateChanged,
   RecordingCreated,
+  GuestSyncState,
+  GuestSyncStateChanged,
+  GuestSyncComplete,
+  GuestSyncError,
 } from '@maycast/common-types';
 
 /**
  * クライアントからサーバーへのイベント
  */
 interface ClientToServerEvents {
-  join_room: (data: { roomId: string }) => void;
+  join_room: (data: { roomId: string; recordingId?: string }) => void;
   leave_room: (data: { roomId: string }) => void;
+  guest_sync_update: (data: {
+    roomId: string;
+    recordingId: string;
+    syncState: GuestSyncState;
+    uploadedChunks: number;
+    totalChunks: number;
+  }) => void;
+  guest_sync_complete: (data: {
+    roomId: string;
+    recordingId: string;
+    totalChunks: number;
+  }) => void;
+  guest_sync_error: (data: {
+    roomId: string;
+    recordingId: string;
+    errorMessage: string;
+    failedChunks: number;
+  }) => void;
 }
 
 /**
@@ -28,8 +49,11 @@ interface ClientToServerEvents {
 interface ServerToClientEvents {
   room_state_changed: (data: RoomStateChanged) => void;
   recording_created: (data: RecordingCreated) => void;
-  guest_joined: (data: { roomId: string; guestCount: number }) => void;
-  guest_left: (data: { roomId: string; guestCount: number }) => void;
+  guest_joined: (data: { roomId: string; guestCount: number; recordingId?: string }) => void;
+  guest_left: (data: { roomId: string; guestCount: number; recordingId?: string }) => void;
+  guest_sync_state_changed: (data: GuestSyncStateChanged) => void;
+  guest_sync_complete: (data: GuestSyncComplete) => void;
+  guest_sync_error: (data: GuestSyncError) => void;
   error: (data: { message: string }) => void;
 }
 
@@ -39,8 +63,11 @@ interface ServerToClientEvents {
 export interface RoomEventListeners {
   onRoomStateChanged?: (data: RoomStateChanged) => void;
   onRecordingCreated?: (data: RecordingCreated) => void;
-  onGuestJoined?: (data: { roomId: string; guestCount: number }) => void;
-  onGuestLeft?: (data: { roomId: string; guestCount: number }) => void;
+  onGuestJoined?: (data: { roomId: string; guestCount: number; recordingId?: string }) => void;
+  onGuestLeft?: (data: { roomId: string; guestCount: number; recordingId?: string }) => void;
+  onGuestSyncStateChanged?: (data: GuestSyncStateChanged) => void;
+  onGuestSyncComplete?: (data: GuestSyncComplete) => void;
+  onGuestSyncError?: (data: GuestSyncError) => void;
   onError?: (data: { message: string }) => void;
   onConnect?: () => void;
   onDisconnect?: () => void;
@@ -53,6 +80,7 @@ export class WebSocketRoomClient {
   private socket: Socket<ServerToClientEvents, ClientToServerEvents> | null = null;
   private serverUrl: string;
   private currentRoomId: string | null = null;
+  private currentRecordingId: string | null = null;
   private listeners: RoomEventListeners = {};
   private isConnected = false;
 
@@ -95,7 +123,7 @@ export class WebSocketRoomClient {
 
       // 再接続時にRoomに再参加
       if (this.currentRoomId) {
-        this.joinRoom(this.currentRoomId);
+        this.joinRoom(this.currentRoomId, this.currentRecordingId ?? undefined);
       }
     });
 
@@ -129,20 +157,38 @@ export class WebSocketRoomClient {
       console.error('❌ [WebSocketRoomClient] error:', data);
       this.listeners.onError?.(data);
     });
+
+    this.socket.on('guest_sync_state_changed', (data) => {
+      console.log('📡 [WebSocketRoomClient] guest_sync_state_changed:', data);
+      this.listeners.onGuestSyncStateChanged?.(data);
+    });
+
+    this.socket.on('guest_sync_complete', (data) => {
+      console.log('📡 [WebSocketRoomClient] guest_sync_complete:', data);
+      this.listeners.onGuestSyncComplete?.(data);
+    });
+
+    this.socket.on('guest_sync_error', (data) => {
+      console.log('📡 [WebSocketRoomClient] guest_sync_error:', data);
+      this.listeners.onGuestSyncError?.(data);
+    });
   }
 
   /**
    * Roomに参加
+   * @param roomId Room ID
+   * @param recordingId Recording ID（Guest参加時のみ）
    */
-  joinRoom(roomId: string): void {
+  joinRoom(roomId: string, recordingId?: string): void {
     if (!this.socket) {
       console.warn('⚠️ [WebSocketRoomClient] Not connected, cannot join room');
       return;
     }
 
-    console.log(`📥 [WebSocketRoomClient] Joining room: ${roomId}`);
+    console.log(`📥 [WebSocketRoomClient] Joining room: ${roomId}${recordingId ? ` (recording: ${recordingId})` : ''}`);
     this.currentRoomId = roomId;
-    this.socket.emit('join_room', { roomId });
+    this.currentRecordingId = recordingId ?? null;
+    this.socket.emit('join_room', { roomId, recordingId });
   }
 
   /**
@@ -158,7 +204,64 @@ export class WebSocketRoomClient {
 
     if (this.currentRoomId === roomId) {
       this.currentRoomId = null;
+      this.currentRecordingId = null;
     }
+  }
+
+  /**
+   * Guest同期状態を更新
+   */
+  emitGuestSyncUpdate(
+    roomId: string,
+    recordingId: string,
+    syncState: GuestSyncState,
+    uploadedChunks: number,
+    totalChunks: number
+  ): void {
+    if (!this.socket) {
+      console.warn('⚠️ [WebSocketRoomClient] Not connected, cannot emit guest_sync_update');
+      return;
+    }
+
+    console.log(`📤 [WebSocketRoomClient] guest_sync_update: state=${syncState}, ${uploadedChunks}/${totalChunks}`);
+    this.socket.emit('guest_sync_update', {
+      roomId,
+      recordingId,
+      syncState,
+      uploadedChunks,
+      totalChunks,
+    });
+  }
+
+  /**
+   * Guest同期完了を通知
+   */
+  emitGuestSyncComplete(roomId: string, recordingId: string, totalChunks: number): void {
+    if (!this.socket) {
+      console.warn('⚠️ [WebSocketRoomClient] Not connected, cannot emit guest_sync_complete');
+      return;
+    }
+
+    console.log(`📤 [WebSocketRoomClient] guest_sync_complete: chunks=${totalChunks}`);
+    this.socket.emit('guest_sync_complete', { roomId, recordingId, totalChunks });
+  }
+
+  /**
+   * Guest同期エラーを通知
+   */
+  emitGuestSyncError(
+    roomId: string,
+    recordingId: string,
+    errorMessage: string,
+    failedChunks: number
+  ): void {
+    if (!this.socket) {
+      console.warn('⚠️ [WebSocketRoomClient] Not connected, cannot emit guest_sync_error');
+      return;
+    }
+
+    console.log(`📤 [WebSocketRoomClient] guest_sync_error: error=${errorMessage}, failed=${failedChunks}`);
+    this.socket.emit('guest_sync_error', { roomId, recordingId, errorMessage, failedChunks });
   }
 
   /**
@@ -186,6 +289,13 @@ export class WebSocketRoomClient {
    */
   getCurrentRoomId(): string | null {
     return this.currentRoomId;
+  }
+
+  /**
+   * 現在のRecording IDを取得
+   */
+  getCurrentRecordingId(): string | null {
+    return this.currentRecordingId;
   }
 }
 

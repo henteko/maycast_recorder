@@ -269,4 +269,35 @@ export class GuestStorageStrategy implements IStorageStrategy {
   getLastCompletedRecordingId(): LocalRecordingId | null {
     return this.lastCompletedLocalRecordingId;
   }
+
+  /**
+   * 現在アクティブなRecordingのリモートIDを取得
+   * アクティブなものがなければ、最後に完了したRecordingのIDを返す
+   */
+  getActiveRemoteRecordingId(): string | null {
+    // 最初のアクティブなRecordingのリモートIDを返す
+    for (const [, remoteId] of this.serverRecordingIdMap) {
+      return remoteId;
+    }
+    // アクティブなものがなければ、最後に完了したものを返す
+    if (this.lastCompletedLocalRecordingId) {
+      return this.completedRecordingsMap.get(this.lastCompletedLocalRecordingId) ?? null;
+    }
+    return null;
+  }
+
+  /**
+   * アップロードが完了したかどうかを確認
+   */
+  isUploadComplete(): boolean {
+    // アクティブなアップローダーがある場合はその進捗を確認
+    for (const chunkUploader of this.chunkUploaderMap.values()) {
+      const stats = chunkUploader.getStats();
+      return stats.totalChunks > 0 && stats.uploadedChunks >= stats.totalChunks;
+    }
+    // アップローダーがない場合は、セッションが完了済みかどうかを確認
+    // completedRecordingsMapにエントリがあれば完了している
+    return this.lastCompletedLocalRecordingId !== null &&
+           this.completedRecordingsMap.has(this.lastCompletedLocalRecordingId);
+  }
 }

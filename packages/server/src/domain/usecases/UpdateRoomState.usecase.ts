@@ -45,14 +45,16 @@ export class UpdateRoomStateUseCase {
       case 'recording':
         room.startRecording();
         break;
+      case 'finalizing':
+        room.startFinalizing();
+        break;
       case 'finished':
         room.finalize();
         break;
       case 'idle':
-        // idle への遷移は新規作成時のみ
-        throw new RoomNotFoundError(
-          `Cannot transition to 'idle' state. This state is only valid at creation.`
-        );
+        // finished状態からのリセット（Room再利用）
+        room.reset();
+        break;
     }
 
     // 3. 更新を永続化

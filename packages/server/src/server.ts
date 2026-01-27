@@ -12,6 +12,8 @@ import { getWebSocketManager } from './infrastructure/websocket/WebSocketManager
 import type { RecordingController } from './presentation/controllers/RecordingController.js';
 import type { ChunkController } from './presentation/controllers/ChunkController.js';
 import type { RoomController } from './presentation/controllers/RoomController.js';
+import type { UpdateRoomStateUseCase } from './domain/usecases/UpdateRoomState.usecase.js';
+import type { GetRoomUseCase } from './domain/usecases/GetRoom.usecase.js';
 
 // Load environment variables
 dotenv.config();
@@ -27,6 +29,8 @@ const container = setupContainer(STORAGE_PATH);
 const recordingController = container.resolve<RecordingController>('RecordingController');
 const chunkController = container.resolve<ChunkController>('ChunkController');
 const roomController = container.resolve<RoomController>('RoomController');
+const updateRoomStateUseCase = container.resolve<UpdateRoomStateUseCase>('UpdateRoomStateUseCase');
+const getRoomUseCase = container.resolve<GetRoomUseCase>('GetRoomUseCase');
 
 // Middleware
 app.use(cors({
@@ -67,6 +71,22 @@ const httpServer = createServer(app);
 // Initialize WebSocket
 const webSocketManager = getWebSocketManager();
 webSocketManager.initialize(httpServer, CORS_ORIGIN);
+
+// 全Guest同期完了時のコールバックを設定
+webSocketManager.setOnAllGuestsSyncedCallback(async (roomId: string) => {
+  console.log(`🎉 [Server] All guests synced for room: ${roomId}, transitioning to finished`);
+  try {
+    // Room状態を確認
+    const room = await getRoomUseCase.execute({ roomId });
+    if (room && room.state === 'finalizing') {
+      // finalizing状態の場合のみfinishedに遷移
+      await updateRoomStateUseCase.execute({ roomId, state: 'finished' });
+      console.log(`✅ [Server] Room ${roomId} transitioned to finished`);
+    }
+  } catch (err) {
+    console.error(`❌ [Server] Failed to transition room ${roomId} to finished:`, err);
+  }
+});
 
 // Start server
 httpServer.listen(PORT, () => {

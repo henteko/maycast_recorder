@@ -21,6 +21,8 @@ export interface UseRoomWebSocketResult {
   isWebSocketConnected: boolean;
   guestCount: number;
   refetch: () => Promise<void>;
+  /** Recording IDを設定してRoomに再参加 */
+  setRecordingId: (recordingId: string) => void;
 }
 
 /**
@@ -39,8 +41,9 @@ export function useRoomWebSocket(
   const [isRoomNotFound, setIsRoomNotFound] = useState(false);
   const [isWebSocketConnected, setIsWebSocketConnected] = useState(false);
   const [guestCount, setGuestCount] = useState(0);
+  const [recordingId, setRecordingIdState] = useState<string | null>(null);
 
-  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const wsClientRef = useRef<ReturnType<typeof getWebSocketRoomClient> | null>(null);
 
   // HTTP経由でRoom情報を取得
@@ -109,7 +112,7 @@ export function useRoomWebSocket(
         console.log('✅ [useRoomWebSocket] WebSocket connected');
         setIsWebSocketConnected(true);
         stopPolling();
-        wsClient.joinRoom(roomId);
+        wsClient.joinRoom(roomId, recordingId ?? undefined);
       },
       onDisconnect: () => {
         console.log('🔌 [useRoomWebSocket] WebSocket disconnected, starting polling');
@@ -155,6 +158,17 @@ export function useRoomWebSocket(
     };
   }, [stopPolling]);
 
+  // Recording IDを設定してRoomに再参加
+  const setRecordingId = useCallback((newRecordingId: string) => {
+    setRecordingIdState(newRecordingId);
+    const wsClient = wsClientRef.current;
+    if (wsClient && roomId && isWebSocketConnected) {
+      // 一旦離脱してから再参加
+      wsClient.leaveRoom(roomId);
+      wsClient.joinRoom(roomId, newRecordingId);
+    }
+  }, [roomId, isWebSocketConnected]);
+
   return {
     room,
     roomState: room?.state ?? null,
@@ -164,5 +178,6 @@ export function useRoomWebSocket(
     isWebSocketConnected,
     guestCount,
     refetch: fetchRoom,
+    setRecordingId,
   };
 }
