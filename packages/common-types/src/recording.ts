@@ -50,6 +50,9 @@ export interface Recording {
   /** Unique recording identifier */
   id: RecordingId;
 
+  /** Room ID if this recording belongs to a room (Phase 4+) */
+  roomId?: string;
+
   /** Current recording state */
   state: RecordingState;
 

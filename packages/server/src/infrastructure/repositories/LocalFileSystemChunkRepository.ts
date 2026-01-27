@@ -1,4 +1,4 @@
-import type { RecordingId, ChunkId } from '@maycast/common-types';
+import type { RecordingId, ChunkId, RoomId } from '@maycast/common-types';
 import type { IChunkRepository } from '../../domain/repositories/IChunkRepository';
 import fs from 'fs/promises';
 import path from 'path';
@@ -6,8 +6,9 @@ import path from 'path';
 /**
  * ローカルファイルシステム Chunk Repository の実装
  *
- * 既存のLocalFileSystemStorageをラップして、
- * IChunkRepository インターフェースを実装
+ * Storage Structure:
+ * - Without roomId: /{basePath}/{recordingId}/
+ * - With roomId: /{basePath}/rooms/{roomId}/{recordingId}/
  */
 export class LocalFileSystemChunkRepository implements IChunkRepository {
   private basePath: string;
@@ -16,28 +17,35 @@ export class LocalFileSystemChunkRepository implements IChunkRepository {
     this.basePath = basePath;
   }
 
-  private getRecordingPath(recordingId: RecordingId): string {
+  /**
+   * Recording用のストレージパスを取得
+   * roomIdがある場合は /rooms/{roomId}/{recordingId}/ を返す
+   */
+  private getRecordingPath(recordingId: RecordingId, roomId?: RoomId): string {
+    if (roomId) {
+      return path.join(this.basePath, 'rooms', roomId, recordingId);
+    }
     return path.join(this.basePath, recordingId);
   }
 
-  private getInitSegmentPath(recordingId: RecordingId): string {
-    return path.join(this.getRecordingPath(recordingId), 'init.fmp4');
+  private getInitSegmentPath(recordingId: RecordingId, roomId?: RoomId): string {
+    return path.join(this.getRecordingPath(recordingId, roomId), 'init.fmp4');
   }
 
-  private getChunkPath(recordingId: RecordingId, chunkId: ChunkId): string {
-    return path.join(this.getRecordingPath(recordingId), `${chunkId}.fmp4`);
+  private getChunkPath(recordingId: RecordingId, chunkId: ChunkId, roomId?: RoomId): string {
+    return path.join(this.getRecordingPath(recordingId, roomId), `${chunkId}.fmp4`);
   }
 
-  async saveInitSegment(recordingId: RecordingId, data: Buffer): Promise<void> {
-    const recordingPath = this.getRecordingPath(recordingId);
-    const initSegmentPath = this.getInitSegmentPath(recordingId);
+  async saveInitSegment(recordingId: RecordingId, data: Buffer, roomId?: RoomId): Promise<void> {
+    const recordingPath = this.getRecordingPath(recordingId, roomId);
+    const initSegmentPath = this.getInitSegmentPath(recordingId, roomId);
 
     await fs.mkdir(recordingPath, { recursive: true });
     await fs.writeFile(initSegmentPath, data);
   }
 
-  async getInitSegment(recordingId: RecordingId): Promise<Buffer | null> {
-    const initSegmentPath = this.getInitSegmentPath(recordingId);
+  async getInitSegment(recordingId: RecordingId, roomId?: RoomId): Promise<Buffer | null> {
+    const initSegmentPath = this.getInitSegmentPath(recordingId, roomId);
 
     try {
       return await fs.readFile(initSegmentPath);
@@ -49,16 +57,16 @@ export class LocalFileSystemChunkRepository implements IChunkRepository {
     }
   }
 
-  async saveChunk(recordingId: RecordingId, chunkId: ChunkId, data: Buffer): Promise<void> {
-    const recordingPath = this.getRecordingPath(recordingId);
-    const chunkPath = this.getChunkPath(recordingId, chunkId);
+  async saveChunk(recordingId: RecordingId, chunkId: ChunkId, data: Buffer, roomId?: RoomId): Promise<void> {
+    const recordingPath = this.getRecordingPath(recordingId, roomId);
+    const chunkPath = this.getChunkPath(recordingId, chunkId, roomId);
 
     await fs.mkdir(recordingPath, { recursive: true });
     await fs.writeFile(chunkPath, data);
   }
 
-  async getChunk(recordingId: RecordingId, chunkId: ChunkId): Promise<Buffer | null> {
-    const chunkPath = this.getChunkPath(recordingId, chunkId);
+  async getChunk(recordingId: RecordingId, chunkId: ChunkId, roomId?: RoomId): Promise<Buffer | null> {
+    const chunkPath = this.getChunkPath(recordingId, chunkId, roomId);
 
     try {
       return await fs.readFile(chunkPath);
@@ -70,8 +78,8 @@ export class LocalFileSystemChunkRepository implements IChunkRepository {
     }
   }
 
-  async listChunkIds(recordingId: RecordingId): Promise<ChunkId[]> {
-    const recordingPath = this.getRecordingPath(recordingId);
+  async listChunkIds(recordingId: RecordingId, roomId?: RoomId): Promise<ChunkId[]> {
+    const recordingPath = this.getRecordingPath(recordingId, roomId);
 
     try {
       const files = await fs.readdir(recordingPath);
@@ -104,8 +112,8 @@ export class LocalFileSystemChunkRepository implements IChunkRepository {
     }
   }
 
-  async deleteAllChunks(recordingId: RecordingId): Promise<void> {
-    const recordingPath = this.getRecordingPath(recordingId);
+  async deleteAllChunks(recordingId: RecordingId, roomId?: RoomId): Promise<void> {
+    const recordingPath = this.getRecordingPath(recordingId, roomId);
 
     try {
       await fs.rm(recordingPath, { recursive: true, force: true });

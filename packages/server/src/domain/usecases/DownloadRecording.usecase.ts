@@ -47,19 +47,22 @@ export class DownloadRecordingUseCase {
       throw new RecordingNotFoundError(`Recording not found: ${request.recordingId}`);
     }
 
+    // roomIdを取得（Room用ストレージパスに使用）
+    const roomId = recording.getRoomId();
+
     // 2. Init Segmentとすべてのチャンクを取得
-    const initSegment = await this.chunkRepository.getInitSegment(request.recordingId);
+    const initSegment = await this.chunkRepository.getInitSegment(request.recordingId, roomId);
     if (!initSegment) {
       throw new Error('Init segment not found');
     }
 
-    const chunkIds = await this.chunkRepository.listChunkIds(request.recordingId);
+    const chunkIds = await this.chunkRepository.listChunkIds(request.recordingId, roomId);
 
     // 3. ストリームとして結合
     const chunks: Buffer[] = [initSegment];
 
     for (const chunkId of chunkIds.sort((a, b) => Number(a) - Number(b))) {
-      const chunk = await this.chunkRepository.getChunk(request.recordingId, chunkId);
+      const chunk = await this.chunkRepository.getChunk(request.recordingId, chunkId, roomId);
       if (chunk) {
         chunks.push(chunk);
       }

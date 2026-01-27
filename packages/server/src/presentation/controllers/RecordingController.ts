@@ -33,11 +33,14 @@ export class RecordingController {
     this.downloadRecordingUseCase = downloadRecordingUseCase;
   }
 
-  async create(_req: Request, res: Response): Promise<void> {
-    const result = await this.createRecordingUseCase.execute();
+  async create(req: Request, res: Response): Promise<void> {
+    const roomId = req.query.roomId as string | undefined;
+
+    const result = await this.createRecordingUseCase.execute({ roomId });
 
     res.status(201).json({
       recording_id: result.recordingId,
+      room_id: result.recording.roomId,
       created_at: result.recording.createdAt,
       state: result.recording.state,
     });
@@ -54,6 +57,7 @@ export class RecordingController {
 
     res.json({
       id: recording.id,
+      room_id: recording.roomId,
       state: recording.state,
       created_at: recording.createdAt,
       started_at: recording.startTime,

@@ -1,4 +1,5 @@
 import type { RecordingId, RecordingState, RecordingMetadata, Recording } from '../recording.js';
+import type { RoomId } from '../room.js';
 import {
   InvalidStateTransitionError,
   InvalidOperationError,
@@ -15,6 +16,7 @@ import {
 export class RecordingEntity {
   private constructor(
     private readonly id: RecordingId,
+    private readonly roomId: RoomId | undefined,
     private state: RecordingState,
     private metadata: RecordingMetadata | undefined,
     private readonly createdAt: Date,
@@ -26,10 +28,13 @@ export class RecordingEntity {
 
   /**
    * 新しいRecordingを作成
+   * @param id Recording ID
+   * @param roomId Optional Room ID (for Room-based recordings in Phase 4+)
    */
-  static create(id: RecordingId): RecordingEntity {
+  static create(id: RecordingId, roomId?: RoomId): RecordingEntity {
     return new RecordingEntity(
       id,
+      roomId,
       'standby',
       undefined,
       new Date(),
@@ -46,6 +51,7 @@ export class RecordingEntity {
   static reconstitute(data: Recording): RecordingEntity {
     return new RecordingEntity(
       data.id,
+      data.roomId,
       data.state,
       data.metadata,
       new Date(data.createdAt),
@@ -154,6 +160,10 @@ export class RecordingEntity {
     return this.id;
   }
 
+  getRoomId(): RoomId | undefined {
+    return this.roomId;
+  }
+
   getState(): RecordingState {
     return this.state;
   }
@@ -189,6 +199,7 @@ export class RecordingEntity {
   toDTO(): Recording {
     return {
       id: this.id,
+      roomId: this.roomId,
       state: this.state,
       metadata: this.metadata,
       chunkCount: this.chunkCount,

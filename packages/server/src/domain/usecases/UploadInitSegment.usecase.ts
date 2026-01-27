@@ -43,7 +43,8 @@ export class UploadInitSegmentUseCase {
       throw new InvalidChunkError('Init segment data is empty');
     }
 
-    // 3. Init Segmentを保存
-    await this.chunkRepository.saveInitSegment(request.recordingId, request.data);
+    // 3. Init Segmentを保存 (roomIdがある場合はRoom用ストレージパスを使用)
+    const roomId = recording.getRoomId();
+    await this.chunkRepository.saveInitSegment(request.recordingId, request.data, roomId);
   }
 }

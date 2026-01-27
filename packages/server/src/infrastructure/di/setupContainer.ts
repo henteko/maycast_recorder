@@ -50,7 +50,7 @@ export function setupContainer(storagePath: string = './recordings-data'): DICon
   container.register<IChunkRepository>('ChunkRepository', chunkRepository);
 
   // Use Cases
-  const createRecordingUseCase = new CreateRecordingUseCase(recordingRepository);
+  const createRecordingUseCase = new CreateRecordingUseCase(recordingRepository, roomRepository);
   container.register('CreateRecordingUseCase', createRecordingUseCase);
 
   const getRecordingUseCase = new GetRecordingUseCase(recordingRepository);

@@ -46,8 +46,9 @@ export class UploadChunkUseCase {
       throw new InvalidChunkError('Chunk data is empty');
     }
 
-    // 3. チャンクを保存
-    await this.chunkRepository.saveChunk(request.recordingId, request.chunkId, request.data);
+    // 3. チャンクを保存 (roomIdがある場合はRoom用ストレージパスを使用)
+    const roomId = recording.getRoomId();
+    await this.chunkRepository.saveChunk(request.recordingId, request.chunkId, request.data, roomId);
 
     // 4. チャンク数を増加
     await this.recordingRepository.incrementChunkCount(request.recordingId);
