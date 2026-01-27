@@ -2,6 +2,8 @@ import { DIContainer } from './DIContainer';
 import { InMemoryRecordingRepository } from '../repositories/InMemoryRecordingRepository';
 import { InMemoryRoomRepository } from '../repositories/InMemoryRoomRepository';
 import { LocalFileSystemChunkRepository } from '../repositories/LocalFileSystemChunkRepository';
+import { WebSocketRoomEventPublisher } from '../events/WebSocketRoomEventPublisher';
+import { getWebSocketManager } from '../websocket/WebSocketManager';
 
 // Use Cases - Recording
 import { CreateRecordingUseCase } from '../../domain/usecases/CreateRecording.usecase';
@@ -28,6 +30,7 @@ import { RoomController } from '../../presentation/controllers/RoomController';
 import type { IRecordingRepository } from '../../domain/repositories/IRecordingRepository';
 import type { IChunkRepository } from '../../domain/repositories/IChunkRepository';
 import type { IRoomRepository } from '../../domain/repositories/IRoomRepository';
+import type { IRoomEventPublisher } from '../../domain/events/IRoomEventPublisher';
 
 /**
  * DIコンテナのセットアップ (Server-side)
@@ -51,8 +54,17 @@ export function setupContainer(storagePath: string = './recordings-data'): DICon
   container.register<IRoomRepository>('RoomRepository', roomRepository);
   container.register<IChunkRepository>('ChunkRepository', chunkRepository);
 
+  // Event Publisher (WebSocket経由でイベントを配信)
+  const webSocketManager = getWebSocketManager();
+  const roomEventPublisher = new WebSocketRoomEventPublisher(webSocketManager);
+  container.register<IRoomEventPublisher>('RoomEventPublisher', roomEventPublisher);
+
   // Use Cases
-  const createRecordingUseCase = new CreateRecordingUseCase(recordingRepository, roomRepository);
+  const createRecordingUseCase = new CreateRecordingUseCase(
+    recordingRepository,
+    roomRepository,
+    roomEventPublisher
+  );
   container.register('CreateRecordingUseCase', createRecordingUseCase);
 
   const getRecordingUseCase = new GetRecordingUseCase(recordingRepository);
@@ -102,7 +114,10 @@ export function setupContainer(storagePath: string = './recordings-data'): DICon
   const getAllRoomsUseCase = new GetAllRoomsUseCase(roomRepository);
   container.register('GetAllRoomsUseCase', getAllRoomsUseCase);
 
-  const updateRoomStateUseCase = new UpdateRoomStateUseCase(roomRepository);
+  const updateRoomStateUseCase = new UpdateRoomStateUseCase(
+    roomRepository,
+    roomEventPublisher
+  );
   container.register('UpdateRoomStateUseCase', updateRoomStateUseCase);
 
   const getRoomRecordingsUseCase = new GetRoomRecordingsUseCase(

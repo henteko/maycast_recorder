@@ -1,6 +1,7 @@
 import type { RoomId, RoomState } from '@maycast/common-types';
 import { RoomNotFoundError } from '@maycast/common-types';
 import type { IRoomRepository } from '../repositories/IRoomRepository';
+import type { IRoomEventPublisher } from '../events/IRoomEventPublisher';
 
 /**
  * Room状態更新リクエスト
@@ -17,12 +18,18 @@ export interface UpdateRoomStateRequest {
  * 1. Roomを取得
  * 2. Entity経由で状態遷移（ビジネスルール検証）
  * 3. 更新を永続化
+ * 4. WebSocket経由でイベント通知
  */
 export class UpdateRoomStateUseCase {
   private roomRepository: IRoomRepository;
+  private roomEventPublisher: IRoomEventPublisher | null;
 
-  constructor(roomRepository: IRoomRepository) {
+  constructor(
+    roomRepository: IRoomRepository,
+    roomEventPublisher: IRoomEventPublisher | null = null
+  ) {
     this.roomRepository = roomRepository;
+    this.roomEventPublisher = roomEventPublisher;
   }
 
   async execute(request: UpdateRoomStateRequest): Promise<void> {
@@ -50,5 +57,10 @@ export class UpdateRoomStateUseCase {
 
     // 3. 更新を永続化
     await this.roomRepository.save(room);
+
+    // 4. WebSocket経由でイベント通知
+    if (this.roomEventPublisher) {
+      this.roomEventPublisher.publishRoomStateChanged(request.roomId, request.state);
+    }
   }
 }

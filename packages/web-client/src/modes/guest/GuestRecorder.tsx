@@ -11,7 +11,7 @@
 
 import { useRef, useState, useEffect, useMemo } from 'react';
 import { useMediaStream } from '../../presentation/hooks/useMediaStream';
-import { useRoomMetadata } from '../../presentation/hooks/useRoomMetadata';
+import { useRoomWebSocket } from '../../presentation/hooks/useRoomWebSocket';
 import { useEncoders } from '../../presentation/hooks/useEncoders';
 import { useRecorder } from '../../presentation/hooks/useRecorder';
 // @ts-expect-error - maycast-wasm-core has no type definitions
@@ -37,13 +37,14 @@ export const GuestRecorder: React.FC<GuestRecorderProps> = ({ roomId }) => {
   const [guestScreenState, setGuestScreenState] = useState<GuestScreenState>('loading');
   const [hasStartedRecording, setHasStartedRecording] = useState(false);
 
-  // Room状態をポーリングで取得（1秒間隔）
+  // Room状態をWebSocket経由でリアルタイム取得（フォールバック: 3秒ポーリング）
   const {
     roomState,
     isLoading: isRoomLoading,
     error: roomError,
     isRoomNotFound,
-  } = useRoomMetadata(roomId, 1000);
+    isWebSocketConnected,
+  } = useRoomWebSocket(roomId, 3000);
 
   // GuestStorageStrategy（roomIdを渡す）
   const storageStrategy = useMemo(() => {
@@ -266,7 +267,20 @@ export const GuestRecorder: React.FC<GuestRecorderProps> = ({ roomId }) => {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold">Guest Recording</h1>
-            <p className="text-maycast-text-secondary">Room: {roomId}</p>
+            <div className="flex items-center gap-2 text-maycast-text-secondary">
+              <span>Room: {roomId}</span>
+              {isWebSocketConnected ? (
+                <span className="inline-flex items-center gap-1 text-xs text-green-400">
+                  <span className="w-1.5 h-1.5 bg-green-400 rounded-full"></span>
+                  Live
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 text-xs text-yellow-400">
+                  <span className="w-1.5 h-1.5 bg-yellow-400 rounded-full"></span>
+                  Polling
+                </span>
+              )}
+            </div>
           </div>
           <div className="flex items-center gap-4">
             {guestScreenState === 'recording' && (

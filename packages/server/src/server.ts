@@ -2,11 +2,13 @@ import express from 'express';
 import cors from 'cors';
 import morgan from 'morgan';
 import dotenv from 'dotenv';
+import { createServer } from 'http';
 import { setupContainer } from './infrastructure/di/setupContainer.js';
 import { createRecordingsRouter } from './presentation/routes/recordings.js';
 import { createChunksRouter } from './presentation/routes/chunks.js';
 import { createRoomsRouter } from './presentation/routes/rooms.js';
 import { errorHandler } from './presentation/middleware/errorHandler.js';
+import { getWebSocketManager } from './infrastructure/websocket/WebSocketManager.js';
 import type { RecordingController } from './presentation/controllers/RecordingController.js';
 import type { ChunkController } from './presentation/controllers/ChunkController.js';
 import type { RoomController } from './presentation/controllers/RoomController.js';
@@ -59,19 +61,28 @@ app.use((_req, res) => {
 // Error handler (must be last)
 app.use(errorHandler);
 
+// Create HTTP server
+const httpServer = createServer(app);
+
+// Initialize WebSocket
+const webSocketManager = getWebSocketManager();
+webSocketManager.initialize(httpServer, CORS_ORIGIN);
+
 // Start server
-const server = app.listen(PORT, () => {
+httpServer.listen(PORT, () => {
   console.log(`🚀 Maycast Recorder Server running on port ${PORT}`);
   console.log(`📊 Log level: ${LOG_LEVEL}`);
   console.log(`🏥 Health check: http://localhost:${PORT}/health`);
+  console.log(`🔌 WebSocket enabled`);
 });
 
 // HTTPサーバーのタイムアウト設定を延長
-server.timeout = 300000; // 5分（デフォルトは120秒）
-server.keepAliveTimeout = 65000; // 65秒
-server.headersTimeout = 66000; // keepAliveTimeoutより長く
+httpServer.timeout = 300000; // 5分（デフォルトは120秒）
+httpServer.keepAliveTimeout = 65000; // 65秒
+httpServer.headersTimeout = 66000; // keepAliveTimeoutより長く
 
-console.log(`⏱️  Server timeout: ${server.timeout}ms`);
-console.log(`🔄 Keep-Alive timeout: ${server.keepAliveTimeout}ms`);
+console.log(`⏱️  Server timeout: ${httpServer.timeout}ms`);
+console.log(`🔄 Keep-Alive timeout: ${httpServer.keepAliveTimeout}ms`);
 
+export { webSocketManager };
 export default app;

@@ -1,0 +1,252 @@
+/**
+ * useRoomManagerWebSocket - Room一覧管理のWebSocket対応フック
+ *
+ * WebSocket経由でRoom状態変更をリアルタイムに受信
+ * Room作成/削除/状態更新はHTTP APIを使用
+ */
+
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { getWebSocketRoomClient, resetWebSocketRoomClient } from '../../infrastructure/websocket/WebSocketRoomClient';
+import { RoomAPIClient, RoomNotFoundError } from '../../infrastructure/api/room-api';
+import type { RoomInfo } from '../../infrastructure/api/room-api';
+import type { RoomState, RoomStateChanged, RecordingCreated } from '@maycast/common-types';
+import { getServerUrl } from '../../modes/remote/serverConfig';
+
+export interface UseRoomManagerWebSocketResult {
+  rooms: RoomInfo[];
+  isLoading: boolean;
+  error: string | null;
+  isWebSocketConnected: boolean;
+  createRoom: () => Promise<string | null>;
+  deleteRoom: (roomId: string) => Promise<boolean>;
+  updateRoomState: (roomId: string, state: RoomState) => Promise<boolean>;
+  refreshRooms: () => Promise<void>;
+}
+
+/**
+ * Room一覧をWebSocket経由で監視するフック
+ *
+ * @param fallbackPollInterval WebSocket接続失敗時のフォールバックポーリング間隔（ミリ秒）
+ */
+export function useRoomManagerWebSocket(
+  fallbackPollInterval: number = 5000
+): UseRoomManagerWebSocketResult {
+  const [rooms, setRooms] = useState<RoomInfo[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isWebSocketConnected, setIsWebSocketConnected] = useState(false);
+
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const wsClientRef = useRef<ReturnType<typeof getWebSocketRoomClient> | null>(null);
+  const subscribedRoomsRef = useRef<Set<string>>(new Set());
+
+  // HTTP経由でRoom一覧を取得
+  const fetchRooms = useCallback(async () => {
+    try {
+      const serverUrl = getServerUrl();
+      const apiClient = new RoomAPIClient(serverUrl);
+      const fetchedRooms = await apiClient.getAllRooms();
+
+      setRooms(fetchedRooms);
+      setError(null);
+
+      // 新しいRoomをWebSocketで購読
+      const wsClient = wsClientRef.current;
+      if (wsClient && isWebSocketConnected) {
+        fetchedRooms.forEach((room) => {
+          if (!subscribedRoomsRef.current.has(room.id)) {
+            wsClient.joinRoom(room.id);
+            subscribedRoomsRef.current.add(room.id);
+          }
+        });
+      }
+    } catch (err) {
+      console.error('❌ [useRoomManagerWebSocket] Failed to fetch rooms:', err);
+      setError(err instanceof Error ? err.message : 'Failed to fetch rooms');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [isWebSocketConnected]);
+
+  // フォールバックポーリングを開始
+  const startPolling = useCallback(() => {
+    if (pollingIntervalRef.current) return;
+
+    console.log(`⏱️ [useRoomManagerWebSocket] Starting fallback polling (${fallbackPollInterval}ms)`);
+    pollingIntervalRef.current = setInterval(() => {
+      fetchRooms();
+    }, fallbackPollInterval);
+  }, [fallbackPollInterval, fetchRooms]);
+
+  // ポーリングを停止
+  const stopPolling = useCallback(() => {
+    if (pollingIntervalRef.current) {
+      console.log('⏱️ [useRoomManagerWebSocket] Stopping fallback polling');
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+    }
+  }, []);
+
+  // WebSocket接続とイベントハンドリング
+  useEffect(() => {
+    const serverUrl = getServerUrl();
+    const wsClient = getWebSocketRoomClient(serverUrl);
+    wsClientRef.current = wsClient;
+
+    // 初回データ取得
+    setIsLoading(true);
+    fetchRooms();
+
+    // WebSocket接続
+    wsClient.connect({
+      onConnect: () => {
+        console.log('✅ [useRoomManagerWebSocket] WebSocket connected');
+        setIsWebSocketConnected(true);
+        stopPolling();
+
+        // 既存のRoomを全て購読
+        rooms.forEach((room) => {
+          wsClient.joinRoom(room.id);
+          subscribedRoomsRef.current.add(room.id);
+        });
+      },
+      onDisconnect: () => {
+        console.log('🔌 [useRoomManagerWebSocket] WebSocket disconnected, starting polling');
+        setIsWebSocketConnected(false);
+        subscribedRoomsRef.current.clear();
+        startPolling();
+      },
+      onRoomStateChanged: (data: RoomStateChanged) => {
+        console.log(`📡 [useRoomManagerWebSocket] Room state changed: ${data.roomId} -> ${data.state}`);
+        setRooms((prev) =>
+          prev.map((room) =>
+            room.id === data.roomId ? { ...room, state: data.state } : room
+          )
+        );
+      },
+      onRecordingCreated: (data: RecordingCreated) => {
+        console.log(`📡 [useRoomManagerWebSocket] Recording created in room: ${data.roomId}`);
+        setRooms((prev) =>
+          prev.map((room) =>
+            room.id === data.roomId
+              ? { ...room, recording_ids: [...room.recording_ids, data.recordingId] }
+              : room
+          )
+        );
+      },
+      onGuestJoined: (data) => {
+        console.log(`📡 [useRoomManagerWebSocket] Guest joined room: ${data.roomId}, count: ${data.guestCount}`);
+        // Guest数の更新（UIで使用する場合）
+      },
+      onGuestLeft: (data) => {
+        console.log(`📡 [useRoomManagerWebSocket] Guest left room: ${data.roomId}, count: ${data.guestCount}`);
+      },
+      onError: (data) => {
+        console.error('❌ [useRoomManagerWebSocket] Error:', data.message);
+        setError(data.message);
+      },
+    });
+
+    return () => {
+      stopPolling();
+      subscribedRoomsRef.current.forEach((roomId) => {
+        wsClient.leaveRoom(roomId);
+      });
+      subscribedRoomsRef.current.clear();
+    };
+  }, [fetchRooms, startPolling, stopPolling]);
+
+  // クリーンアップ
+  useEffect(() => {
+    return () => {
+      stopPolling();
+      resetWebSocketRoomClient();
+    };
+  }, [stopPolling]);
+
+  const createRoom = useCallback(async (): Promise<string | null> => {
+    try {
+      const serverUrl = getServerUrl();
+      const apiClient = new RoomAPIClient(serverUrl);
+      const result = await apiClient.createRoom();
+
+      // Room一覧を更新
+      await fetchRooms();
+
+      // 新しいRoomを購読
+      const wsClient = wsClientRef.current;
+      if (wsClient && isWebSocketConnected) {
+        wsClient.joinRoom(result.room_id);
+        subscribedRoomsRef.current.add(result.room_id);
+      }
+
+      return result.room_id;
+    } catch (err) {
+      console.error('❌ [useRoomManagerWebSocket] Failed to create room:', err);
+      setError(err instanceof Error ? err.message : 'Failed to create room');
+      return null;
+    }
+  }, [fetchRooms, isWebSocketConnected]);
+
+  const deleteRoom = useCallback(async (roomId: string): Promise<boolean> => {
+    try {
+      const serverUrl = getServerUrl();
+      const apiClient = new RoomAPIClient(serverUrl);
+
+      // 購読を解除
+      const wsClient = wsClientRef.current;
+      if (wsClient) {
+        wsClient.leaveRoom(roomId);
+        subscribedRoomsRef.current.delete(roomId);
+      }
+
+      await apiClient.deleteRoom(roomId);
+
+      // Room一覧を更新
+      await fetchRooms();
+
+      return true;
+    } catch (err) {
+      console.error('❌ [useRoomManagerWebSocket] Failed to delete room:', err);
+      if (err instanceof RoomNotFoundError) {
+        await fetchRooms();
+      }
+      setError(err instanceof Error ? err.message : 'Failed to delete room');
+      return false;
+    }
+  }, [fetchRooms]);
+
+  const updateRoomState = useCallback(async (
+    roomId: string,
+    state: RoomState
+  ): Promise<boolean> => {
+    try {
+      const serverUrl = getServerUrl();
+      const apiClient = new RoomAPIClient(serverUrl);
+      await apiClient.updateRoomState(roomId, state);
+
+      // WebSocket経由で更新が来るので、手動更新は不要
+      // ただしWebSocket未接続の場合は手動更新
+      if (!isWebSocketConnected) {
+        await fetchRooms();
+      }
+
+      return true;
+    } catch (err) {
+      console.error('❌ [useRoomManagerWebSocket] Failed to update room state:', err);
+      setError(err instanceof Error ? err.message : 'Failed to update room state');
+      return false;
+    }
+  }, [fetchRooms, isWebSocketConnected]);
+
+  return {
+    rooms,
+    isLoading,
+    error,
+    isWebSocketConnected,
+    createRoom,
+    deleteRoom,
+    updateRoomState,
+    refreshRooms: fetchRooms,
+  };
+}

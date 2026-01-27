@@ -13,8 +13,10 @@ import {
   UsersIcon,
   ClipboardDocumentIcon,
   ArrowPathIcon,
+  SignalIcon,
+  SignalSlashIcon,
 } from '@heroicons/react/24/solid';
-import { useRoomManager } from '../../presentation/hooks/useRoomManager';
+import { useRoomManagerWebSocket } from '../../presentation/hooks/useRoomManagerWebSocket';
 import type { RoomInfo } from '../../infrastructure/api/room-api';
 import type { RoomState } from '@maycast/common-types';
 
@@ -174,11 +176,12 @@ export const DirectorPage: React.FC = () => {
     rooms,
     isLoading,
     error,
+    isWebSocketConnected,
     createRoom,
     deleteRoom,
     updateRoomState,
     refreshRooms,
-  } = useRoomManager(3000); // 3秒ポーリング
+  } = useRoomManagerWebSocket(5000); // WebSocket + フォールバック5秒ポーリング
 
   const [isUpdating, setIsUpdating] = useState(false);
 
@@ -228,6 +231,17 @@ export const DirectorPage: React.FC = () => {
           <h1 className="text-2xl font-bold">
             Director Mode <span className="text-maycast-primary">({rooms.length} rooms)</span>
           </h1>
+          {isWebSocketConnected ? (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-500/20 text-green-400">
+              <SignalIcon className="w-3.5 h-3.5" />
+              Live
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-yellow-500/20 text-yellow-400">
+              <SignalSlashIcon className="w-3.5 h-3.5" />
+              Polling
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-3">
           <button
