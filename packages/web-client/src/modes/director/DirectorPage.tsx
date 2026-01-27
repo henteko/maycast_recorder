@@ -13,10 +13,10 @@ import {
   UsersIcon,
   ClipboardDocumentIcon,
   ArrowPathIcon,
-  SignalIcon,
   SignalSlashIcon,
   ArrowDownTrayIcon,
   DocumentArrowDownIcon,
+  CheckIcon,
 } from '@heroicons/react/24/solid';
 import { useRoomManagerWebSocket } from '../../presentation/hooks/useRoomManagerWebSocket';
 import type { RoomInfo } from '../../infrastructure/api/room-api';
@@ -25,43 +25,47 @@ import type { RoomState, GuestInfo, GuestSyncState } from '@maycast/common-types
 import { getServerUrl } from '../../modes/remote/serverConfig';
 
 /**
- * Room状態に応じたバッジを表示
+ * Room状態に応じたバッジを表示（StatusBadge風スタイル）
  */
 const RoomStateBadge: React.FC<{ state: RoomState }> = ({ state }) => {
-  const stateConfig: Record<RoomState, { label: string; bgColor: string; textColor: string; dotColor: string }> = {
-    idle: {
-      label: 'Idle',
-      bgColor: 'bg-gray-500/20',
-      textColor: 'text-gray-400',
-      dotColor: 'bg-gray-400',
-    },
-    recording: {
-      label: 'Recording',
-      bgColor: 'bg-maycast-rec/20',
-      textColor: 'text-maycast-rec',
-      dotColor: 'bg-maycast-rec animate-pulse',
-    },
-    finalizing: {
-      label: 'Syncing',
-      bgColor: 'bg-yellow-500/20',
-      textColor: 'text-yellow-400',
-      dotColor: 'bg-yellow-400 animate-pulse',
-    },
-    finished: {
-      label: 'Finished',
-      bgColor: 'bg-green-500/20',
-      textColor: 'text-green-400',
-      dotColor: 'bg-green-400',
-    },
-  };
+  if (state === 'idle') {
+    return (
+      <div className="flex items-center gap-2 px-3 py-1.5 bg-maycast-primary/20 backdrop-blur-sm rounded-full border border-maycast-primary/30">
+        <div className="w-2 h-2 bg-maycast-primary rounded-full" />
+        <span className="text-maycast-primary/80 font-semibold text-sm">待機中</span>
+      </div>
+    );
+  }
 
-  const config = stateConfig[state];
+  if (state === 'recording') {
+    return (
+      <div className="flex items-center gap-2 px-3 py-1.5 bg-maycast-rec/20 backdrop-blur-sm rounded-full border border-maycast-rec/30">
+        <div className="relative">
+          <div className="w-2 h-2 bg-maycast-rec rounded-full animate-pulse" />
+          <div className="absolute inset-0 w-2 h-2 bg-maycast-rec rounded-full animate-ping opacity-75" />
+        </div>
+        <span className="text-maycast-rec/80 font-semibold text-sm">録画中</span>
+      </div>
+    );
+  }
+
+  if (state === 'finalizing') {
+    return (
+      <div className="flex items-center gap-2 px-3 py-1.5 bg-yellow-500/20 backdrop-blur-sm rounded-full border border-yellow-500/30">
+        <div className="relative">
+          <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse" />
+          <div className="absolute inset-0 w-2 h-2 bg-yellow-400 rounded-full animate-ping opacity-75" />
+        </div>
+        <span className="text-yellow-400/80 font-semibold text-sm">同期中</span>
+      </div>
+    );
+  }
 
   return (
-    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${config.bgColor} ${config.textColor}`}>
-      <span className={`w-2 h-2 rounded-full ${config.dotColor}`}></span>
-      {config.label}
-    </span>
+    <div className="flex items-center gap-2 px-3 py-1.5 bg-maycast-safe/20 backdrop-blur-sm rounded-full border border-maycast-safe/30">
+      <CheckIcon className="w-4 h-4 text-maycast-safe" />
+      <span className="text-maycast-safe/80 font-semibold text-sm">完了</span>
+    </div>
   );
 };
 
@@ -69,16 +73,22 @@ const RoomStateBadge: React.FC<{ state: RoomState }> = ({ state }) => {
  * Guest同期状態バッジ
  */
 const GuestSyncBadge: React.FC<{ syncState: GuestSyncState }> = ({ syncState }) => {
-  const stateConfig: Record<GuestSyncState, { label: string; bgColor: string; textColor: string }> = {
-    idle: { label: 'Waiting', bgColor: 'bg-gray-500/20', textColor: 'text-gray-400' },
-    recording: { label: 'Recording', bgColor: 'bg-maycast-rec/20', textColor: 'text-maycast-rec' },
-    uploading: { label: 'Uploading', bgColor: 'bg-yellow-500/20', textColor: 'text-yellow-400' },
-    synced: { label: 'Synced', bgColor: 'bg-green-500/20', textColor: 'text-green-400' },
-    error: { label: 'Error', bgColor: 'bg-red-500/20', textColor: 'text-red-400' },
+  const stateConfig: Record<GuestSyncState, { label: string; bgColor: string; textColor: string; borderColor: string }> = {
+    idle: { label: '待機中', bgColor: 'bg-gray-500/20', textColor: 'text-gray-400', borderColor: 'border-gray-500/30' },
+    recording: { label: '録画中', bgColor: 'bg-maycast-rec/20', textColor: 'text-maycast-rec', borderColor: 'border-maycast-rec/30' },
+    uploading: { label: '同期中', bgColor: 'bg-yellow-500/20', textColor: 'text-yellow-400', borderColor: 'border-yellow-500/30' },
+    synced: { label: '完了', bgColor: 'bg-maycast-safe/20', textColor: 'text-maycast-safe', borderColor: 'border-maycast-safe/30' },
+    error: { label: 'エラー', bgColor: 'bg-red-500/20', textColor: 'text-red-400', borderColor: 'border-red-500/30' },
   };
   const config = stateConfig[syncState];
   return (
-    <span className={`px-1.5 py-0.5 rounded text-xs ${config.bgColor} ${config.textColor}`}>
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium backdrop-blur-sm border ${config.bgColor} ${config.textColor} ${config.borderColor}`}>
+      {syncState === 'uploading' && (
+        <div className="w-1.5 h-1.5 bg-yellow-400 rounded-full animate-pulse mr-1.5" />
+      )}
+      {syncState === 'synced' && (
+        <CheckIcon className="w-3 h-3 mr-1" />
+      )}
       {config.label}
     </span>
   );
@@ -97,15 +107,17 @@ const RecordingDownloadItem: React.FC<{
   const duration = recording ? RecordingAPIClient.calculateDuration(recording) : null;
 
   return (
-    <div className="flex items-center justify-between bg-maycast-bg px-3 py-2 rounded-lg">
+    <div className="flex items-center justify-between bg-maycast-bg/50 backdrop-blur-sm px-4 py-3 rounded-xl border border-maycast-border/30">
       <div className="flex items-center gap-3">
-        <DocumentArrowDownIcon className="w-4 h-4 text-maycast-accent" />
+        <div className="p-2 bg-maycast-safe/20 rounded-lg">
+          <DocumentArrowDownIcon className="w-4 h-4 text-maycast-safe" />
+        </div>
         <div>
           <span className="text-sm font-mono text-maycast-text">
             {recordingId.substring(0, 8)}...
           </span>
           {recording && (
-            <div className="flex items-center gap-2 text-xs text-maycast-text-secondary">
+            <div className="flex items-center gap-2 text-xs text-maycast-text-secondary mt-0.5">
               {duration !== null && (
                 <span>{RecordingAPIClient.formatDuration(duration)}</span>
               )}
@@ -119,13 +131,19 @@ const RecordingDownloadItem: React.FC<{
       <button
         onClick={() => onDownload(recordingId)}
         disabled={isLoading || isDownloading}
-        className="p-2 bg-maycast-primary/20 hover:bg-maycast-primary/30 rounded-lg transition-colors disabled:opacity-50"
-        title="Download MP4"
+        className="px-4 py-2 bg-maycast-safe hover:bg-maycast-safe/80 rounded-xl font-medium text-sm text-white transition-all transform hover:scale-[1.02] disabled:opacity-50 disabled:transform-none flex items-center gap-2"
+        title="MP4をダウンロード"
       >
         {isDownloading ? (
-          <div className="w-4 h-4 border-2 border-maycast-primary border-t-transparent rounded-full animate-spin" />
+          <>
+            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            <span>処理中...</span>
+          </>
         ) : (
-          <ArrowDownTrayIcon className="w-4 h-4 text-maycast-primary" />
+          <>
+            <ArrowDownTrayIcon className="w-4 h-4" />
+            <span>ダウンロード</span>
+          </>
         )}
       </button>
     </div>
@@ -203,39 +221,42 @@ const RecordingsDownloadSection: React.FC<{
 
   if (recordingIds.length === 0) {
     return (
-      <div className="text-sm text-maycast-text-secondary text-center py-2">
-        No recordings available
+      <div className="text-sm text-maycast-text-secondary text-center py-4">
+        録画データがありません
       </div>
     );
   }
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between">
-        <label className="text-xs text-maycast-text-secondary">
-          Recordings ({recordingIds.length})
-        </label>
+    <div className="bg-maycast-safe/10 backdrop-blur-md p-5 rounded-2xl border border-maycast-safe/30 shadow-lg">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <CheckIcon className="w-5 h-5 text-maycast-safe" />
+          <span className="font-semibold text-maycast-text">
+            録画完了 ({recordingIds.length}件)
+          </span>
+        </div>
         {recordingIds.length > 1 && (
           <button
             onClick={onDownloadAll}
             disabled={isDownloadingAll}
-            className="flex items-center gap-1 px-2 py-1 text-xs bg-maycast-primary/20 hover:bg-maycast-primary/30 text-maycast-primary rounded-lg transition-colors disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2 bg-maycast-safe hover:bg-maycast-safe/80 text-white rounded-xl font-medium text-sm transition-all transform hover:scale-[1.02] disabled:opacity-50 disabled:transform-none"
           >
             {isDownloadingAll ? (
               <>
-                <div className="w-3 h-3 border-2 border-maycast-primary border-t-transparent rounded-full animate-spin" />
-                Downloading...
+                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ダウンロード中...
               </>
             ) : (
               <>
-                <ArrowDownTrayIcon className="w-3 h-3" />
-                Download All
+                <ArrowDownTrayIcon className="w-4 h-4" />
+                すべてダウンロード
               </>
             )}
           </button>
         )}
       </div>
-      <div className="space-y-2">
+      <div className="space-y-3">
         {recordingIds.map((recordingId) => (
           <RecordingDownloadItem
             key={recordingId}
@@ -326,70 +347,78 @@ const RoomCard: React.FC<{
   };
 
   return (
-    <div className="bg-maycast-panel rounded-xl border border-maycast-border p-6 shadow-lg">
+    <div className="bg-maycast-panel/30 backdrop-blur-md rounded-2xl border border-maycast-border/40 p-6 shadow-xl">
       {/* Header */}
-      <div className="flex items-start justify-between mb-4">
+      <div className="flex items-start justify-between mb-5">
         <div>
-          <div className="flex items-center gap-3 mb-1">
-            <h3 className="text-lg font-semibold text-maycast-text font-mono">
-              {room.id.substring(0, 8)}...
+          <div className="flex items-center gap-3 mb-2">
+            <h3 className="text-lg font-bold text-maycast-text font-mono">
+              Room {room.id.substring(0, 8)}
             </h3>
             <RoomStateBadge state={room.state} />
           </div>
           <p className="text-sm text-maycast-text-secondary">
-            Created: {formatDate(room.created_at)}
+            作成: {formatDate(room.created_at)}
           </p>
         </div>
-        <div className="flex items-center gap-2 text-maycast-text-secondary">
-          <UsersIcon className="w-5 h-5" />
-          <span className="font-medium">{room.recording_ids.length}</span>
+        <div className="flex items-center gap-2 px-3 py-1.5 bg-maycast-primary/10 rounded-full border border-maycast-primary/20">
+          <UsersIcon className="w-4 h-4 text-maycast-primary" />
+          <span className="font-semibold text-maycast-primary text-sm">{room.recording_ids.length}</span>
         </div>
       </div>
 
       {/* Guest URL */}
-      <div className="mb-4">
-        <label className="text-xs text-maycast-text-secondary mb-1 block">Guest URL</label>
+      <div className="mb-5">
+        <label className="text-xs text-maycast-text-secondary mb-2 block font-medium">ゲスト招待URL</label>
         <div className="flex items-center gap-2">
           <input
             type="text"
             readOnly
             value={guestUrl}
-            className="flex-1 bg-maycast-bg text-maycast-text text-sm px-3 py-2 rounded-lg border border-maycast-border font-mono"
+            className="flex-1 bg-maycast-bg/50 text-maycast-text text-sm px-4 py-2.5 rounded-xl border border-maycast-border/50 font-mono focus:outline-none focus:border-maycast-primary/50"
           />
           <button
             onClick={copyGuestUrl}
-            className="px-3 py-2 bg-maycast-bg hover:bg-maycast-border rounded-lg transition-colors"
-            title="Copy URL"
+            className={`px-4 py-2.5 rounded-xl transition-all transform hover:scale-[1.02] ${
+              copied
+                ? 'bg-maycast-safe text-white'
+                : 'bg-maycast-primary/20 hover:bg-maycast-primary/30 text-maycast-primary'
+            }`}
+            title="URLをコピー"
           >
-            <ClipboardDocumentIcon className="w-5 h-5 text-maycast-text-secondary" />
+            {copied ? (
+              <CheckIcon className="w-5 h-5" />
+            ) : (
+              <ClipboardDocumentIcon className="w-5 h-5" />
+            )}
           </button>
         </div>
         {copied && (
-          <p className="text-xs text-green-400 mt-1">Copied to clipboard!</p>
+          <p className="text-xs text-maycast-safe mt-2 font-medium">クリップボードにコピーしました!</p>
         )}
       </div>
 
       {/* Guests */}
       {guests.length > 0 && (
-        <div className="mb-4">
-          <label className="text-xs text-maycast-text-secondary mb-2 block">
-            Guests ({guests.length})
+        <div className="mb-5">
+          <label className="text-xs text-maycast-text-secondary mb-2 block font-medium">
+            参加者 ({guests.length}名)
           </label>
           <div className="space-y-2">
             {guests.map((guest) => (
               <div
                 key={guest.recordingId}
-                className="flex items-center justify-between bg-maycast-bg px-3 py-2 rounded-lg"
+                className="flex items-center justify-between bg-maycast-bg/50 backdrop-blur-sm px-4 py-3 rounded-xl border border-maycast-border/30"
               >
-                <div className="flex items-center gap-2">
-                  <span className={`w-2 h-2 rounded-full ${guest.isConnected ? 'bg-green-400' : 'bg-gray-400'}`} />
-                  <span className="text-sm font-mono text-maycast-text-secondary">
-                    {guest.recordingId.substring(0, 8)}...
+                <div className="flex items-center gap-3">
+                  <div className={`w-2.5 h-2.5 rounded-full ${guest.isConnected ? 'bg-maycast-safe' : 'bg-gray-400'}`} />
+                  <span className="text-sm font-mono text-maycast-text">
+                    Guest {guest.recordingId.substring(0, 6)}
                   </span>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3">
                   {guest.syncState === 'uploading' && (
-                    <span className="text-xs text-maycast-text-secondary">
+                    <span className="text-xs text-maycast-text-secondary font-mono">
                       {guest.uploadedChunks}/{guest.totalChunks}
                     </span>
                   )}
@@ -403,7 +432,7 @@ const RoomCard: React.FC<{
 
       {/* Downloads (for finished rooms) */}
       {room.state === 'finished' && room.recording_ids.length > 0 && (
-        <div className="mb-4">
+        <div className="mb-5">
           <RecordingsDownloadSection
             recordingIds={room.recording_ids}
             onDownloadAll={handleDownloadAll}
@@ -418,48 +447,53 @@ const RoomCard: React.FC<{
           <button
             onClick={() => onStartRecording(room.id)}
             disabled={isUpdating}
-            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-maycast-rec hover:bg-maycast-rec/80 rounded-xl text-white font-semibold transition-colors disabled:opacity-50"
+            className="flex-1 flex items-center justify-center gap-2 px-5 py-3 bg-maycast-primary hover:bg-maycast-primary/80 rounded-xl text-white font-bold text-base transition-all transform hover:scale-[1.02] shadow-lg disabled:opacity-50 disabled:transform-none"
           >
             <PlayIcon className="w-5 h-5" />
-            Start Recording
+            録画を開始
           </button>
         )}
         {room.state === 'recording' && (
           <button
             onClick={() => onStopRecording(room.id)}
             disabled={isUpdating}
-            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gray-600 hover:bg-gray-500 rounded-xl text-white font-semibold transition-colors disabled:opacity-50"
+            className="flex-1 flex items-center justify-center gap-2 px-5 py-3 bg-maycast-rec hover:bg-maycast-rec/80 rounded-xl text-white font-bold text-base transition-all transform hover:scale-[1.02] shadow-lg disabled:opacity-50 disabled:transform-none"
           >
             <StopIcon className="w-5 h-5" />
-            Stop Recording
+            録画を停止
           </button>
         )}
         {room.state === 'finalizing' && (
-          <>
-            <div className="flex-1 flex items-center justify-center gap-2 text-yellow-400 text-sm py-2.5">
-              <div className="animate-spin rounded-full h-4 w-4 border-2 border-yellow-400 border-t-transparent" />
-              Waiting for guests to sync...
+          <div className="flex-1 bg-yellow-500/20 backdrop-blur-md p-4 rounded-xl border border-yellow-500/30">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3 text-yellow-400">
+                <div className="relative">
+                  <div className="w-4 h-4 bg-yellow-400 rounded-full animate-pulse" />
+                  <div className="absolute inset-0 w-4 h-4 bg-yellow-400 rounded-full animate-ping opacity-75" />
+                </div>
+                <span className="font-semibold">ゲストの同期を待機中...</span>
+              </div>
+              <button
+                onClick={() => onFinalize(room.id)}
+                disabled={isUpdating}
+                className="px-4 py-2 bg-maycast-safe hover:bg-maycast-safe/80 rounded-xl text-white text-sm font-medium transition-all disabled:opacity-50"
+                title="ゲストの同期を待たずに完了"
+              >
+                強制完了
+              </button>
             </div>
-            <button
-              onClick={() => onFinalize(room.id)}
-              disabled={isUpdating}
-              className="px-3 py-2 bg-green-600 hover:bg-green-500 rounded-xl text-white text-sm font-medium transition-colors disabled:opacity-50"
-              title="Force finish (skip waiting for guests)"
-            >
-              Force Finish
-            </button>
-          </>
+          </div>
         )}
         {room.state === 'finished' && room.recording_ids.length === 0 && (
-          <div className="flex-1 text-center text-maycast-text-secondary text-sm py-2.5">
-            Recording completed (no recordings)
+          <div className="flex-1 text-center text-maycast-text-secondary text-sm py-3 bg-maycast-bg/50 rounded-xl">
+            録画データがありません
           </div>
         )}
         <button
           onClick={() => onDelete(room.id)}
           disabled={isUpdating || room.state === 'recording' || room.state === 'finalizing'}
-          className="p-2.5 bg-maycast-bg hover:bg-maycast-rec/20 rounded-xl transition-colors disabled:opacity-50"
-          title={room.state === 'recording' || room.state === 'finalizing' ? 'Stop recording before deleting' : 'Delete room'}
+          className="p-3 bg-maycast-bg/50 hover:bg-maycast-rec/20 rounded-xl transition-all transform hover:scale-[1.02] disabled:opacity-50 disabled:transform-none border border-maycast-border/30"
+          title={room.state === 'recording' || room.state === 'finalizing' ? '録画中は削除できません' : 'Roomを削除'}
         >
           <TrashIcon className="w-5 h-5 text-maycast-rec" />
         </button>
@@ -529,8 +563,11 @@ export const DirectorPage: React.FC = () => {
   if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center h-full bg-maycast-bg text-maycast-text">
-        <div className="animate-spin rounded-full h-12 w-12 border-4 border-maycast-accent border-t-transparent mb-4"></div>
-        <p className="text-maycast-text-secondary">Loading rooms...</p>
+        <div className="relative">
+          <div className="animate-spin rounded-full h-12 w-12 border-4 border-maycast-primary border-t-transparent"></div>
+          <div className="absolute inset-0 animate-ping rounded-full h-12 w-12 border-4 border-maycast-primary/30"></div>
+        </div>
+        <p className="text-maycast-text-secondary mt-4 font-medium">読み込み中...</p>
       </div>
     );
   }
@@ -539,39 +576,43 @@ export const DirectorPage: React.FC = () => {
     <div className="flex flex-col h-full bg-maycast-bg text-maycast-text">
       {/* Header */}
       <div className="flex items-center justify-between px-8 py-6 border-b border-maycast-border">
-        <div className="flex items-center gap-3">
-          <UsersIcon className="w-7 h-7 text-maycast-primary" />
-          <h1 className="text-2xl font-bold">
-            Director Mode <span className="text-maycast-primary">({rooms.length} rooms)</span>
-          </h1>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 px-4 py-2 bg-maycast-primary/20 backdrop-blur-sm rounded-full border border-maycast-primary/30">
+            <UsersIcon className="w-5 h-5 text-maycast-primary" />
+            <span className="text-maycast-primary/80 font-semibold">Director</span>
+          </div>
+          <span className="text-maycast-text-secondary font-medium">{rooms.length} Rooms</span>
           {isWebSocketConnected ? (
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-500/20 text-green-400">
-              <SignalIcon className="w-3.5 h-3.5" />
-              Live
-            </span>
+            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-maycast-safe/20 backdrop-blur-sm rounded-full border border-maycast-safe/30">
+              <div className="relative">
+                <div className="w-2 h-2 bg-maycast-safe rounded-full" />
+                <div className="absolute inset-0 w-2 h-2 bg-maycast-safe rounded-full animate-ping opacity-75" />
+              </div>
+              <span className="text-maycast-safe/80 font-medium text-sm">Live</span>
+            </div>
           ) : (
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-yellow-500/20 text-yellow-400">
-              <SignalSlashIcon className="w-3.5 h-3.5" />
-              Polling
-            </span>
+            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-yellow-500/20 backdrop-blur-sm rounded-full border border-yellow-500/30">
+              <SignalSlashIcon className="w-3.5 h-3.5 text-yellow-400" />
+              <span className="text-yellow-400/80 font-medium text-sm">Polling</span>
+            </div>
           )}
         </div>
         <div className="flex items-center gap-3">
           <button
             onClick={refreshRooms}
             disabled={isUpdating}
-            className="p-2.5 bg-maycast-panel hover:bg-maycast-border rounded-xl transition-colors disabled:opacity-50"
-            title="Refresh"
+            className="p-3 bg-maycast-panel/50 hover:bg-maycast-border/50 rounded-xl transition-all transform hover:scale-[1.02] disabled:opacity-50 disabled:transform-none border border-maycast-border/30"
+            title="更新"
           >
             <ArrowPathIcon className={`w-5 h-5 text-maycast-text-secondary ${isUpdating ? 'animate-spin' : ''}`} />
           </button>
           <button
             onClick={handleCreateRoom}
             disabled={isUpdating}
-            className="flex items-center gap-2 px-4 py-2.5 bg-maycast-primary hover:bg-maycast-primary/80 rounded-xl text-white font-semibold transition-colors disabled:opacity-50"
+            className="flex items-center gap-2 px-5 py-3 bg-maycast-primary hover:bg-maycast-primary/80 rounded-xl text-white font-bold transition-all transform hover:scale-[1.02] shadow-lg disabled:opacity-50 disabled:transform-none"
           >
             <PlusIcon className="w-5 h-5" />
-            Create Room
+            Roomを作成
           </button>
         </div>
       </div>
@@ -589,15 +630,20 @@ export const DirectorPage: React.FC = () => {
           <div className="flex flex-col items-center justify-center h-full">
             <div className="bg-maycast-panel/30 backdrop-blur-md p-12 rounded-2xl border border-maycast-border/40 shadow-xl">
               <div className="flex flex-col items-center text-maycast-text-secondary">
-                <UsersIcon className="w-20 h-20 mb-4 opacity-50" />
-                <p className="text-lg font-medium mb-4">No rooms yet</p>
+                <div className="p-6 bg-maycast-primary/10 rounded-full mb-6">
+                  <UsersIcon className="w-16 h-16 text-maycast-primary/60" />
+                </div>
+                <p className="text-xl font-bold text-maycast-text mb-2">Roomがありません</p>
+                <p className="text-sm mb-6 text-center">
+                  Roomを作成して、ゲストを招待しましょう
+                </p>
                 <button
                   onClick={handleCreateRoom}
                   disabled={isUpdating}
-                  className="flex items-center gap-2 px-6 py-3 bg-maycast-primary hover:bg-maycast-primary/80 rounded-xl text-white font-semibold transition-colors disabled:opacity-50"
+                  className="flex items-center gap-2 px-6 py-3 bg-maycast-primary hover:bg-maycast-primary/80 rounded-xl text-white font-bold transition-all transform hover:scale-[1.02] shadow-lg disabled:opacity-50 disabled:transform-none"
                 >
                   <PlusIcon className="w-5 h-5" />
-                  Create Your First Room
+                  最初のRoomを作成
                 </button>
               </div>
             </div>
@@ -621,8 +667,10 @@ export const DirectorPage: React.FC = () => {
       </div>
 
       {/* Footer */}
-      <footer className="px-8 py-4 border-t border-maycast-border text-center text-maycast-text-secondary text-sm">
-        Share the Guest URL with participants. They will automatically start recording when you press "Start Recording".
+      <footer className="px-8 py-4 border-t border-maycast-border/50 text-center">
+        <p className="text-maycast-text-secondary text-sm">
+          ゲスト招待URLを参加者に共有してください。「録画を開始」を押すと、全員の録画が同時に開始されます。
+        </p>
       </footer>
     </div>
   );
