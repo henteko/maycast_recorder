@@ -15,8 +15,10 @@ import { DownloadRecordingUseCase } from '../../domain/usecases/DownloadRecordin
 // Use Cases - Room
 import { CreateRoomUseCase } from '../../domain/usecases/CreateRoom.usecase';
 import { GetRoomUseCase } from '../../domain/usecases/GetRoom.usecase';
+import { GetAllRoomsUseCase } from '../../domain/usecases/GetAllRooms.usecase';
 import { UpdateRoomStateUseCase } from '../../domain/usecases/UpdateRoomState.usecase';
 import { GetRoomRecordingsUseCase } from '../../domain/usecases/GetRoomRecordings.usecase';
+import { DeleteRoomUseCase } from '../../domain/usecases/DeleteRoom.usecase';
 
 // Controllers
 import { RecordingController } from '../../presentation/controllers/RecordingController';
@@ -97,6 +99,9 @@ export function setupContainer(storagePath: string = './recordings-data'): DICon
   const getRoomUseCase = new GetRoomUseCase(roomRepository);
   container.register('GetRoomUseCase', getRoomUseCase);
 
+  const getAllRoomsUseCase = new GetAllRoomsUseCase(roomRepository);
+  container.register('GetAllRoomsUseCase', getAllRoomsUseCase);
+
   const updateRoomStateUseCase = new UpdateRoomStateUseCase(roomRepository);
   container.register('UpdateRoomStateUseCase', updateRoomStateUseCase);
 
@@ -106,12 +111,17 @@ export function setupContainer(storagePath: string = './recordings-data'): DICon
   );
   container.register('GetRoomRecordingsUseCase', getRoomRecordingsUseCase);
 
+  const deleteRoomUseCase = new DeleteRoomUseCase(roomRepository);
+  container.register('DeleteRoomUseCase', deleteRoomUseCase);
+
   // Room Controller
   const roomController = new RoomController(
     createRoomUseCase,
     getRoomUseCase,
+    getAllRoomsUseCase,
     updateRoomStateUseCase,
-    getRoomRecordingsUseCase
+    getRoomRecordingsUseCase,
+    deleteRoomUseCase
   );
   container.register('RoomController', roomController);
 

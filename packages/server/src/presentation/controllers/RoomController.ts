@@ -2,8 +2,10 @@ import type { Request, Response } from 'express';
 import { RoomNotFoundError } from '@maycast/common-types';
 import type { CreateRoomUseCase } from '../../domain/usecases/CreateRoom.usecase';
 import type { GetRoomUseCase } from '../../domain/usecases/GetRoom.usecase';
+import type { GetAllRoomsUseCase } from '../../domain/usecases/GetAllRooms.usecase';
 import type { UpdateRoomStateUseCase } from '../../domain/usecases/UpdateRoomState.usecase';
 import type { GetRoomRecordingsUseCase } from '../../domain/usecases/GetRoomRecordings.usecase';
+import type { DeleteRoomUseCase } from '../../domain/usecases/DeleteRoom.usecase';
 
 /**
  * Room Controller
@@ -14,19 +16,25 @@ import type { GetRoomRecordingsUseCase } from '../../domain/usecases/GetRoomReco
 export class RoomController {
   private createRoomUseCase: CreateRoomUseCase;
   private getRoomUseCase: GetRoomUseCase;
+  private getAllRoomsUseCase: GetAllRoomsUseCase;
   private updateRoomStateUseCase: UpdateRoomStateUseCase;
   private getRoomRecordingsUseCase: GetRoomRecordingsUseCase;
+  private deleteRoomUseCase: DeleteRoomUseCase;
 
   constructor(
     createRoomUseCase: CreateRoomUseCase,
     getRoomUseCase: GetRoomUseCase,
+    getAllRoomsUseCase: GetAllRoomsUseCase,
     updateRoomStateUseCase: UpdateRoomStateUseCase,
-    getRoomRecordingsUseCase: GetRoomRecordingsUseCase
+    getRoomRecordingsUseCase: GetRoomRecordingsUseCase,
+    deleteRoomUseCase: DeleteRoomUseCase
   ) {
     this.createRoomUseCase = createRoomUseCase;
     this.getRoomUseCase = getRoomUseCase;
+    this.getAllRoomsUseCase = getAllRoomsUseCase;
     this.updateRoomStateUseCase = updateRoomStateUseCase;
     this.getRoomRecordingsUseCase = getRoomRecordingsUseCase;
+    this.deleteRoomUseCase = deleteRoomUseCase;
   }
 
   async create(_req: Request, res: Response): Promise<void> {
@@ -36,6 +44,20 @@ export class RoomController {
       room_id: result.roomId,
       created_at: result.room.createdAt,
       state: result.room.state,
+    });
+  }
+
+  async getAll(_req: Request, res: Response): Promise<void> {
+    const rooms = await this.getAllRoomsUseCase.execute();
+
+    res.json({
+      rooms: rooms.map((room) => ({
+        id: room.id,
+        state: room.state,
+        created_at: room.createdAt,
+        updated_at: room.updatedAt,
+        recording_ids: room.recordingIds,
+      })),
     });
   }
 
@@ -80,5 +102,13 @@ export class RoomController {
       room_id: result.roomId,
       recordings: result.recordings,
     });
+  }
+
+  async delete(req: Request, res: Response): Promise<void> {
+    const { id } = req.params;
+
+    await this.deleteRoomUseCase.execute({ roomId: id });
+
+    res.status(204).send();
   }
 }

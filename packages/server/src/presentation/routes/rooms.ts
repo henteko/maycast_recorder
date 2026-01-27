@@ -28,6 +28,17 @@ export function createRoomsRouter(roomController: RoomController): express.Route
   );
 
   /**
+   * GET /api/rooms
+   * 全Room一覧を取得
+   */
+  router.get(
+    '/rooms',
+    asyncHandler(async (req, res) => {
+      await roomController.getAll(req, res);
+    })
+  );
+
+  /**
    * GET /api/rooms/:id
    * Room情報を取得
    */
@@ -58,6 +69,17 @@ export function createRoomsRouter(roomController: RoomController): express.Route
     '/rooms/:id/recordings',
     asyncHandler(async (req, res) => {
       await roomController.getRecordings(req, res);
+    })
+  );
+
+  /**
+   * DELETE /api/rooms/:id
+   * Roomを削除
+   */
+  router.delete(
+    '/rooms/:id',
+    asyncHandler(async (req, res) => {
+      await roomController.delete(req, res);
     })
   );
 

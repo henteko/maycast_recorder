@@ -18,6 +18,7 @@ import type { RecordingId } from '@maycast/common-types';
 import { DIProvider, setupContainer } from './infrastructure/di';
 import { ResumeUploadModal } from './presentation/components/organisms/RecoveryModal';
 import { GuestRecorder } from './modes/guest';
+import { DirectorPage } from './modes/director';
 
 // 時間表示のフォーマット関数
 const formatElapsedTime = (seconds: number): string => {
@@ -203,6 +204,20 @@ function GuestModeRouter() {
   );
 }
 
+// Director Mode用のルーター
+function DirectorModeRouter() {
+  // Director Modeでは'remote'モードのDIコンテナを使用
+  const diContainer = useMemo(() => {
+    return setupContainer('remote');
+  }, []);
+
+  return (
+    <DIProvider container={diContainer}>
+      <DirectorPage />
+    </DIProvider>
+  );
+}
+
 function App() {
   return (
     <BrowserRouter>
@@ -212,6 +227,9 @@ function App() {
 
         {/* Remote Mode - /remote */}
         <Route path="/remote" element={<ModeRouter />} />
+
+        {/* Director Mode - /director */}
+        <Route path="/director" element={<DirectorModeRouter />} />
 
         {/* Guest Mode - /guest/:roomId */}
         <Route path="/guest/:roomId" element={<GuestModeRouter />} />
