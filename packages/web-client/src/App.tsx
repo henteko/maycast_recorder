@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom';
 import { Recorder } from './presentation/components/Recorder';
 import { LibraryPage } from './presentation/components/pages/LibraryPage';
 import { SettingsPage } from './presentation/components/pages/SettingsPage';
@@ -17,6 +17,7 @@ import { RemoteStorageStrategy } from './storage-strategies/RemoteStorageStrateg
 import type { RecordingId } from '@maycast/common-types';
 import { DIProvider, setupContainer } from './infrastructure/di';
 import { ResumeUploadModal } from './presentation/components/organisms/RecoveryModal';
+import { GuestRecorder } from './modes/guest';
 
 // 時間表示のフォーマット関数
 const formatElapsedTime = (seconds: number): string => {
@@ -178,6 +179,30 @@ function ModeRouter() {
   );
 }
 
+// Guest Mode用のルーター
+function GuestModeRouter() {
+  const { roomId } = useParams<{ roomId: string }>();
+
+  // Guest Modeでは'remote'モードのDIコンテナを使用
+  const diContainer = useMemo(() => {
+    return setupContainer('remote');
+  }, []);
+
+  if (!roomId) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-maycast-bg text-maycast-text">
+        <p>Room ID is required</p>
+      </div>
+    );
+  }
+
+  return (
+    <DIProvider container={diContainer}>
+      <GuestRecorder roomId={roomId} />
+    </DIProvider>
+  );
+}
+
 function App() {
   return (
     <BrowserRouter>
@@ -187,6 +212,9 @@ function App() {
 
         {/* Remote Mode - /remote */}
         <Route path="/remote" element={<ModeRouter />} />
+
+        {/* Guest Mode - /guest/:roomId */}
+        <Route path="/guest/:roomId" element={<GuestModeRouter />} />
 
         {/* Default redirect to /solo */}
         <Route path="/" element={<Navigate to="/solo" replace />} />

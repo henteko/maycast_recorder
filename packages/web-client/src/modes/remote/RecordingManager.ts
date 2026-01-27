@@ -23,10 +23,11 @@ export class RecordingManager {
 
   /**
    * 新しいRecordingを作成
+   * @param roomId Optional Room ID for Guest Mode recordings
    */
-  async createRecording(): Promise<string> {
-    console.log('📡 [RecordingManager] Calling createRecording API...');
-    const response = await this.apiClient.createRecording();
+  async createRecording(roomId?: string): Promise<string> {
+    console.log('📡 [RecordingManager] Calling createRecording API...', roomId ? `(roomId: ${roomId})` : '');
+    const response = await this.apiClient.createRecording(roomId);
     this.recordingId = response.recording_id;
     this.currentState = 'standby'; // 初期状態
     console.log(`📝 [RecordingManager] Recording created: ${this.recordingId}`);

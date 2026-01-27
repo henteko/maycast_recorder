@@ -46,10 +46,15 @@ export class RecordingAPIClient {
 
   /**
    * 新しいRecordingを作成
+   * @param roomId Optional Room ID for Guest Mode recordings
    */
-  async createRecording(): Promise<CreateRecordingResponse> {
-    console.log(`📡 [RecordingAPIClient] POST ${this.baseUrl}/api/recordings`);
-    const response = await fetch(`${this.baseUrl}/api/recordings`, {
+  async createRecording(roomId?: string): Promise<CreateRecordingResponse> {
+    const url = roomId
+      ? `${this.baseUrl}/api/recordings?roomId=${encodeURIComponent(roomId)}`
+      : `${this.baseUrl}/api/recordings`;
+
+    console.log(`📡 [RecordingAPIClient] POST ${url}`);
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
