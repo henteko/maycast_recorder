@@ -5,9 +5,11 @@ import dotenv from 'dotenv';
 import { setupContainer } from './infrastructure/di/setupContainer.js';
 import { createRecordingsRouter } from './presentation/routes/recordings.js';
 import { createChunksRouter } from './presentation/routes/chunks.js';
+import { createRoomsRouter } from './presentation/routes/rooms.js';
 import { errorHandler } from './presentation/middleware/errorHandler.js';
 import type { RecordingController } from './presentation/controllers/RecordingController.js';
 import type { ChunkController } from './presentation/controllers/ChunkController.js';
+import type { RoomController } from './presentation/controllers/RoomController.js';
 
 // Load environment variables
 dotenv.config();
@@ -22,6 +24,7 @@ const CORS_ORIGIN = process.env.CORS_ORIGIN || 'http://localhost:5173';
 const container = setupContainer(STORAGE_PATH);
 const recordingController = container.resolve<RecordingController>('RecordingController');
 const chunkController = container.resolve<ChunkController>('ChunkController');
+const roomController = container.resolve<RoomController>('RoomController');
 
 // Middleware
 app.use(cors({
@@ -31,11 +34,13 @@ app.use(cors({
 app.use(morgan(LOG_LEVEL === 'debug' ? 'dev' : 'combined'));
 
 // API routes
-// NOTE: チャンクルーターとレコーディングルーターは、それぞれ独自のボディパーサーを持つ
+// NOTE: 各ルーターは独自のボディパーサーを持つ
 // - チャンクルーター: express.raw()でバイナリデータをパース
 // - レコーディングルーター: express.json()でJSONデータをパース
+// - ルームルーター: express.json()でJSONデータをパース
 app.use('/api', createChunksRouter(chunkController));
 app.use('/api', createRecordingsRouter(recordingController));
+app.use('/api', createRoomsRouter(roomController));
 
 // Health check endpoint
 app.get('/health', (_req, res) => {

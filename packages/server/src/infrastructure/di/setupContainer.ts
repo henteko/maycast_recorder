@@ -1,8 +1,9 @@
 import { DIContainer } from './DIContainer';
 import { InMemoryRecordingRepository } from '../repositories/InMemoryRecordingRepository';
+import { InMemoryRoomRepository } from '../repositories/InMemoryRoomRepository';
 import { LocalFileSystemChunkRepository } from '../repositories/LocalFileSystemChunkRepository';
 
-// Use Cases
+// Use Cases - Recording
 import { CreateRecordingUseCase } from '../../domain/usecases/CreateRecording.usecase';
 import { GetRecordingUseCase } from '../../domain/usecases/GetRecording.usecase';
 import { UpdateRecordingStateUseCase } from '../../domain/usecases/UpdateRecordingState.usecase';
@@ -11,12 +12,20 @@ import { UploadInitSegmentUseCase } from '../../domain/usecases/UploadInitSegmen
 import { UploadChunkUseCase } from '../../domain/usecases/UploadChunk.usecase';
 import { DownloadRecordingUseCase } from '../../domain/usecases/DownloadRecording.usecase';
 
+// Use Cases - Room
+import { CreateRoomUseCase } from '../../domain/usecases/CreateRoom.usecase';
+import { GetRoomUseCase } from '../../domain/usecases/GetRoom.usecase';
+import { UpdateRoomStateUseCase } from '../../domain/usecases/UpdateRoomState.usecase';
+import { GetRoomRecordingsUseCase } from '../../domain/usecases/GetRoomRecordings.usecase';
+
 // Controllers
 import { RecordingController } from '../../presentation/controllers/RecordingController';
 import { ChunkController } from '../../presentation/controllers/ChunkController';
+import { RoomController } from '../../presentation/controllers/RoomController';
 
 import type { IRecordingRepository } from '../../domain/repositories/IRecordingRepository';
 import type { IChunkRepository } from '../../domain/repositories/IChunkRepository';
+import type { IRoomRepository } from '../../domain/repositories/IRoomRepository';
 
 /**
  * DIコンテナのセットアップ (Server-side)
@@ -33,9 +42,11 @@ export function setupContainer(storagePath: string = './recordings-data'): DICon
 
   // Repositories
   const recordingRepository = new InMemoryRecordingRepository();
+  const roomRepository = new InMemoryRoomRepository();
   const chunkRepository = new LocalFileSystemChunkRepository(storagePath);
 
   container.register<IRecordingRepository>('RecordingRepository', recordingRepository);
+  container.register<IRoomRepository>('RoomRepository', roomRepository);
   container.register<IChunkRepository>('ChunkRepository', chunkRepository);
 
   // Use Cases
@@ -78,6 +89,31 @@ export function setupContainer(storagePath: string = './recordings-data'): DICon
 
   const chunkController = new ChunkController(uploadInitSegmentUseCase, uploadChunkUseCase);
   container.register('ChunkController', chunkController);
+
+  // Room Use Cases
+  const createRoomUseCase = new CreateRoomUseCase(roomRepository);
+  container.register('CreateRoomUseCase', createRoomUseCase);
+
+  const getRoomUseCase = new GetRoomUseCase(roomRepository);
+  container.register('GetRoomUseCase', getRoomUseCase);
+
+  const updateRoomStateUseCase = new UpdateRoomStateUseCase(roomRepository);
+  container.register('UpdateRoomStateUseCase', updateRoomStateUseCase);
+
+  const getRoomRecordingsUseCase = new GetRoomRecordingsUseCase(
+    roomRepository,
+    recordingRepository
+  );
+  container.register('GetRoomRecordingsUseCase', getRoomRecordingsUseCase);
+
+  // Room Controller
+  const roomController = new RoomController(
+    createRoomUseCase,
+    getRoomUseCase,
+    updateRoomStateUseCase,
+    getRoomRecordingsUseCase
+  );
+  container.register('RoomController', roomController);
 
   console.log('✅ Server DIContainer setup complete');
 

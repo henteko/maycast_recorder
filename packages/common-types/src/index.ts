@@ -1,6 +1,7 @@
 // Entities
 export { RecordingEntity } from './entities/Recording.entity.js';
 export { ChunkEntity } from './entities/Chunk.entity.js';
+export { RoomEntity } from './entities/Room.entity.js';
 
 // Domain Errors
 export {
@@ -14,6 +15,8 @@ export {
   UploadError,
   StorageFullError,
   StorageAccessError,
+  RoomNotFoundError,
+  InvalidRoomStateTransitionError,
 } from './errors/DomainErrors.js';
 
 // Chunk types

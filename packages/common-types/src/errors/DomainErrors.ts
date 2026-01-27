@@ -78,3 +78,18 @@ export class StorageAccessError extends DomainError {
     super(message, 'STORAGE_ACCESS_ERROR');
   }
 }
+
+/**
+ * Room関連エラー
+ */
+export class RoomNotFoundError extends DomainError {
+  constructor(message: string) {
+    super(message, 'ROOM_NOT_FOUND');
+  }
+}
+
+export class InvalidRoomStateTransitionError extends DomainError {
+  constructor(message: string) {
+    super(message, 'INVALID_ROOM_STATE_TRANSITION');
+  }
+}

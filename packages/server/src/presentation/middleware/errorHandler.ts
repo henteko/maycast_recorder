@@ -57,12 +57,14 @@ function getStatusCodeForDomainError(error: DomainError): number {
     // 404 Not Found
     case 'RECORDING_NOT_FOUND':
     case 'CHUNK_NOT_FOUND':
+    case 'ROOM_NOT_FOUND':
       return 404;
 
     // 400 Bad Request
     case 'INVALID_STATE_TRANSITION':
     case 'INVALID_OPERATION':
     case 'INVALID_CHUNK':
+    case 'INVALID_ROOM_STATE_TRANSITION':
       return 400;
 
     // 507 Insufficient Storage
