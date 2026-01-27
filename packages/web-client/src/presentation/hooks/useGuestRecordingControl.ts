@@ -102,6 +102,7 @@ export const useGuestRecordingControl = ({
     // Room状態がrecordingになったら自動的に録画開始
     if (roomState === 'recording' && !hasStartedRecording && recorder.wasmInitialized) {
       console.log('🎬 [useGuestRecordingControl] Director started recording, auto-starting...');
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setHasStartedRecording(true);
       setGuestSyncState('recording');
       recorder.startRecording();

@@ -148,6 +148,8 @@ export function useRoomWebSocket(
       }
       // Note: WebSocket接続自体は維持（他のコンポーネントが使う可能性あり）
     };
+    // Note: recordingIdは意図的に依存配列から除外（初回接続時のjoinRoomにのみ使用、後からsetRecordingIdで更新可能）
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId, fetchRoom, startPolling, stopPolling]);
 
   // クリーンアップ

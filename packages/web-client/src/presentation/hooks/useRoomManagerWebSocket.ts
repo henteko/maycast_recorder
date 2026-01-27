@@ -255,11 +255,15 @@ export function useRoomManagerWebSocket(
 
     return () => {
       stopPolling();
-      subscribedRoomsRef.current.forEach((roomId) => {
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- subscribedRoomsRefはDOM要素ではなくSetなので、クリーンアップ時の現在値が必要
+      const subscribedRooms = subscribedRoomsRef.current;
+      subscribedRooms.forEach((roomId) => {
         wsClient.leaveRoom(roomId);
       });
-      subscribedRoomsRef.current.clear();
+      subscribedRooms.clear();
     };
+    // Note: roomsは意図的に依存配列から除外（onConnect時の初期購読にのみ使用）
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchRooms, startPolling, stopPolling]);
 
   // クリーンアップ

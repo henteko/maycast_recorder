@@ -94,7 +94,7 @@ export class ResumeUploadManager {
       try {
         await this.apiClient.getRecording(remoteRecordingId);
         console.log(`✅ [ResumeUploadManager] Server recording exists: ${remoteRecordingId}`);
-      } catch (error) {
+      } catch (_error) {
         // Recording が見つからない場合はエラーを返す
         const errorMsg = `サーバー側に Recording が存在しません (ID: ${remoteRecordingId})。サーバーが再起動された可能性があります。この録画データは手動で削除してください。`;
         console.error(`❌ [ResumeUploadManager] ${errorMsg}`);

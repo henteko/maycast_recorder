@@ -2,7 +2,7 @@
  * RecordingsDownloadSection - 録画ダウンロードセクション
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { ArrowDownTrayIcon, CheckIcon } from '@heroicons/react/24/solid';
 import { RecordingAPIClient, type RecordingInfo } from '../../../infrastructure/api/recording-api';
 import { getServerUrl } from '../../../modes/remote/serverConfig';
@@ -23,6 +23,7 @@ export const RecordingsDownloadSection: React.FC<RecordingsDownloadSectionProps>
   const [recordings, setRecordings] = useState<Map<string, RecordingInfo>>(new Map());
   const [loadingIds, setLoadingIds] = useState<Set<string>>(new Set());
   const [downloadingIds, setDownloadingIds] = useState<Set<string>>(new Set());
+  const fetchedIdsRef = useRef<Set<string>>(new Set());
 
   // Recording情報を取得
   useEffect(() => {
@@ -31,7 +32,9 @@ export const RecordingsDownloadSection: React.FC<RecordingsDownloadSectionProps>
       const apiClient = new RecordingAPIClient(serverUrl);
 
       for (const recordingId of recordingIds) {
-        if (recordings.has(recordingId)) continue;
+        // 既に取得済みまたは取得中の場合はスキップ
+        if (fetchedIdsRef.current.has(recordingId)) continue;
+        fetchedIdsRef.current.add(recordingId);
 
         setLoadingIds((prev) => new Set(prev).add(recordingId));
         try {
@@ -39,6 +42,8 @@ export const RecordingsDownloadSection: React.FC<RecordingsDownloadSectionProps>
           setRecordings((prev) => new Map(prev).set(recordingId, info));
         } catch (err) {
           console.error(`Failed to fetch recording ${recordingId}:`, err);
+          // エラー時はrefから削除してリトライ可能に
+          fetchedIdsRef.current.delete(recordingId);
         } finally {
           setLoadingIds((prev) => {
             const next = new Set(prev);
