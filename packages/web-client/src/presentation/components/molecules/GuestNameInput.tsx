@@ -27,6 +27,16 @@ export const GuestNameInput: React.FC<GuestNameInputProps> = ({ roomId, onJoin }
   return (
     <div className="flex flex-col items-center justify-center h-full bg-maycast-bg text-maycast-text">
       <div className="w-full max-w-md px-4">
+        {/* Maycast Branding */}
+        <div className="flex items-center justify-center gap-3 mb-8">
+          <div className="text-3xl font-bold text-maycast-primary">
+            MAYCAST
+          </div>
+          <span className="px-2 py-0.5 text-xs font-semibold text-maycast-primary bg-maycast-primary/10 border border-maycast-primary/30 rounded">
+            BETA
+          </span>
+        </div>
+
         <div className="bg-maycast-panel/30 backdrop-blur-md p-8 rounded-2xl border border-maycast-border/40 shadow-xl">
           <div className="text-center mb-8">
             <div className="inline-flex items-center justify-center w-16 h-16 bg-maycast-primary/20 rounded-full mb-4">
