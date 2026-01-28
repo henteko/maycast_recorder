@@ -40,10 +40,8 @@ pub fn version() -> String {
 
 /// WASM wrapper for MuxideMuxerState
 ///
-/// This muxer uses the muxide library for correct fMP4 generation
-/// that is compatible with QuickTime and other strict players.
-///
-/// NOTE: Currently video-only. Audio support pending muxide library update.
+/// This muxer generates fMP4 files compatible with QuickTime and other strict players.
+/// Supports both H.264 video and AAC audio tracks.
 #[wasm_bindgen]
 pub struct MuxideMuxer {
     state: MuxideMuxerState,
@@ -51,7 +49,7 @@ pub struct MuxideMuxer {
 
 #[wasm_bindgen]
 impl MuxideMuxer {
-    /// Create a new MuxideMuxer instance
+    /// Create a new MuxideMuxer instance (video-only)
     ///
     /// # Arguments
     /// * `video_width` - Video width in pixels
@@ -67,6 +65,10 @@ impl MuxideMuxer {
             fragment_duration_ms: 2000,
             sps,
             pps,
+            audio_sample_rate: None,
+            audio_channels: None,
+            audio_timescale: None,
+            audio_specific_config: None,
         };
         Self {
             state: MuxideMuxerState::new(config),
@@ -76,6 +78,7 @@ impl MuxideMuxer {
     /// Create a MuxideMuxer from avcC data (codec configuration from WebCodecs)
     ///
     /// This extracts SPS and PPS from the avcC box automatically.
+    /// Video-only mode (no audio).
     #[wasm_bindgen]
     pub fn from_avcc(video_width: u32, video_height: u32, avcc: &[u8]) -> Result<MuxideMuxer, String> {
         let (sps, pps) = extract_sps_pps_from_avcc(avcc)?;
@@ -87,6 +90,49 @@ impl MuxideMuxer {
             fragment_duration_ms: 2000,
             sps,
             pps,
+            audio_sample_rate: None,
+            audio_channels: None,
+            audio_timescale: None,
+            audio_specific_config: None,
+        };
+
+        Ok(Self {
+            state: MuxideMuxerState::new(config),
+        })
+    }
+
+    /// Create a MuxideMuxer with both video and audio support
+    ///
+    /// # Arguments
+    /// * `video_width` - Video width in pixels
+    /// * `video_height` - Video height in pixels
+    /// * `avcc` - avcC data containing SPS and PPS
+    /// * `audio_sample_rate` - Audio sample rate (e.g., 48000)
+    /// * `audio_channels` - Number of audio channels (1 = mono, 2 = stereo)
+    /// * `audio_specific_config` - Optional AudioSpecificConfig from WebCodecs (decoderConfig.description).
+    ///                             If not provided, it will be auto-generated for AAC-LC.
+    #[wasm_bindgen]
+    pub fn from_avcc_with_audio(
+        video_width: u32,
+        video_height: u32,
+        avcc: &[u8],
+        audio_sample_rate: u32,
+        audio_channels: u16,
+        audio_specific_config: Option<Vec<u8>>,
+    ) -> Result<MuxideMuxer, String> {
+        let (sps, pps) = extract_sps_pps_from_avcc(avcc)?;
+
+        let config = MuxideConfig {
+            video_width,
+            video_height,
+            video_timescale: 90000,
+            fragment_duration_ms: 2000,
+            sps,
+            pps,
+            audio_sample_rate: Some(audio_sample_rate),
+            audio_channels: Some(audio_channels),
+            audio_timescale: Some(audio_sample_rate), // Use sample rate as timescale
+            audio_specific_config,
         };
 
         Ok(Self {
@@ -134,6 +180,29 @@ impl MuxideMuxer {
         self.state.push_video_chunk(&avcc_data, timestamp_us, is_keyframe)
     }
 
+    /// Add an audio chunk
+    ///
+    /// # Arguments
+    /// * `data` - Audio frame data (raw AAC, no ADTS header)
+    /// * `timestamp` - Presentation timestamp in microseconds (from WebCodecs)
+    /// * `duration` - Duration in microseconds (from WebCodecs)
+    #[wasm_bindgen]
+    pub fn push_audio(
+        &mut self,
+        data: &[u8],
+        timestamp: f64,
+        duration: u32,
+    ) -> Result<(), String> {
+        let timestamp_us = timestamp as u64;
+        self.state.push_audio_chunk(data, timestamp_us, duration)
+    }
+
+    /// Check if audio is enabled for this muxer
+    #[wasm_bindgen]
+    pub fn has_audio(&self) -> bool {
+        self.state.has_audio()
+    }
+
     /// Force flush the current segment
     #[wasm_bindgen]
     pub fn flush(&mut self) -> Result<(), String> {
@@ -167,6 +236,12 @@ impl MuxideMuxer {
     #[wasm_bindgen]
     pub fn get_video_frame_count(&self) -> u32 {
         self.state.video_frame_count
+    }
+
+    /// Get audio frame count
+    #[wasm_bindgen]
+    pub fn get_audio_frame_count(&self) -> u32 {
+        self.state.audio_frame_count
     }
 }
 

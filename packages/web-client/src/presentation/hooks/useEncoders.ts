@@ -5,19 +5,17 @@
  *
  * ## 現在の設計
  * - IStorageStrategyを使用してチャンク保存を抽象化
- * - WASMベースのMuxideMuxerと密結合（muxideライブラリ使用）
+ * - WASMベースのMuxideMuxerと密結合
  * - リアルタイムエンコーディング処理
+ * - ビデオ（H.264）とオーディオ（AAC）の両方をfMP4にmux
  *
  * ## 将来のリファクタリング候補
  * - TODO: SaveChunkUseCaseの使用を検討（ただしリアルタイム性の考慮が必要）
  * - TODO: エンコーダー設定のValue Objectを検討
  * - TODO: Muxer管理の分離を検討
- * - TODO: オーディオサポートの追加（muxideがオーディオ対応したら）
  *
  * NOTE: エンコーディングはリアルタイムで行われ、パフォーマンスが重要。
  *       Use Caseの導入により、オーバーヘッドが発生する可能性があるため慎重に検討。
- *
- * NOTE: 現在はビデオのみ対応。muxideのFragmentedMuxerがオーディオ未対応のため。
  */
 
 import { useRef, useCallback } from 'react'
@@ -42,6 +40,8 @@ export const useEncoders = ({ wasmInitialized, settings, storageStrategy, onStat
   const muxerRef = useRef<any | null>(null)
   const initSegmentRef = useRef<Uint8Array | null>(null)
   const videoConfigRef = useRef<Uint8Array | null>(null)
+  const audioConfigRef = useRef<Uint8Array | null>(null)
+  const audioSettingsRef = useRef<{ sampleRate: number; channelCount: number } | null>(null)
   const activeStreamRef = useRef<MediaStream | null>(null)
   const baseVideoTimestampRef = useRef<number | null>(null)
   const baseAudioTimestampRef = useRef<number | null>(null)
@@ -54,7 +54,7 @@ export const useEncoders = ({ wasmInitialized, settings, storageStrategy, onStat
       return;
     }
 
-    // MuxideMuxerはビデオのみ対応（オーディオは未サポート）
+    // ビデオ設定が必要、オーディオ設定はオプション
     if (!videoConfigRef.current || !wasmInitialized || !activeStreamRef.current) {
       console.log('⏳ Waiting for video codec config...', {
         video: !!videoConfigRef.current,
@@ -65,9 +65,12 @@ export const useEncoders = ({ wasmInitialized, settings, storageStrategy, onStat
     }
 
     const qualityConfig = QUALITY_PRESETS[settings.qualityPreset]
+    const audioSettings = audioSettingsRef.current
 
     console.log('📹 Initializing MuxideMuxer with config:', {
       videoConfig: videoConfigRef.current.length,
+      audioConfig: audioConfigRef.current?.length,
+      audioSettings,
       width: qualityConfig.width,
       height: qualityConfig.height,
       preset: settings.qualityPreset
@@ -77,12 +80,27 @@ export const useEncoders = ({ wasmInitialized, settings, storageStrategy, onStat
     const { MuxideMuxer } = await import('maycast-wasm-core')
 
     try {
-      // MuxideMuxer.from_avcc でavcCからSPS/PPSを自動抽出
-      const muxer = MuxideMuxer.from_avcc(
-        qualityConfig.width,
-        qualityConfig.height,
-        videoConfigRef.current
-      )
+      let muxer
+      if (audioSettings) {
+        // オーディオ設定がある場合はオーディオ付きで初期化
+        muxer = MuxideMuxer.from_avcc_with_audio(
+          qualityConfig.width,
+          qualityConfig.height,
+          videoConfigRef.current,
+          audioSettings.sampleRate,
+          audioSettings.channelCount,
+          audioConfigRef.current || undefined // AudioSpecificConfig (optional)
+        )
+        console.log('🎵 MuxideMuxer initialized with audio support')
+      } else {
+        // ビデオのみで初期化
+        muxer = MuxideMuxer.from_avcc(
+          qualityConfig.width,
+          qualityConfig.height,
+          videoConfigRef.current
+        )
+        console.log('📹 MuxideMuxer initialized (video only)')
+      }
 
       const initSegment = muxer.initialize()
       initSegmentRef.current = initSegment
@@ -109,6 +127,14 @@ export const useEncoders = ({ wasmInitialized, settings, storageStrategy, onStat
     const audioTrack = activeStream.getAudioTracks()[0]
     const audioSettings = audioTrack?.getSettings()
     const qualityConfig = QUALITY_PRESETS[settings.qualityPreset]
+
+    // オーディオ設定を保存（Muxer初期化時に使用）
+    if (audioSettings?.sampleRate && audioSettings?.channelCount) {
+      audioSettingsRef.current = {
+        sampleRate: audioSettings.sampleRate,
+        channelCount: audioSettings.channelCount
+      }
+    }
 
     console.log('🎤 Audio track settings:', audioSettings)
 
@@ -189,12 +215,31 @@ export const useEncoders = ({ wasmInitialized, settings, storageStrategy, onStat
 
     audioEncoderRef.current = new AudioEncoder({
       output: (chunk, metadata) => {
-        // NOTE: MuxideMuxerはオーディオ未対応のため、統計のみ更新
-        // TODO: muxideがオーディオ対応したら、ここでMuxerに送信する
+        // AudioSpecificConfigを取得（最初のチャンクのmetadataに含まれる）
+        if (metadata?.decoderConfig?.description && !audioConfigRef.current) {
+          audioConfigRef.current = new Uint8Array(metadata.decoderConfig.description as ArrayBuffer)
+          console.log('✅ Audio decoder config captured:', audioConfigRef.current.length, 'bytes')
+          // オーディオ設定が揃ったらMuxer初期化を試みる
+          initializeMuxerWithConfigs()
+        }
 
         if (baseAudioTimestampRef.current === null) {
           baseAudioTimestampRef.current = chunk.timestamp
           console.log('🎤 Base audio timestamp set:', chunk.timestamp)
+        }
+
+        // Muxerにオーディオを送信
+        if (muxerRef.current && muxerRef.current.has_audio && muxerRef.current.has_audio()) {
+          try {
+            const relativeTimestamp = chunk.timestamp - baseAudioTimestampRef.current
+            const buffer = new Uint8Array(chunk.byteLength)
+            chunk.copyTo(buffer)
+            // duration is in microseconds from WebCodecs
+            const duration = chunk.duration || 21333 // デフォルト: 1024 samples @ 48kHz ≈ 21.33ms
+            muxerRef.current.push_audio(buffer, relativeTimestamp, duration)
+          } catch (err) {
+            console.error('❌ MuxideMuxer push_audio error:', err)
+          }
         }
 
         onStatsUpdate(prev => ({
@@ -245,6 +290,8 @@ export const useEncoders = ({ wasmInitialized, settings, storageStrategy, onStat
 
   const resetEncoders = useCallback(() => {
     videoConfigRef.current = null
+    audioConfigRef.current = null
+    audioSettingsRef.current = null
     muxerRef.current = null
     initSegmentRef.current = null
     activeStreamRef.current = null
