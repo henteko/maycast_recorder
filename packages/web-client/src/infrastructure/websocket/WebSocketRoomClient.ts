@@ -50,6 +50,22 @@ interface ClientToServerEvents {
 }
 
 /**
+ * Room参加時に受信するゲスト一覧
+ */
+export interface RoomGuestsData {
+  roomId: string;
+  guests: Array<{
+    guestId: string;
+    recordingId?: string;
+    name?: string;
+    syncState: GuestSyncState;
+    uploadedChunks: number;
+    totalChunks: number;
+    mediaStatus?: GuestMediaStatus;
+  }>;
+}
+
+/**
  * サーバーからクライアントへのイベント
  */
 interface ServerToClientEvents {
@@ -62,6 +78,7 @@ interface ServerToClientEvents {
   guest_sync_state_changed: (data: GuestSyncStateChanged) => void;
   guest_sync_complete: (data: GuestSyncComplete) => void;
   guest_sync_error: (data: GuestSyncError) => void;
+  room_guests: (data: RoomGuestsData) => void;
   error: (data: { message: string }) => void;
 }
 
@@ -78,6 +95,8 @@ export interface RoomEventListeners {
   onGuestSyncStateChanged?: (data: GuestSyncStateChanged) => void;
   onGuestSyncComplete?: (data: GuestSyncComplete) => void;
   onGuestSyncError?: (data: GuestSyncError) => void;
+  /** Room参加時に現在のゲスト一覧を受信 */
+  onRoomGuests?: (data: RoomGuestsData) => void;
   onError?: (data: { message: string }) => void;
   onConnect?: () => void;
   onDisconnect?: () => void;
@@ -192,6 +211,11 @@ export class WebSocketRoomClient {
     this.socket.on('guest_sync_error', (data) => {
       console.log('📡 [WebSocketRoomClient] guest_sync_error:', data);
       this.listeners.onGuestSyncError?.(data);
+    });
+
+    this.socket.on('room_guests', (data) => {
+      console.log('📡 [WebSocketRoomClient] room_guests:', data);
+      this.listeners.onRoomGuests?.(data);
     });
   }
 

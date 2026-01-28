@@ -86,6 +86,16 @@ interface ServerToClientEvents {
   guest_sync_state_changed: (data: GuestSyncStateChanged) => void;
   guest_sync_complete: (data: GuestSyncComplete) => void;
   guest_sync_error: (data: GuestSyncError) => void;
+  /** Room参加時に現在のゲスト一覧を送信 */
+  room_guests: (data: { roomId: string; guests: Array<{
+    guestId: string;
+    recordingId?: string;
+    name?: string;
+    syncState: GuestSyncState;
+    uploadedChunks: number;
+    totalChunks: number;
+    mediaStatus?: GuestMediaStatus;
+  }> }) => void;
   error: (data: { message: string }) => void;
 }
 
@@ -138,7 +148,20 @@ export class WebSocketManager {
       socket.join(`room:${roomId}`);
 
       // nameがない場合はDirector等なのでゲスト追跡しない
+      // ただし現在のゲスト一覧を送信する
       if (!name) {
+        // 現在のゲスト一覧を送信
+        const guests = this.getRoomGuests(roomId).map((g) => ({
+          guestId: g.guestId,
+          recordingId: g.recordingId,
+          name: g.name,
+          syncState: g.syncState,
+          uploadedChunks: g.uploadedChunks,
+          totalChunks: g.totalChunks,
+          mediaStatus: g.mediaStatus,
+        }));
+        socket.emit('room_guests', { roomId, guests });
+        console.log(`📤 [WebSocket] Sent ${guests.length} guests to Director for room: ${roomId}`);
         return;
       }
 

@@ -6,7 +6,7 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { getWebSocketRoomClient, resetWebSocketRoomClient } from '../../infrastructure/websocket/WebSocketRoomClient';
+import { getWebSocketRoomClient, resetWebSocketRoomClient, type RoomGuestsData } from '../../infrastructure/websocket/WebSocketRoomClient';
 import { RoomAPIClient, RoomNotFoundError } from '../../infrastructure/api/room-api';
 import type { RoomInfo } from '../../infrastructure/api/room-api';
 import type {
@@ -299,6 +299,32 @@ export function useRoomManagerWebSocket(
             }
           }
           return prev;
+        });
+      },
+      onRoomGuests: (data: RoomGuestsData) => {
+        console.log(`📡 [useRoomManagerWebSocket] Room guests received: room=${data.roomId}, count=${data.guests.length}`);
+        setGuestsByRoom((prev) => {
+          const next = new Map(prev);
+          if (!next.has(data.roomId)) {
+            next.set(data.roomId, new Map());
+          }
+          const roomGuests = next.get(data.roomId)!;
+
+          // 受信したゲスト情報を追加
+          data.guests.forEach((guest) => {
+            roomGuests.set(guest.guestId, {
+              guestId: guest.guestId,
+              recordingId: guest.recordingId,
+              name: guest.name,
+              syncState: guest.syncState,
+              uploadedChunks: guest.uploadedChunks,
+              totalChunks: guest.totalChunks,
+              mediaStatus: guest.mediaStatus,
+              isConnected: true,
+              lastUpdatedAt: new Date().toISOString(),
+            });
+          });
+          return next;
         });
       },
       onError: (data) => {
