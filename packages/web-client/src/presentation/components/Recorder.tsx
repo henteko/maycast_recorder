@@ -191,6 +191,14 @@ export const Recorder: React.FC<RecorderProps> = ({
     audioDevices,
   });
 
+  // 選択中のデバイス名を取得
+  const selectedCameraName = videoDevices.find(d => d.deviceId === settings.videoDeviceId)?.label
+    || videoDevices[0]?.label
+    || 'カメラ';
+  const selectedMicName = audioDevices.find(d => d.deviceId === settings.audioDeviceId)?.label
+    || audioDevices[0]?.label
+    || 'マイク';
+
   // Guest mode: 波形データをDirectorに送信
   const handleWaveformData = useCallback((waveformData: number[], isSilent: boolean) => {
     if (!guestMode?.roomId || !guestMode.isWebSocketConnected) return;
@@ -326,6 +334,13 @@ export const Recorder: React.FC<RecorderProps> = ({
         )}
 
         <div className="mt-6">
+          {/* カメラデバイス名 */}
+          <div className="flex items-center gap-2 text-maycast-text-secondary text-sm mb-2 px-1">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+            </svg>
+            <span>{selectedCameraName}</span>
+          </div>
           <VideoPreview
             videoRef={videoRef}
             isRecording={isRecording}
@@ -339,7 +354,7 @@ export const Recorder: React.FC<RecorderProps> = ({
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
             </svg>
-            <span>マイク入力</span>
+            <span>{selectedMicName}</span>
           </div>
           <AudioWaveform
             stream={stream}
