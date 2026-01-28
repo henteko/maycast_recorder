@@ -215,6 +215,24 @@ export function useRoomManagerWebSocket(
           return next;
         });
       },
+      onGuestMediaStatusChanged: (data) => {
+        console.log(`📡 [useRoomManagerWebSocket] Guest media status changed: room=${data.roomId}, guestId=${data.guestId}`);
+        setGuestsByRoom((prev) => {
+          const next = new Map(prev);
+          const roomGuests = next.get(data.roomId);
+          if (roomGuests) {
+            const guest = roomGuests.get(data.guestId);
+            if (guest) {
+              roomGuests.set(data.guestId, {
+                ...guest,
+                mediaStatus: data.mediaStatus,
+                lastUpdatedAt: new Date().toISOString(),
+              });
+            }
+          }
+          return next;
+        });
+      },
       onGuestSyncStateChanged: (data: GuestSyncStateChanged) => {
         console.log(`📡 [useRoomManagerWebSocket] Guest sync state changed: room=${data.roomId}, recording=${data.recordingId}, state=${data.syncState}`);
         setGuestsByRoom((prev) => {

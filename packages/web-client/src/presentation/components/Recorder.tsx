@@ -3,6 +3,8 @@ import { useMediaStream } from '../hooks/useMediaStream'
 import { useSessionManager } from '../hooks/useSessionManager'
 import { useEncoders } from '../hooks/useEncoders'
 import { useRecorder } from '../hooks/useRecorder'
+import { useDevices } from '../hooks/useDevices'
+import { useGuestMediaStatus } from '../hooks/useGuestMediaStatus'
 // @ts-expect-error - maycast-wasm-core has no type definitions
 import init from 'maycast-wasm-core'
 import type { RecorderSettings } from '../../types/settings'
@@ -153,6 +155,20 @@ export const Recorder: React.FC<RecorderProps> = ({
       })
     }
   }, [stream])
+
+  // Guest mode: デバイス情報を取得
+  const { videoDevices, audioDevices } = useDevices();
+
+  // Guest mode: メディアステータスをDirectorに送信
+  useGuestMediaStatus({
+    roomId: guestMode?.roomId ?? null,
+    stream,
+    isWebSocketConnected: guestMode?.isWebSocketConnected ?? false,
+    videoDeviceId: settings.videoDeviceId,
+    audioDeviceId: settings.audioDeviceId,
+    videoDevices,
+    audioDevices,
+  });
 
   // Export recorder state and controls to parent
   useImperativeHandle(exportRef, () => ({

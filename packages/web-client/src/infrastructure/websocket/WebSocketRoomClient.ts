@@ -12,6 +12,7 @@ import type {
   RoomStateChanged,
   RecordingCreated,
   GuestSyncState,
+  GuestMediaStatus,
   GuestSyncStateChanged,
   GuestSyncComplete,
   GuestSyncError,
@@ -42,6 +43,10 @@ interface ClientToServerEvents {
     errorMessage: string;
     failedChunks: number;
   }) => void;
+  guest_media_status_update: (data: {
+    roomId: string;
+    mediaStatus: GuestMediaStatus;
+  }) => void;
 }
 
 /**
@@ -53,6 +58,7 @@ interface ServerToClientEvents {
   guest_joined: (data: { roomId: string; guestCount: number; guestId: string; recordingId?: string; name?: string }) => void;
   guest_left: (data: { roomId: string; guestCount: number; guestId: string; recordingId?: string; name?: string }) => void;
   guest_recording_linked: (data: { roomId: string; guestId: string; recordingId: string; name?: string }) => void;
+  guest_media_status_changed: (data: { roomId: string; guestId: string; mediaStatus: GuestMediaStatus }) => void;
   guest_sync_state_changed: (data: GuestSyncStateChanged) => void;
   guest_sync_complete: (data: GuestSyncComplete) => void;
   guest_sync_error: (data: GuestSyncError) => void;
@@ -68,6 +74,7 @@ export interface RoomEventListeners {
   onGuestJoined?: (data: { roomId: string; guestCount: number; guestId: string; recordingId?: string; name?: string }) => void;
   onGuestLeft?: (data: { roomId: string; guestCount: number; guestId: string; recordingId?: string; name?: string }) => void;
   onGuestRecordingLinked?: (data: { roomId: string; guestId: string; recordingId: string; name?: string }) => void;
+  onGuestMediaStatusChanged?: (data: { roomId: string; guestId: string; mediaStatus: GuestMediaStatus }) => void;
   onGuestSyncStateChanged?: (data: GuestSyncStateChanged) => void;
   onGuestSyncComplete?: (data: GuestSyncComplete) => void;
   onGuestSyncError?: (data: GuestSyncError) => void;
@@ -162,6 +169,11 @@ export class WebSocketRoomClient {
       this.listeners.onGuestRecordingLinked?.(data);
     });
 
+    this.socket.on('guest_media_status_changed', (data) => {
+      console.log('📡 [WebSocketRoomClient] guest_media_status_changed:', data);
+      this.listeners.onGuestMediaStatusChanged?.(data);
+    });
+
     this.socket.on('error', (data) => {
       console.error('❌ [WebSocketRoomClient] error:', data);
       this.listeners.onError?.(data);
@@ -213,6 +225,20 @@ export class WebSocketRoomClient {
 
     console.log(`🔗 [WebSocketRoomClient] Setting recording ID: ${recordingId} for room: ${roomId}`);
     this.socket.emit('set_recording_id', { roomId, recordingId });
+  }
+
+  /**
+   * メディアステータスを更新
+   * @param roomId Room ID
+   * @param mediaStatus メディアステータス
+   */
+  emitMediaStatusUpdate(roomId: string, mediaStatus: GuestMediaStatus): void {
+    if (!this.socket) {
+      console.warn('⚠️ [WebSocketRoomClient] Not connected, cannot emit media status update');
+      return;
+    }
+
+    this.socket.emit('guest_media_status_update', { roomId, mediaStatus });
   }
 
   /**

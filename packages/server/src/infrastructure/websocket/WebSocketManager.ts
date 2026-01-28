@@ -14,6 +14,7 @@ import type {
   RoomState,
   RecordingId,
   GuestSyncState,
+  GuestMediaStatus,
   RoomStateChanged,
   RecordingCreated,
   GuestSyncStateChanged,
@@ -37,6 +38,8 @@ interface GuestTrackingInfo {
   totalChunks: number;
   lastUpdatedAt: Date;
   errorMessage?: string;
+  /** メディアステータス */
+  mediaStatus?: GuestMediaStatus;
 }
 
 /**
@@ -64,6 +67,10 @@ interface ClientToServerEvents {
     errorMessage: string;
     failedChunks: number;
   }) => void;
+  guest_media_status_update: (data: {
+    roomId: string;
+    mediaStatus: GuestMediaStatus;
+  }) => void;
 }
 
 /**
@@ -75,6 +82,7 @@ interface ServerToClientEvents {
   guest_joined: (data: { roomId: string; guestCount: number; guestId: string; recordingId?: string; name?: string }) => void;
   guest_left: (data: { roomId: string; guestCount: number; guestId: string; recordingId?: string; name?: string }) => void;
   guest_recording_linked: (data: { roomId: string; guestId: string; recordingId: string; name?: string }) => void;
+  guest_media_status_changed: (data: { roomId: string; guestId: string; mediaStatus: GuestMediaStatus }) => void;
   guest_sync_state_changed: (data: GuestSyncStateChanged) => void;
   guest_sync_complete: (data: GuestSyncComplete) => void;
   guest_sync_error: (data: GuestSyncError) => void;
@@ -244,6 +252,34 @@ export class WebSocketManager {
           guestId,
           recordingId,
           name: guestInfo.name,
+        });
+      }
+    });
+
+    // Guestメディアステータス更新
+    socket.on('guest_media_status_update', ({ roomId, mediaStatus }) => {
+      console.log(`🎥 [WebSocket] Guest media status update: room=${roomId}, camera=${mediaStatus.isCameraActive}, mic=${mediaStatus.isMicMuted ? 'muted' : 'active'}`);
+
+      // socketIdからguestIdを取得してGuest情報を更新
+      const guestMapping = this.socketToGuest.get(socket.id);
+      if (!guestMapping || guestMapping.roomId !== roomId) {
+        console.warn(`⚠️ [WebSocket] Guest not found for media status update: socket=${socket.id}`);
+        return;
+      }
+
+      const { guestId } = guestMapping;
+      const roomGuestMap = this.roomGuests.get(roomId);
+      const guestInfo = roomGuestMap?.get(guestId);
+
+      if (guestInfo) {
+        guestInfo.mediaStatus = mediaStatus;
+        guestInfo.lastUpdatedAt = new Date();
+
+        // Directorに通知
+        this.io?.to(`room:${roomId}`).emit('guest_media_status_changed', {
+          roomId,
+          guestId,
+          mediaStatus,
         });
       }
     });

@@ -18,6 +18,30 @@ export type RoomState = 'idle' | 'recording' | 'finalizing' | 'finished';
 export type GuestSyncState = 'idle' | 'recording' | 'uploading' | 'synced' | 'error';
 
 /**
+ * デバイス情報
+ */
+export interface DeviceInfo {
+  /** デバイスID */
+  deviceId: string;
+  /** デバイス名 */
+  label: string;
+}
+
+/**
+ * Guestのメディアステータス
+ */
+export interface GuestMediaStatus {
+  /** カメラがアクティブか */
+  isCameraActive: boolean;
+  /** マイクがミュートか */
+  isMicMuted: boolean;
+  /** 選択中のカメラデバイス */
+  cameraDevice?: DeviceInfo;
+  /** 選択中のマイクデバイス */
+  micDevice?: DeviceInfo;
+}
+
+/**
  * Guest情報（Director向け）
  */
 export interface GuestInfo {
@@ -47,6 +71,9 @@ export interface GuestInfo {
 
   /** エラーメッセージ（エラー時のみ） */
   errorMessage?: string;
+
+  /** メディアステータス */
+  mediaStatus?: GuestMediaStatus;
 }
 
 /**
