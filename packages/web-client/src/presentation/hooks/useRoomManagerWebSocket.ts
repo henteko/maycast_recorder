@@ -359,8 +359,6 @@ export function useRoomManagerWebSocket(
       });
       subscribedRooms.clear();
     };
-    // Note: roomsは意図的に依存配列から除外（onConnect時の初期購読にのみ使用）
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchRooms, startPolling, stopPolling]);
 
   // クリーンアップ
