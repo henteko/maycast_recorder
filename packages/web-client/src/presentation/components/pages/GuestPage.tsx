@@ -16,6 +16,7 @@ import { LoadingScreen } from '../molecules/LoadingScreen';
 import { RoomNotFoundScreen } from '../molecules/RoomNotFoundScreen';
 import { SyncCompleteScreen } from '../molecules/SyncCompleteScreen';
 import { GuestNameInput } from '../molecules/GuestNameInput';
+import { RoomClosedScreen } from '../molecules/RoomClosedScreen';
 import type { NavigationPage } from '../organisms/SidebarNavigation';
 import { useSystemHealth } from '../../hooks/useSystemHealth';
 import { useSessionManager } from '../../hooks/useSessionManager';
@@ -68,6 +69,7 @@ export const GuestPage: React.FC<GuestPageProps> = ({ roomId }) => {
     recorderRef,
     storageStrategy,
     guestSyncState,
+    roomState,
     isRoomLoading,
     roomError,
     isRoomNotFound,
@@ -78,6 +80,9 @@ export const GuestPage: React.FC<GuestPageProps> = ({ roomId }) => {
     roomId,
     guestName: guestName ?? undefined,
   });
+
+  // 参加可能なRoom状態かどうか
+  const canJoinRoom = roomState === 'idle' || roomState === 'recording';
 
   const handleNavigate = (page: NavigationPage) => {
     setCurrentPage(page);
@@ -93,11 +98,6 @@ export const GuestPage: React.FC<GuestPageProps> = ({ roomId }) => {
     setHasJoined(true);
   };
 
-  // 名前入力画面（参加前）
-  if (!hasJoined) {
-    return <GuestNameInput roomId={roomId} onJoin={handleJoinRoom} />;
-  }
-
   // Loading画面
   if (isRoomLoading) {
     return <LoadingScreen message="Room情報を取得中..." />;
@@ -112,6 +112,16 @@ export const GuestPage: React.FC<GuestPageProps> = ({ roomId }) => {
         errorMessage={roomError}
       />
     );
+  }
+
+  // Room終了画面（参加不可）
+  if (!hasJoined && roomState && !canJoinRoom) {
+    return <RoomClosedScreen roomId={roomId} roomState={roomState} />;
+  }
+
+  // 名前入力画面（参加前）
+  if (!hasJoined) {
+    return <GuestNameInput roomId={roomId} onJoin={handleJoinRoom} />;
   }
 
   // Complete画面 (sync完了後)
