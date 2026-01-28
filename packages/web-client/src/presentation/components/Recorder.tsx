@@ -8,6 +8,7 @@ import { useGuestMediaStatus } from '../hooks/useGuestMediaStatus'
 // @ts-expect-error - maycast-wasm-core has no type definitions
 import init from 'maycast-wasm-core'
 import type { RecorderSettings } from '../../types/settings'
+import { QUALITY_PRESETS } from '../../types/settings'
 import type { ScreenState } from '../../types/recorder'
 import type { DownloadProgress } from '../hooks/useDownload'
 import type { IStorageStrategy } from '../../storage-strategies/IStorageStrategy'
@@ -128,6 +129,23 @@ export const Recorder: React.FC<RecorderProps> = ({
       }
     }
     initWasm()
+  }, [])
+
+  // Auto-start camera and microphone capture on mount
+  useEffect(() => {
+    const autoStartCapture = async () => {
+      const qualityConfig = QUALITY_PRESETS[settings.qualityPreset]
+      console.log('📹 Auto-starting camera and microphone capture...')
+      await startCapture({
+        videoDeviceId: settings.videoDeviceId,
+        audioDeviceId: settings.audioDeviceId,
+        width: qualityConfig.width,
+        height: qualityConfig.height,
+        frameRate: qualityConfig.framerate,
+      })
+    }
+    autoStartCapture()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Update elapsed time during recording

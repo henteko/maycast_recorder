@@ -39,11 +39,10 @@ export const useMediaStream = (): UseMediaStreamResult => {
       try {
         setError(null);
 
-        // Stop existing stream if any
+        // 既存のストリームがあればそのまま返す（カメラ/マイクの再取得を避ける）
         if (streamRef.current) {
-          mediaStreamService.stopStream(streamRef.current);
-          streamRef.current = null;
-          setStream(null);
+          console.log('📹 Reusing existing media stream');
+          return streamRef.current;
         }
 
         // Build constraints for camera capture
