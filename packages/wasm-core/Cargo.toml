@@ -26,6 +26,7 @@ blake3.workspace = true
 
 # Media processing
 mp4.workspace = true
+muxide.workspace = true
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3"

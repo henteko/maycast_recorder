@@ -5,16 +5,19 @@
  *
  * ## 現在の設計
  * - IStorageStrategyを使用してチャンク保存を抽象化
- * - WASMベースのMuxerと密結合
+ * - WASMベースのMuxideMuxerと密結合（muxideライブラリ使用）
  * - リアルタイムエンコーディング処理
  *
  * ## 将来のリファクタリング候補
  * - TODO: SaveChunkUseCaseの使用を検討（ただしリアルタイム性の考慮が必要）
  * - TODO: エンコーダー設定のValue Objectを検討
  * - TODO: Muxer管理の分離を検討
+ * - TODO: オーディオサポートの追加（muxideがオーディオ対応したら）
  *
  * NOTE: エンコーディングはリアルタイムで行われ、パフォーマンスが重要。
  *       Use Caseの導入により、オーバーヘッドが発生する可能性があるため慎重に検討。
+ *
+ * NOTE: 現在はビデオのみ対応。muxideのFragmentedMuxerがオーディオ未対応のため。
  */
 
 import { useRef, useCallback } from 'react'
@@ -39,7 +42,6 @@ export const useEncoders = ({ wasmInitialized, settings, storageStrategy, onStat
   const muxerRef = useRef<any | null>(null)
   const initSegmentRef = useRef<Uint8Array | null>(null)
   const videoConfigRef = useRef<Uint8Array | null>(null)
-  const audioConfigRef = useRef<Uint8Array | null>(null)
   const activeStreamRef = useRef<MediaStream | null>(null)
   const baseVideoTimestampRef = useRef<number | null>(null)
   const baseAudioTimestampRef = useRef<number | null>(null)
@@ -52,46 +54,40 @@ export const useEncoders = ({ wasmInitialized, settings, storageStrategy, onStat
       return;
     }
 
-    if (!videoConfigRef.current || !audioConfigRef.current || !wasmInitialized || !activeStreamRef.current) {
-      console.log('⏳ Waiting for codec configs...', {
+    // MuxideMuxerはビデオのみ対応（オーディオは未サポート）
+    if (!videoConfigRef.current || !wasmInitialized || !activeStreamRef.current) {
+      console.log('⏳ Waiting for video codec config...', {
         video: !!videoConfigRef.current,
-        audio: !!audioConfigRef.current,
         wasm: wasmInitialized,
         stream: !!activeStreamRef.current
       })
       return
     }
 
-    const audioTrack = activeStreamRef.current.getAudioTracks()[0]
-    const audioSettings = audioTrack?.getSettings()
     const qualityConfig = QUALITY_PRESETS[settings.qualityPreset]
 
-    console.log('🎤 Audio track settings:', audioSettings)
-    console.log('📹 Initializing Muxer with configs:', {
+    console.log('📹 Initializing MuxideMuxer with config:', {
       videoConfig: videoConfigRef.current.length,
-      audioConfig: audioConfigRef.current.length,
       width: qualityConfig.width,
       height: qualityConfig.height,
       preset: settings.qualityPreset
     })
 
     // @ts-expect-error - Dynamic import from WASM
-    const { Muxer } = await import('maycast-wasm-core')
-
-    const muxer = Muxer.with_config(
-      qualityConfig.width,
-      qualityConfig.height,
-      audioSettings?.sampleRate || 48000,
-      audioSettings?.channelCount || 1,
-      Array.from(videoConfigRef.current),
-      Array.from(audioConfigRef.current)
-    )
+    const { MuxideMuxer } = await import('maycast-wasm-core')
 
     try {
+      // MuxideMuxer.from_avcc でavcCからSPS/PPSを自動抽出
+      const muxer = MuxideMuxer.from_avcc(
+        qualityConfig.width,
+        qualityConfig.height,
+        videoConfigRef.current
+      )
+
       const initSegment = muxer.initialize()
       initSegmentRef.current = initSegment
       muxerRef.current = muxer
-      console.log('✅ Muxer initialized with codec configs, init segment size:', initSegment.length, 'bytes')
+      console.log('✅ MuxideMuxer initialized, init segment size:', initSegment.length, 'bytes')
 
       if (recordingIdRef.current) {
         console.log('💾 [useEncoders] Saving init segment for recording:', recordingIdRef.current)
@@ -101,7 +97,7 @@ export const useEncoders = ({ wasmInitialized, settings, storageStrategy, onStat
         console.warn('⚠️ [useEncoders] Recording ID not set, cannot save init segment')
       }
     } catch (err) {
-      console.error('❌ Failed to initialize Muxer:', err)
+      console.error('❌ Failed to initialize MuxideMuxer:', err)
     }
   }, [wasmInitialized, settings.qualityPreset, storageStrategy])
 
@@ -145,17 +141,24 @@ export const useEncoders = ({ wasmInitialized, settings, storageStrategy, onStat
 
         if (muxerRef.current && recordingIdRef.current) {
           try {
-            const fragment = muxerRef.current.push_video(buffer, relativeTimestamp, isKeyframe)
-            if (fragment.length > 0) {
-              storageStrategy.saveChunk(recordingIdRef.current, fragment, relativeTimestamp).then((chunkId) => {
-                onChunkSaved()
-                console.log(`📦 fMP4 fragment saved: #${chunkId}, ${fragment.length} bytes`)
-              }).catch((err) => {
-                console.error('❌ Failed to save chunk:', err)
-              })
+            // MuxideMuxerはpush_videoで直接フラグメントを返さない
+            // 代わりにget_pending_segmentsで取得する
+            muxerRef.current.push_video(buffer, relativeTimestamp, isKeyframe)
+
+            // 保留中のセグメントがあれば保存
+            if (muxerRef.current.has_pending_segments()) {
+              const segments = muxerRef.current.get_pending_segments()
+              if (segments.length > 0) {
+                storageStrategy.saveChunk(recordingIdRef.current, segments, relativeTimestamp).then((chunkId) => {
+                  onChunkSaved()
+                  console.log(`📦 fMP4 segment saved: #${chunkId}, ${segments.length} bytes`)
+                }).catch((err: unknown) => {
+                  console.error('❌ Failed to save chunk:', err)
+                })
+              }
             }
           } catch (err) {
-            console.error('❌ Muxer push_video error:', err)
+            console.error('❌ MuxideMuxer push_video error:', err)
           }
         }
 
@@ -186,35 +189,12 @@ export const useEncoders = ({ wasmInitialized, settings, storageStrategy, onStat
 
     audioEncoderRef.current = new AudioEncoder({
       output: (chunk, metadata) => {
-        if (metadata?.decoderConfig?.description && !audioConfigRef.current) {
-          audioConfigRef.current = new Uint8Array(metadata.decoderConfig.description as ArrayBuffer)
-          console.log('✅ Audio decoder config captured:', audioConfigRef.current.length, 'bytes')
-          initializeMuxerWithConfigs()
-        }
+        // NOTE: MuxideMuxerはオーディオ未対応のため、統計のみ更新
+        // TODO: muxideがオーディオ対応したら、ここでMuxerに送信する
 
         if (baseAudioTimestampRef.current === null) {
           baseAudioTimestampRef.current = chunk.timestamp
           console.log('🎤 Base audio timestamp set:', chunk.timestamp)
-        }
-
-        const relativeTimestamp = chunk.timestamp - baseAudioTimestampRef.current
-        const buffer = new Uint8Array(chunk.byteLength)
-        chunk.copyTo(buffer)
-
-        if (muxerRef.current && recordingIdRef.current) {
-          try {
-            const fragment = muxerRef.current.push_audio(buffer, relativeTimestamp)
-            if (fragment.length > 0) {
-              storageStrategy.saveChunk(recordingIdRef.current, fragment, relativeTimestamp).then((chunkId) => {
-                onChunkSaved()
-                console.log(`📦 fMP4 fragment saved: #${chunkId}, ${fragment.length} bytes`)
-              }).catch((err) => {
-                console.error('❌ Failed to save chunk:', err)
-              })
-            }
-          } catch (err) {
-            console.error('❌ Muxer push_audio error:', err)
-          }
         }
 
         onStatsUpdate(prev => ({
@@ -223,7 +203,10 @@ export const useEncoders = ({ wasmInitialized, settings, storageStrategy, onStat
           totalSize: prev.totalSize + chunk.byteLength,
         }))
 
-        console.log(`🎤 AudioChunk: timestamp=${chunk.timestamp}µs (relative: ${relativeTimestamp}µs), size=${chunk.byteLength}B`, metadata)
+        // デバッグ出力を減らす（オーディオは頻繁に出力されるため）
+        if (metadata?.decoderConfig?.description) {
+          console.log(`🎤 AudioChunk (config): timestamp=${chunk.timestamp}µs, size=${chunk.byteLength}B`)
+        }
       },
       error: (err) => {
         console.error('❌ AudioEncoder error:', err)
@@ -262,7 +245,6 @@ export const useEncoders = ({ wasmInitialized, settings, storageStrategy, onStat
 
   const resetEncoders = useCallback(() => {
     videoConfigRef.current = null
-    audioConfigRef.current = null
     muxerRef.current = null
     initSegmentRef.current = null
     activeStreamRef.current = null
