@@ -24,6 +24,9 @@ export interface GuestInfo {
   /** Recording ID (Guest識別用) */
   recordingId: string;
 
+  /** Guest名（任意） */
+  name?: string;
+
   /** 同期状態 */
   syncState: GuestSyncState;
 

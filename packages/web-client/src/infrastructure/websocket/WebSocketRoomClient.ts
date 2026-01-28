@@ -21,7 +21,7 @@ import type {
  * クライアントからサーバーへのイベント
  */
 interface ClientToServerEvents {
-  join_room: (data: { roomId: string; recordingId?: string }) => void;
+  join_room: (data: { roomId: string; recordingId?: string; name?: string }) => void;
   leave_room: (data: { roomId: string }) => void;
   guest_sync_update: (data: {
     roomId: string;
@@ -49,8 +49,8 @@ interface ClientToServerEvents {
 interface ServerToClientEvents {
   room_state_changed: (data: RoomStateChanged) => void;
   recording_created: (data: RecordingCreated) => void;
-  guest_joined: (data: { roomId: string; guestCount: number; recordingId?: string }) => void;
-  guest_left: (data: { roomId: string; guestCount: number; recordingId?: string }) => void;
+  guest_joined: (data: { roomId: string; guestCount: number; recordingId?: string; name?: string }) => void;
+  guest_left: (data: { roomId: string; guestCount: number; recordingId?: string; name?: string }) => void;
   guest_sync_state_changed: (data: GuestSyncStateChanged) => void;
   guest_sync_complete: (data: GuestSyncComplete) => void;
   guest_sync_error: (data: GuestSyncError) => void;
@@ -63,8 +63,8 @@ interface ServerToClientEvents {
 export interface RoomEventListeners {
   onRoomStateChanged?: (data: RoomStateChanged) => void;
   onRecordingCreated?: (data: RecordingCreated) => void;
-  onGuestJoined?: (data: { roomId: string; guestCount: number; recordingId?: string }) => void;
-  onGuestLeft?: (data: { roomId: string; guestCount: number; recordingId?: string }) => void;
+  onGuestJoined?: (data: { roomId: string; guestCount: number; recordingId?: string; name?: string }) => void;
+  onGuestLeft?: (data: { roomId: string; guestCount: number; recordingId?: string; name?: string }) => void;
   onGuestSyncStateChanged?: (data: GuestSyncStateChanged) => void;
   onGuestSyncComplete?: (data: GuestSyncComplete) => void;
   onGuestSyncError?: (data: GuestSyncError) => void;
@@ -81,6 +81,7 @@ export class WebSocketRoomClient {
   private serverUrl: string;
   private currentRoomId: string | null = null;
   private currentRecordingId: string | null = null;
+  private currentName: string | null = null;
   private listeners: RoomEventListeners = {};
   private isConnected = false;
 
@@ -123,7 +124,7 @@ export class WebSocketRoomClient {
 
       // 再接続時にRoomに再参加
       if (this.currentRoomId) {
-        this.joinRoom(this.currentRoomId, this.currentRecordingId ?? undefined);
+        this.joinRoom(this.currentRoomId, this.currentRecordingId ?? undefined, this.currentName ?? undefined);
       }
     });
 
@@ -178,17 +179,19 @@ export class WebSocketRoomClient {
    * Roomに参加
    * @param roomId Room ID
    * @param recordingId Recording ID（Guest参加時のみ）
+   * @param name Guest名（任意）
    */
-  joinRoom(roomId: string, recordingId?: string): void {
+  joinRoom(roomId: string, recordingId?: string, name?: string): void {
     if (!this.socket) {
       console.warn('⚠️ [WebSocketRoomClient] Not connected, cannot join room');
       return;
     }
 
-    console.log(`📥 [WebSocketRoomClient] Joining room: ${roomId}${recordingId ? ` (recording: ${recordingId})` : ''}`);
+    console.log(`📥 [WebSocketRoomClient] Joining room: ${roomId}${recordingId ? ` (recording: ${recordingId})` : ''}${name ? ` (name: ${name})` : ''}`);
     this.currentRoomId = roomId;
     this.currentRecordingId = recordingId ?? null;
-    this.socket.emit('join_room', { roomId, recordingId });
+    this.currentName = name ?? null;
+    this.socket.emit('join_room', { roomId, recordingId, name });
   }
 
   /**
@@ -205,6 +208,7 @@ export class WebSocketRoomClient {
     if (this.currentRoomId === roomId) {
       this.currentRoomId = null;
       this.currentRecordingId = null;
+      this.currentName = null;
     }
   }
 
@@ -274,6 +278,8 @@ export class WebSocketRoomClient {
       this.socket = null;
       this.isConnected = false;
       this.currentRoomId = null;
+      this.currentRecordingId = null;
+      this.currentName = null;
     }
   }
 
@@ -296,6 +302,13 @@ export class WebSocketRoomClient {
    */
   getCurrentRecordingId(): string | null {
     return this.currentRecordingId;
+  }
+
+  /**
+   * 現在のGuest名を取得
+   */
+  getCurrentName(): string | null {
+    return this.currentName;
   }
 }
 

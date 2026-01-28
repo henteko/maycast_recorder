@@ -16,6 +16,7 @@ import type { GuestSyncState, RecordingId, RoomState } from '@maycast/common-typ
 interface UseGuestRecordingControlOptions {
   roomId: string;
   pollingInterval?: number;
+  guestName?: string;
 }
 
 interface UseGuestRecordingControlResult {
@@ -34,6 +35,7 @@ interface UseGuestRecordingControlResult {
 export const useGuestRecordingControl = ({
   roomId,
   pollingInterval = 3000,
+  guestName,
 }: UseGuestRecordingControlOptions): UseGuestRecordingControlResult => {
   const recorderRef = useRef<RecorderExports>(null);
   const [hasStartedRecording, setHasStartedRecording] = useState(false);
@@ -48,7 +50,7 @@ export const useGuestRecordingControl = ({
     isRoomNotFound,
     isWebSocketConnected,
     setRecordingId: setWsRecordingId,
-  } = useRoomWebSocket(roomId, pollingInterval);
+  } = useRoomWebSocket(roomId, pollingInterval, guestName);
 
   // GuestStorageStrategy
   const storageStrategy = useMemo(() => {

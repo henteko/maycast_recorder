@@ -10,6 +10,8 @@ interface GuestListItemProps {
 }
 
 export const GuestListItem: React.FC<GuestListItemProps> = ({ guest }) => {
+  const displayName = guest.name || `Guest ${guest.recordingId.substring(0, 6)}`;
+
   return (
     <div className="flex items-center justify-between bg-maycast-bg/50 backdrop-blur-sm px-4 py-3 rounded-xl border border-maycast-border/30">
       <div className="flex items-center gap-3">
@@ -18,8 +20,8 @@ export const GuestListItem: React.FC<GuestListItemProps> = ({ guest }) => {
             guest.isConnected ? 'bg-maycast-safe' : 'bg-gray-400'
           }`}
         />
-        <span className="text-sm font-mono text-maycast-text">
-          Guest {guest.recordingId.substring(0, 6)}
+        <span className="text-sm text-maycast-text">
+          {displayName}
         </span>
       </div>
       <div className="flex items-center gap-3">

@@ -146,7 +146,7 @@ export function useRoomManagerWebSocket(
         );
       },
       onGuestJoined: (data) => {
-        console.log(`📡 [useRoomManagerWebSocket] Guest joined room: ${data.roomId}, count: ${data.guestCount}, recording: ${data.recordingId}`);
+        console.log(`📡 [useRoomManagerWebSocket] Guest joined room: ${data.roomId}, count: ${data.guestCount}, recording: ${data.recordingId}, name: ${data.name}`);
         // Guest情報を追加
         if (data.recordingId) {
           setGuestsByRoom((prev) => {
@@ -157,6 +157,7 @@ export function useRoomManagerWebSocket(
             const roomGuests = next.get(data.roomId)!;
             roomGuests.set(data.recordingId!, {
               recordingId: data.recordingId!,
+              name: data.name,
               syncState: 'idle',
               uploadedChunks: 0,
               totalChunks: 0,
@@ -168,7 +169,7 @@ export function useRoomManagerWebSocket(
         }
       },
       onGuestLeft: (data) => {
-        console.log(`📡 [useRoomManagerWebSocket] Guest left room: ${data.roomId}, count: ${data.guestCount}, recording: ${data.recordingId}`);
+        console.log(`📡 [useRoomManagerWebSocket] Guest left room: ${data.roomId}, count: ${data.guestCount}, recording: ${data.recordingId}, name: ${data.name}`);
         // Guest情報を更新（接続状態をfalseに）
         if (data.recordingId) {
           setGuestsByRoom((prev) => {
@@ -199,6 +200,7 @@ export function useRoomManagerWebSocket(
           const existing = roomGuests.get(data.recordingId);
           roomGuests.set(data.recordingId, {
             recordingId: data.recordingId,
+            name: existing?.name,
             syncState: data.syncState,
             uploadedChunks: data.uploadedChunks,
             totalChunks: data.totalChunks,
@@ -217,6 +219,7 @@ export function useRoomManagerWebSocket(
             const existing = roomGuests.get(data.recordingId);
             roomGuests.set(data.recordingId, {
               recordingId: data.recordingId,
+              name: existing?.name,
               syncState: 'synced',
               uploadedChunks: data.totalChunks,
               totalChunks: data.totalChunks,
@@ -236,6 +239,7 @@ export function useRoomManagerWebSocket(
             const existing = roomGuests.get(data.recordingId);
             roomGuests.set(data.recordingId, {
               recordingId: data.recordingId,
+              name: existing?.name,
               syncState: 'error',
               uploadedChunks: existing?.uploadedChunks ?? 0,
               totalChunks: existing?.totalChunks ?? 0,

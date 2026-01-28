@@ -26,6 +26,7 @@ import type {
  */
 interface GuestTrackingInfo {
   recordingId: string;
+  name?: string;
   socketId: string;
   syncState: GuestSyncState;
   uploadedChunks: number;
@@ -38,7 +39,7 @@ interface GuestTrackingInfo {
  * クライアントからサーバーへのイベント
  */
 interface ClientToServerEvents {
-  join_room: (data: { roomId: string; recordingId?: string }) => void;
+  join_room: (data: { roomId: string; recordingId?: string; name?: string }) => void;
   leave_room: (data: { roomId: string }) => void;
   guest_sync_update: (data: {
     roomId: string;
@@ -66,8 +67,8 @@ interface ClientToServerEvents {
 interface ServerToClientEvents {
   room_state_changed: (data: RoomStateChanged) => void;
   recording_created: (data: RecordingCreated) => void;
-  guest_joined: (data: { roomId: string; guestCount: number; recordingId?: string }) => void;
-  guest_left: (data: { roomId: string; guestCount: number; recordingId?: string }) => void;
+  guest_joined: (data: { roomId: string; guestCount: number; recordingId?: string; name?: string }) => void;
+  guest_left: (data: { roomId: string; guestCount: number; recordingId?: string; name?: string }) => void;
   guest_sync_state_changed: (data: GuestSyncStateChanged) => void;
   guest_sync_complete: (data: GuestSyncComplete) => void;
   guest_sync_error: (data: GuestSyncError) => void;
@@ -116,8 +117,8 @@ export class WebSocketManager {
    */
   private handleConnection(socket: Socket<ClientToServerEvents, ServerToClientEvents>): void {
     // Room参加
-    socket.on('join_room', ({ roomId, recordingId }) => {
-      console.log(`📥 [WebSocket] Client ${socket.id} joining room: ${roomId}${recordingId ? ` (recording: ${recordingId})` : ''}`);
+    socket.on('join_room', ({ roomId, recordingId, name }) => {
+      console.log(`📥 [WebSocket] Client ${socket.id} joining room: ${roomId}${recordingId ? ` (recording: ${recordingId})` : ''}${name ? ` (name: ${name})` : ''}`);
       socket.join(`room:${roomId}`);
 
       // Guest数をカウント
@@ -132,6 +133,7 @@ export class WebSocketManager {
         const roomGuestMap = this.roomGuests.get(roomId)!;
         roomGuestMap.set(recordingId, {
           recordingId,
+          name,
           socketId: socket.id,
           syncState: 'idle',
           uploadedChunks: 0,
@@ -145,6 +147,7 @@ export class WebSocketManager {
         roomId,
         guestCount: currentCount + 1,
         recordingId,
+        name,
       });
     });
 
@@ -156,10 +159,12 @@ export class WebSocketManager {
       // Guest情報を削除
       const roomGuestMap = this.roomGuests.get(roomId);
       let leavingRecordingId: string | undefined;
+      let leavingName: string | undefined;
       if (roomGuestMap) {
         for (const [recordingId, info] of roomGuestMap.entries()) {
           if (info.socketId === socket.id) {
             leavingRecordingId = recordingId;
+            leavingName = info.name;
             roomGuestMap.delete(recordingId);
             break;
           }
@@ -183,6 +188,7 @@ export class WebSocketManager {
         roomId,
         guestCount: newCount,
         recordingId: leavingRecordingId,
+        name: leavingName,
       });
     });
 
@@ -286,6 +292,7 @@ export class WebSocketManager {
       for (const [roomId, roomGuestMap] of this.roomGuests.entries()) {
         for (const [recordingId, info] of roomGuestMap.entries()) {
           if (info.socketId === socket.id) {
+            const guestName = info.name;
             roomGuestMap.delete(recordingId);
             // Guest数を更新
             const currentCount = this.roomGuestCounts.get(roomId) || 1;
@@ -300,6 +307,7 @@ export class WebSocketManager {
               roomId,
               guestCount: newCount,
               recordingId,
+              name: guestName,
             });
             break;
           }

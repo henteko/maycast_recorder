@@ -15,6 +15,7 @@ import { ResumeUploadModal } from '../organisms/RecoveryModal';
 import { LoadingScreen } from '../molecules/LoadingScreen';
 import { RoomNotFoundScreen } from '../molecules/RoomNotFoundScreen';
 import { SyncCompleteScreen } from '../molecules/SyncCompleteScreen';
+import { GuestNameInput } from '../molecules/GuestNameInput';
 import type { NavigationPage } from '../organisms/SidebarNavigation';
 import { useSystemHealth } from '../../hooks/useSystemHealth';
 import { useSessionManager } from '../../hooks/useSessionManager';
@@ -43,6 +44,8 @@ interface GuestPageProps {
 export const GuestPage: React.FC<GuestPageProps> = ({ roomId }) => {
   const [currentPage, setCurrentPage] = useState<NavigationPage>('recorder');
   const [settings, setSettings] = useState<RecorderSettings>(loadSettings());
+  const [guestName, setGuestName] = useState<string | null>(null);
+  const [hasJoined, setHasJoined] = useState(false);
 
   const systemHealth = useSystemHealth();
   const { videoDevices, audioDevices } = useDevices();
@@ -71,7 +74,7 @@ export const GuestPage: React.FC<GuestPageProps> = ({ roomId }) => {
     isWebSocketConnected,
     getWaitingMessage,
     handleDownload,
-  } = useGuestRecordingControl({ roomId });
+  } = useGuestRecordingControl({ roomId, guestName: guestName ?? undefined });
 
   const handleNavigate = (page: NavigationPage) => {
     setCurrentPage(page);
@@ -81,6 +84,16 @@ export const GuestPage: React.FC<GuestPageProps> = ({ roomId }) => {
     saveSettings(settings);
     console.log('✅ Settings saved:', settings);
   };
+
+  const handleJoinRoom = (name: string) => {
+    setGuestName(name);
+    setHasJoined(true);
+  };
+
+  // 名前入力画面（参加前）
+  if (!hasJoined) {
+    return <GuestNameInput roomId={roomId} onJoin={handleJoinRoom} />;
+  }
 
   // Loading画面
   if (isRoomLoading) {

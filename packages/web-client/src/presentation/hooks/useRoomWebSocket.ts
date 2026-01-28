@@ -30,10 +30,12 @@ export interface UseRoomWebSocketResult {
  *
  * @param roomId Room ID
  * @param fallbackPollInterval WebSocket接続失敗時のフォールバックポーリング間隔（ミリ秒）
+ * @param guestName Guest名（任意）
  */
 export function useRoomWebSocket(
   roomId: string | null,
-  fallbackPollInterval: number = 3000
+  fallbackPollInterval: number = 3000,
+  guestName?: string
 ): UseRoomWebSocketResult {
   const [room, setRoom] = useState<RoomInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -112,7 +114,7 @@ export function useRoomWebSocket(
         console.log('✅ [useRoomWebSocket] WebSocket connected');
         setIsWebSocketConnected(true);
         stopPolling();
-        wsClient.joinRoom(roomId, recordingId ?? undefined);
+        wsClient.joinRoom(roomId, recordingId ?? undefined, guestName);
       },
       onDisconnect: () => {
         console.log('🔌 [useRoomWebSocket] WebSocket disconnected, starting polling');
@@ -167,9 +169,9 @@ export function useRoomWebSocket(
     if (wsClient && roomId && isWebSocketConnected) {
       // 一旦離脱してから再参加
       wsClient.leaveRoom(roomId);
-      wsClient.joinRoom(roomId, newRecordingId);
+      wsClient.joinRoom(roomId, newRecordingId, guestName);
     }
-  }, [roomId, isWebSocketConnected]);
+  }, [roomId, isWebSocketConnected, guestName]);
 
   return {
     room,
