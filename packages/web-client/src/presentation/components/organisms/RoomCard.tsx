@@ -4,6 +4,7 @@
 
 import { useState, useCallback } from 'react';
 import { PlayIcon, StopIcon, TrashIcon, UsersIcon } from '@heroicons/react/24/solid';
+import JSZip from 'jszip';
 import type { RoomInfo } from '../../../infrastructure/api/room-api';
 import { RecordingAPIClient } from '../../../infrastructure/api/recording-api';
 import type { GuestInfo } from '@maycast/common-types';
@@ -39,7 +40,13 @@ export const RoomCard: React.FC<RoomCardProps> = ({
   const [isDownloadingAll, setIsDownloadingAll] = useState(false);
   const guestUrl = `${window.location.origin}/guest/${room.id}`;
 
-  // 全録画を一括ダウンロード
+  // ゲスト名を取得するヘルパー関数
+  const getGuestNameForRecording = useCallback((recordingId: string): string | undefined => {
+    const guest = guests.find((g) => g.recordingId === recordingId);
+    return guest?.name;
+  }, [guests]);
+
+  // 全録画を一括ダウンロード (ZIP形式)
   const handleDownloadAll = useCallback(async () => {
     if (room.recording_ids.length === 0) return;
 
@@ -47,34 +54,39 @@ export const RoomCard: React.FC<RoomCardProps> = ({
     try {
       const serverUrl = getServerUrl();
       const apiClient = new RecordingAPIClient(serverUrl);
+      const zip = new JSZip();
 
-      for (let i = 0; i < room.recording_ids.length; i++) {
-        const recordingId = room.recording_ids[i];
+      // 各録画をダウンロードしてZIPに追加
+      for (const recordingId of room.recording_ids) {
         try {
           const blob = await apiClient.downloadRecording(recordingId);
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `recording-${recordingId.substring(0, 8)}.mp4`;
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          URL.revokeObjectURL(url);
-
-          if (i < room.recording_ids.length - 1) {
-            await new Promise((resolve) => setTimeout(resolve, 500));
-          }
+          const guestName = getGuestNameForRecording(recordingId);
+          const fileName = guestName
+            ? `${guestName}-${recordingId.substring(0, 8)}.mp4`
+            : `recording-${recordingId.substring(0, 8)}.mp4`;
+          zip.file(fileName, blob);
         } catch (err) {
           console.error(`Failed to download recording ${recordingId}:`, err);
         }
       }
+
+      // ZIPファイルを生成してダウンロード
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      const url = URL.createObjectURL(zipBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `room-${room.id.substring(0, 8)}-recordings.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
     } catch (err) {
       console.error('Failed to download all recordings:', err);
       alert(`Failed to download: ${err instanceof Error ? err.message : 'Unknown error'}`);
     } finally {
       setIsDownloadingAll(false);
     }
-  }, [room.recording_ids]);
+  }, [room.recording_ids, room.id, getGuestNameForRecording]);
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString('ja-JP', {
