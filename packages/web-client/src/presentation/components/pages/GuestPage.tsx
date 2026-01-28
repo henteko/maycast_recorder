@@ -74,7 +74,10 @@ export const GuestPage: React.FC<GuestPageProps> = ({ roomId }) => {
     isWebSocketConnected,
     getWaitingMessage,
     handleDownload,
-  } = useGuestRecordingControl({ roomId, guestName: guestName ?? undefined });
+  } = useGuestRecordingControl({
+    roomId,
+    guestName: guestName ?? undefined,
+  });
 
   const handleNavigate = (page: NavigationPage) => {
     setCurrentPage(page);

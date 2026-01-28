@@ -118,7 +118,7 @@ export const RoomCard: React.FC<RoomCardProps> = ({
           </label>
           <div className="space-y-2">
             {guests.map((guest) => (
-              <GuestListItem key={guest.recordingId} guest={guest} />
+              <GuestListItem key={guest.guestId} guest={guest} />
             ))}
           </div>
         </div>
@@ -131,6 +131,7 @@ export const RoomCard: React.FC<RoomCardProps> = ({
             recordingIds={room.recording_ids}
             onDownloadAll={handleDownloadAll}
             isDownloadingAll={isDownloadingAll}
+            guests={guests}
           />
         </div>
       )}

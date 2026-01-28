@@ -10,7 +10,8 @@ interface GuestListItemProps {
 }
 
 export const GuestListItem: React.FC<GuestListItemProps> = ({ guest }) => {
-  const displayName = guest.name || `Guest ${guest.recordingId.substring(0, 6)}`;
+  const guestIdentifier = guest.guestId || guest.recordingId || 'unknown';
+  const displayName = guest.name || `Guest ${guestIdentifier.substring(0, 6)}`;
 
   return (
     <div className="flex items-center justify-between bg-maycast-bg/50 backdrop-blur-sm px-4 py-3 rounded-xl border border-maycast-border/30">

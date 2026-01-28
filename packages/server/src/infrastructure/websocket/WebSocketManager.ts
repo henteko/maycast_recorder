@@ -25,9 +25,13 @@ import type {
  * Guest情報（サーバー側追跡用）
  */
 interface GuestTrackingInfo {
-  recordingId: string;
-  name?: string;
+  /** Guest ID（クライアント側で生成したUUID） */
+  guestId: string;
+  /** Socket ID */
   socketId: string;
+  /** Recording ID（録画開始後に設定） */
+  recordingId?: string;
+  name?: string;
   syncState: GuestSyncState;
   uploadedChunks: number;
   totalChunks: number;
@@ -39,8 +43,9 @@ interface GuestTrackingInfo {
  * クライアントからサーバーへのイベント
  */
 interface ClientToServerEvents {
-  join_room: (data: { roomId: string; recordingId?: string; name?: string }) => void;
+  join_room: (data: { roomId: string; name?: string }) => void;
   leave_room: (data: { roomId: string }) => void;
+  set_recording_id: (data: { roomId: string; recordingId: string }) => void;
   guest_sync_update: (data: {
     roomId: string;
     recordingId: string;
@@ -67,8 +72,9 @@ interface ClientToServerEvents {
 interface ServerToClientEvents {
   room_state_changed: (data: RoomStateChanged) => void;
   recording_created: (data: RecordingCreated) => void;
-  guest_joined: (data: { roomId: string; guestCount: number; recordingId?: string; name?: string }) => void;
-  guest_left: (data: { roomId: string; guestCount: number; recordingId?: string; name?: string }) => void;
+  guest_joined: (data: { roomId: string; guestCount: number; guestId: string; recordingId?: string; name?: string }) => void;
+  guest_left: (data: { roomId: string; guestCount: number; guestId: string; recordingId?: string; name?: string }) => void;
+  guest_recording_linked: (data: { roomId: string; guestId: string; recordingId: string; name?: string }) => void;
   guest_sync_state_changed: (data: GuestSyncStateChanged) => void;
   guest_sync_complete: (data: GuestSyncComplete) => void;
   guest_sync_error: (data: GuestSyncError) => void;
@@ -86,8 +92,10 @@ export type OnAllGuestsSyncedCallback = (roomId: string) => Promise<void>;
 export class WebSocketManager {
   private io: SocketIOServer<ClientToServerEvents, ServerToClientEvents> | null = null;
   private roomGuestCounts: Map<string, number> = new Map();
-  // roomId -> recordingId -> GuestTrackingInfo
+  // roomId -> guestId -> GuestTrackingInfo
   private roomGuests: Map<string, Map<string, GuestTrackingInfo>> = new Map();
+  // socketId -> { roomId, guestId } のマッピング（切断時の検索用）
+  private socketToGuest: Map<string, { roomId: string; guestId: string }> = new Map();
   private onAllGuestsSyncedCallback: OnAllGuestsSyncedCallback | null = null;
 
   /**
@@ -117,36 +125,48 @@ export class WebSocketManager {
    */
   private handleConnection(socket: Socket<ClientToServerEvents, ServerToClientEvents>): void {
     // Room参加
-    socket.on('join_room', ({ roomId, recordingId, name }) => {
-      console.log(`📥 [WebSocket] Client ${socket.id} joining room: ${roomId}${recordingId ? ` (recording: ${recordingId})` : ''}${name ? ` (name: ${name})` : ''}`);
+    socket.on('join_room', ({ roomId, name }) => {
+      console.log(`📥 [WebSocket] Client ${socket.id} joining room: ${roomId}${name ? ` (name: ${name})` : ''}`);
       socket.join(`room:${roomId}`);
+
+      // nameがない場合はDirector等なのでゲスト追跡しない
+      if (!name) {
+        return;
+      }
+
+      // サーバー側でguestIdを生成
+      const guestId = crypto.randomUUID();
+
+      // Room用のGuestマップを初期化
+      if (!this.roomGuests.has(roomId)) {
+        this.roomGuests.set(roomId, new Map());
+      }
+      const roomGuestMap = this.roomGuests.get(roomId)!;
 
       // Guest数をカウント
       const currentCount = this.roomGuestCounts.get(roomId) || 0;
       this.roomGuestCounts.set(roomId, currentCount + 1);
 
-      // Guest情報を追跡（recordingIdがある場合）
-      if (recordingId) {
-        if (!this.roomGuests.has(roomId)) {
-          this.roomGuests.set(roomId, new Map());
-        }
-        const roomGuestMap = this.roomGuests.get(roomId)!;
-        roomGuestMap.set(recordingId, {
-          recordingId,
-          name,
-          socketId: socket.id,
-          syncState: 'idle',
-          uploadedChunks: 0,
-          totalChunks: 0,
-          lastUpdatedAt: new Date(),
-        });
-      }
+      // Guest情報を追跡（guestIdをキーにして追跡）
+      roomGuestMap.set(guestId, {
+        guestId,
+        socketId: socket.id,
+        name,
+        syncState: 'idle',
+        uploadedChunks: 0,
+        totalChunks: 0,
+        lastUpdatedAt: new Date(),
+      });
+
+      // socketId -> guestIdのマッピングを保存（切断時用）
+      this.socketToGuest.set(socket.id, { roomId, guestId });
 
       // 他のクライアントに通知
+      const guestCount = this.roomGuestCounts.get(roomId) || 1;
       this.io?.to(`room:${roomId}`).emit('guest_joined', {
         roomId,
-        guestCount: currentCount + 1,
-        recordingId,
+        guestCount,
+        guestId,
         name,
       });
     });
@@ -156,51 +176,89 @@ export class WebSocketManager {
       console.log(`📤 [WebSocket] Client ${socket.id} leaving room: ${roomId}`);
       socket.leave(`room:${roomId}`);
 
-      // Guest情報を削除
+      // socketIdからguestIdを取得
+      const guestMapping = this.socketToGuest.get(socket.id);
+      if (!guestMapping || guestMapping.roomId !== roomId) {
+        return;
+      }
+
+      const { guestId } = guestMapping;
+
+      // Guest情報を取得して削除
       const roomGuestMap = this.roomGuests.get(roomId);
-      let leavingRecordingId: string | undefined;
-      let leavingName: string | undefined;
-      if (roomGuestMap) {
-        for (const [recordingId, info] of roomGuestMap.entries()) {
-          if (info.socketId === socket.id) {
-            leavingRecordingId = recordingId;
-            leavingName = info.name;
-            roomGuestMap.delete(recordingId);
-            break;
-          }
-        }
+      const leavingGuest = roomGuestMap?.get(guestId);
+      if (roomGuestMap && leavingGuest) {
+        roomGuestMap.delete(guestId);
         if (roomGuestMap.size === 0) {
           this.roomGuests.delete(roomId);
         }
       }
 
+      // マッピングを削除
+      this.socketToGuest.delete(socket.id);
+
       // Guest数を更新
-      const currentCount = this.roomGuestCounts.get(roomId) || 1;
-      const newCount = Math.max(0, currentCount - 1);
-      if (newCount === 0) {
-        this.roomGuestCounts.delete(roomId);
-      } else {
-        this.roomGuestCounts.set(roomId, newCount);
+      if (leavingGuest) {
+        const currentCount = this.roomGuestCounts.get(roomId) || 1;
+        const newCount = Math.max(0, currentCount - 1);
+        if (newCount === 0) {
+          this.roomGuestCounts.delete(roomId);
+        } else {
+          this.roomGuestCounts.set(roomId, newCount);
+        }
+
+        // 他のクライアントに通知
+        this.io?.to(`room:${roomId}`).emit('guest_left', {
+          roomId,
+          guestCount: newCount,
+          guestId,
+          recordingId: leavingGuest?.recordingId,
+          name: leavingGuest?.name,
+        });
+      }
+    });
+
+    // Recording IDを設定（録画開始後にguestIdとrecordingIdを紐付け）
+    socket.on('set_recording_id', ({ roomId, recordingId }) => {
+      console.log(`🔗 [WebSocket] Set recording ID: room=${roomId}, recording=${recordingId}, socket=${socket.id}`);
+
+      // socketIdからguestIdを取得
+      const guestMapping = this.socketToGuest.get(socket.id);
+      if (!guestMapping || guestMapping.roomId !== roomId) {
+        console.warn(`⚠️ [WebSocket] Guest not found for socket ${socket.id}`);
+        return;
       }
 
-      // 他のクライアントに通知
-      this.io?.to(`room:${roomId}`).emit('guest_left', {
-        roomId,
-        guestCount: newCount,
-        recordingId: leavingRecordingId,
-        name: leavingName,
-      });
+      const { guestId } = guestMapping;
+      const roomGuestMap = this.roomGuests.get(roomId);
+      const guestInfo = roomGuestMap?.get(guestId);
+
+      if (guestInfo) {
+        guestInfo.recordingId = recordingId;
+        guestInfo.lastUpdatedAt = new Date();
+        console.log(`✅ [WebSocket] Linked guestId=${guestId} with recordingId=${recordingId}`);
+
+        // Directorに通知
+        this.io?.to(`room:${roomId}`).emit('guest_recording_linked', {
+          roomId,
+          guestId,
+          recordingId,
+          name: guestInfo.name,
+        });
+      }
     });
 
     // Guest同期状態更新
     socket.on('guest_sync_update', ({ roomId, recordingId, syncState, uploadedChunks, totalChunks }) => {
       console.log(`📊 [WebSocket] Guest sync update: room=${roomId}, recording=${recordingId}, state=${syncState}, ${uploadedChunks}/${totalChunks}`);
 
-      // Guest情報を更新
-      const roomGuestMap = this.roomGuests.get(roomId);
-      if (roomGuestMap) {
-        const guestInfo = roomGuestMap.get(recordingId);
+      // socketIdからguestIdを取得してGuest情報を更新
+      const guestMapping = this.socketToGuest.get(socket.id);
+      if (guestMapping) {
+        const roomGuestMap = this.roomGuests.get(guestMapping.roomId);
+        const guestInfo = roomGuestMap?.get(guestMapping.guestId);
         if (guestInfo) {
+          guestInfo.recordingId = recordingId;
           guestInfo.syncState = syncState;
           guestInfo.uploadedChunks = uploadedChunks;
           guestInfo.totalChunks = totalChunks;
@@ -225,11 +283,13 @@ export class WebSocketManager {
     socket.on('guest_sync_complete', async ({ roomId, recordingId, totalChunks }) => {
       console.log(`✅ [WebSocket] Guest sync complete: room=${roomId}, recording=${recordingId}, chunks=${totalChunks}`);
 
-      // Guest情報を更新
-      const roomGuestMap = this.roomGuests.get(roomId);
-      if (roomGuestMap) {
-        const guestInfo = roomGuestMap.get(recordingId);
+      // socketIdからguestIdを取得してGuest情報を更新
+      const guestMapping = this.socketToGuest.get(socket.id);
+      if (guestMapping) {
+        const roomGuestMap = this.roomGuests.get(guestMapping.roomId);
+        const guestInfo = roomGuestMap?.get(guestMapping.guestId);
         if (guestInfo) {
+          guestInfo.recordingId = recordingId;
           guestInfo.syncState = 'synced';
           guestInfo.uploadedChunks = totalChunks;
           guestInfo.totalChunks = totalChunks;
@@ -262,11 +322,13 @@ export class WebSocketManager {
     socket.on('guest_sync_error', ({ roomId, recordingId, errorMessage, failedChunks }) => {
       console.error(`❌ [WebSocket] Guest sync error: room=${roomId}, recording=${recordingId}, error=${errorMessage}`);
 
-      // Guest情報を更新
-      const roomGuestMap = this.roomGuests.get(roomId);
-      if (roomGuestMap) {
-        const guestInfo = roomGuestMap.get(recordingId);
+      // socketIdからguestIdを取得してGuest情報を更新
+      const guestMapping = this.socketToGuest.get(socket.id);
+      if (guestMapping) {
+        const roomGuestMap = this.roomGuests.get(guestMapping.roomId);
+        const guestInfo = roomGuestMap?.get(guestMapping.guestId);
         if (guestInfo) {
+          guestInfo.recordingId = recordingId;
           guestInfo.syncState = 'error';
           guestInfo.errorMessage = errorMessage;
           guestInfo.lastUpdatedAt = new Date();
@@ -288,34 +350,44 @@ export class WebSocketManager {
     // 切断時
     socket.on('disconnect', () => {
       console.log(`🔌 [WebSocket] Client disconnected: ${socket.id}`);
+
+      // socketIdからguestIdを取得
+      const guestMapping = this.socketToGuest.get(socket.id);
+      if (!guestMapping) {
+        return;
+      }
+
+      const { roomId, guestId } = guestMapping;
+
       // Guest情報をクリーンアップ
-      for (const [roomId, roomGuestMap] of this.roomGuests.entries()) {
-        for (const [recordingId, info] of roomGuestMap.entries()) {
-          if (info.socketId === socket.id) {
-            const guestName = info.name;
-            roomGuestMap.delete(recordingId);
-            // Guest数を更新
-            const currentCount = this.roomGuestCounts.get(roomId) || 1;
-            const newCount = Math.max(0, currentCount - 1);
-            if (newCount === 0) {
-              this.roomGuestCounts.delete(roomId);
-            } else {
-              this.roomGuestCounts.set(roomId, newCount);
-            }
-            // 切断を通知
-            this.io?.to(`room:${roomId}`).emit('guest_left', {
-              roomId,
-              guestCount: newCount,
-              recordingId,
-              name: guestName,
-            });
-            break;
-          }
+      const roomGuestMap = this.roomGuests.get(roomId);
+      const guestInfo = roomGuestMap?.get(guestId);
+      if (roomGuestMap && guestInfo) {
+        roomGuestMap.delete(guestId);
+        // Guest数を更新
+        const currentCount = this.roomGuestCounts.get(roomId) || 1;
+        const newCount = Math.max(0, currentCount - 1);
+        if (newCount === 0) {
+          this.roomGuestCounts.delete(roomId);
+        } else {
+          this.roomGuestCounts.set(roomId, newCount);
         }
+        // 切断を通知
+        this.io?.to(`room:${roomId}`).emit('guest_left', {
+          roomId,
+          guestCount: newCount,
+          guestId,
+          recordingId: guestInfo.recordingId,
+          name: guestInfo.name,
+        });
+
         if (roomGuestMap.size === 0) {
           this.roomGuests.delete(roomId);
         }
       }
+
+      // マッピングを削除
+      this.socketToGuest.delete(socket.id);
     });
   }
 
@@ -386,13 +458,16 @@ export class WebSocketManager {
 
   /**
    * 全Guestが同期完了したかチェック
+   * Note: recordingIdがないゲスト（録画を開始していない）は除外
    */
   areAllGuestsSynced(roomId: string): boolean {
     const guests = this.getRoomGuests(roomId);
-    if (guests.length === 0) {
+    // recordingIdがあるゲストのみを対象
+    const recordingGuests = guests.filter((guest) => guest.recordingId);
+    if (recordingGuests.length === 0) {
       return true;
     }
-    return guests.every((guest) => guest.syncState === 'synced');
+    return recordingGuests.every((guest) => guest.syncState === 'synced');
   }
 
   /**

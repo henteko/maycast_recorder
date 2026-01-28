@@ -21,8 +21,11 @@ export type GuestSyncState = 'idle' | 'recording' | 'uploading' | 'synced' | 'er
  * Guest情報（Director向け）
  */
 export interface GuestInfo {
-  /** Recording ID (Guest識別用) */
-  recordingId: string;
+  /** Guest ID (WebSocket socketId) */
+  guestId: string;
+
+  /** Recording ID（録画開始後に設定） */
+  recordingId?: string;
 
   /** Guest名（任意） */
   name?: string;

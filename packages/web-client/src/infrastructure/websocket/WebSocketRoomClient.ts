@@ -21,8 +21,9 @@ import type {
  * クライアントからサーバーへのイベント
  */
 interface ClientToServerEvents {
-  join_room: (data: { roomId: string; recordingId?: string; name?: string }) => void;
+  join_room: (data: { roomId: string; name?: string }) => void;
   leave_room: (data: { roomId: string }) => void;
+  set_recording_id: (data: { roomId: string; recordingId: string }) => void;
   guest_sync_update: (data: {
     roomId: string;
     recordingId: string;
@@ -49,8 +50,9 @@ interface ClientToServerEvents {
 interface ServerToClientEvents {
   room_state_changed: (data: RoomStateChanged) => void;
   recording_created: (data: RecordingCreated) => void;
-  guest_joined: (data: { roomId: string; guestCount: number; recordingId?: string; name?: string }) => void;
-  guest_left: (data: { roomId: string; guestCount: number; recordingId?: string; name?: string }) => void;
+  guest_joined: (data: { roomId: string; guestCount: number; guestId: string; recordingId?: string; name?: string }) => void;
+  guest_left: (data: { roomId: string; guestCount: number; guestId: string; recordingId?: string; name?: string }) => void;
+  guest_recording_linked: (data: { roomId: string; guestId: string; recordingId: string; name?: string }) => void;
   guest_sync_state_changed: (data: GuestSyncStateChanged) => void;
   guest_sync_complete: (data: GuestSyncComplete) => void;
   guest_sync_error: (data: GuestSyncError) => void;
@@ -63,8 +65,9 @@ interface ServerToClientEvents {
 export interface RoomEventListeners {
   onRoomStateChanged?: (data: RoomStateChanged) => void;
   onRecordingCreated?: (data: RecordingCreated) => void;
-  onGuestJoined?: (data: { roomId: string; guestCount: number; recordingId?: string; name?: string }) => void;
-  onGuestLeft?: (data: { roomId: string; guestCount: number; recordingId?: string; name?: string }) => void;
+  onGuestJoined?: (data: { roomId: string; guestCount: number; guestId: string; recordingId?: string; name?: string }) => void;
+  onGuestLeft?: (data: { roomId: string; guestCount: number; guestId: string; recordingId?: string; name?: string }) => void;
+  onGuestRecordingLinked?: (data: { roomId: string; guestId: string; recordingId: string; name?: string }) => void;
   onGuestSyncStateChanged?: (data: GuestSyncStateChanged) => void;
   onGuestSyncComplete?: (data: GuestSyncComplete) => void;
   onGuestSyncError?: (data: GuestSyncError) => void;
@@ -80,7 +83,6 @@ export class WebSocketRoomClient {
   private socket: Socket<ServerToClientEvents, ClientToServerEvents> | null = null;
   private serverUrl: string;
   private currentRoomId: string | null = null;
-  private currentRecordingId: string | null = null;
   private currentName: string | null = null;
   private listeners: RoomEventListeners = {};
   private isConnected = false;
@@ -93,12 +95,13 @@ export class WebSocketRoomClient {
    * WebSocket接続を開始
    */
   connect(listeners: RoomEventListeners = {}): void {
+    // 常にリスナーを更新（既に接続済みでも新しいリスナーを適用）
+    this.listeners = listeners;
+
     if (this.socket) {
-      console.log('⚠️ [WebSocketRoomClient] Already connected');
+      console.log('⚠️ [WebSocketRoomClient] Already connected, updating listeners');
       return;
     }
-
-    this.listeners = listeners;
 
     console.log(`🔌 [WebSocketRoomClient] Connecting to ${this.serverUrl}`);
     this.socket = io(this.serverUrl, {
@@ -124,7 +127,7 @@ export class WebSocketRoomClient {
 
       // 再接続時にRoomに再参加
       if (this.currentRoomId) {
-        this.joinRoom(this.currentRoomId, this.currentRecordingId ?? undefined, this.currentName ?? undefined);
+        this.joinRoom(this.currentRoomId, this.currentName ?? undefined);
       }
     });
 
@@ -154,6 +157,11 @@ export class WebSocketRoomClient {
       this.listeners.onGuestLeft?.(data);
     });
 
+    this.socket.on('guest_recording_linked', (data) => {
+      console.log('📡 [WebSocketRoomClient] guest_recording_linked:', data);
+      this.listeners.onGuestRecordingLinked?.(data);
+    });
+
     this.socket.on('error', (data) => {
       console.error('❌ [WebSocketRoomClient] error:', data);
       this.listeners.onError?.(data);
@@ -178,20 +186,33 @@ export class WebSocketRoomClient {
   /**
    * Roomに参加
    * @param roomId Room ID
-   * @param recordingId Recording ID（Guest参加時のみ）
-   * @param name Guest名（任意）
+   * @param name Guest名（任意、指定するとゲストとして追跡される）
    */
-  joinRoom(roomId: string, recordingId?: string, name?: string): void {
+  joinRoom(roomId: string, name?: string): void {
     if (!this.socket) {
       console.warn('⚠️ [WebSocketRoomClient] Not connected, cannot join room');
       return;
     }
 
-    console.log(`📥 [WebSocketRoomClient] Joining room: ${roomId}${recordingId ? ` (recording: ${recordingId})` : ''}${name ? ` (name: ${name})` : ''}`);
+    console.log(`📥 [WebSocketRoomClient] Joining room: ${roomId}${name ? ` (name: ${name})` : ''}`);
     this.currentRoomId = roomId;
-    this.currentRecordingId = recordingId ?? null;
     this.currentName = name ?? null;
-    this.socket.emit('join_room', { roomId, recordingId, name });
+    this.socket.emit('join_room', { roomId, name });
+  }
+
+  /**
+   * Recording IDを設定（録画開始後にguestIdとrecordingIdを紐付け）
+   * @param roomId Room ID
+   * @param recordingId Recording ID
+   */
+  setRecordingId(roomId: string, recordingId: string): void {
+    if (!this.socket) {
+      console.warn('⚠️ [WebSocketRoomClient] Not connected, cannot set recording ID');
+      return;
+    }
+
+    console.log(`🔗 [WebSocketRoomClient] Setting recording ID: ${recordingId} for room: ${roomId}`);
+    this.socket.emit('set_recording_id', { roomId, recordingId });
   }
 
   /**
@@ -207,7 +228,6 @@ export class WebSocketRoomClient {
 
     if (this.currentRoomId === roomId) {
       this.currentRoomId = null;
-      this.currentRecordingId = null;
       this.currentName = null;
     }
   }
@@ -278,7 +298,6 @@ export class WebSocketRoomClient {
       this.socket = null;
       this.isConnected = false;
       this.currentRoomId = null;
-      this.currentRecordingId = null;
       this.currentName = null;
     }
   }
@@ -295,13 +314,6 @@ export class WebSocketRoomClient {
    */
   getCurrentRoomId(): string | null {
     return this.currentRoomId;
-  }
-
-  /**
-   * 現在のRecording IDを取得
-   */
-  getCurrentRecordingId(): string | null {
-    return this.currentRecordingId;
   }
 
   /**

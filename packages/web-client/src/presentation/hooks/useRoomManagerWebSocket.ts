@@ -25,7 +25,7 @@ export interface UseRoomManagerWebSocketResult {
   isLoading: boolean;
   error: string | null;
   isWebSocketConnected: boolean;
-  /** Room毎のGuest情報 (roomId -> recordingId -> GuestInfo) */
+  /** Room毎のGuest情報 (roomId -> guestId -> GuestInfo) */
   guestsByRoom: Map<string, Map<string, GuestInfo>>;
   createRoom: () => Promise<string | null>;
   deleteRoom: (roomId: string) => Promise<boolean>;
@@ -110,16 +110,25 @@ export function useRoomManagerWebSocket(
 
     // WebSocket接続
     wsClient.connect({
-      onConnect: () => {
+      onConnect: async () => {
         console.log('✅ [useRoomManagerWebSocket] WebSocket connected');
         setIsWebSocketConnected(true);
         stopPolling();
 
-        // 既存のRoomを全て購読
-        rooms.forEach((room) => {
-          wsClient.joinRoom(room.id);
-          subscribedRoomsRef.current.add(room.id);
-        });
+        // 接続時に最新のRoom一覧を取得して購読（クロージャの stale state 問題を回避）
+        try {
+          const apiClient = new RoomAPIClient(serverUrl);
+          const currentRooms = await apiClient.getAllRooms();
+          console.log(`📥 [useRoomManagerWebSocket] Joining ${currentRooms.length} rooms on connect`);
+          currentRooms.forEach((room) => {
+            if (!subscribedRoomsRef.current.has(room.id)) {
+              wsClient.joinRoom(room.id);
+              subscribedRoomsRef.current.add(room.id);
+            }
+          });
+        } catch (err) {
+          console.error('❌ [useRoomManagerWebSocket] Failed to join rooms on connect:', err);
+        }
       },
       onDisconnect: () => {
         console.log('🔌 [useRoomManagerWebSocket] WebSocket disconnected, starting polling');
@@ -146,68 +155,87 @@ export function useRoomManagerWebSocket(
         );
       },
       onGuestJoined: (data) => {
-        console.log(`📡 [useRoomManagerWebSocket] Guest joined room: ${data.roomId}, count: ${data.guestCount}, recording: ${data.recordingId}, name: ${data.name}`);
-        // Guest情報を追加
-        if (data.recordingId) {
-          setGuestsByRoom((prev) => {
-            const next = new Map(prev);
-            if (!next.has(data.roomId)) {
-              next.set(data.roomId, new Map());
-            }
-            const roomGuests = next.get(data.roomId)!;
-            roomGuests.set(data.recordingId!, {
-              recordingId: data.recordingId!,
-              name: data.name,
-              syncState: 'idle',
-              uploadedChunks: 0,
-              totalChunks: 0,
-              isConnected: true,
-              lastUpdatedAt: new Date().toISOString(),
-            });
-            return next;
-          });
-        }
-      },
-      onGuestLeft: (data) => {
-        console.log(`📡 [useRoomManagerWebSocket] Guest left room: ${data.roomId}, count: ${data.guestCount}, recording: ${data.recordingId}, name: ${data.name}`);
-        // Guest情報を更新（接続状態をfalseに）
-        if (data.recordingId) {
-          setGuestsByRoom((prev) => {
-            const next = new Map(prev);
-            const roomGuests = next.get(data.roomId);
-            if (roomGuests) {
-              const guest = roomGuests.get(data.recordingId!);
-              if (guest) {
-                roomGuests.set(data.recordingId!, {
-                  ...guest,
-                  isConnected: false,
-                  lastUpdatedAt: new Date().toISOString(),
-                });
-              }
-            }
-            return next;
-          });
-        }
-      },
-      onGuestSyncStateChanged: (data: GuestSyncStateChanged) => {
-        console.log(`📡 [useRoomManagerWebSocket] Guest sync state changed: room=${data.roomId}, recording=${data.recordingId}, state=${data.syncState}`);
+        console.log(`📡 [useRoomManagerWebSocket] Guest joined room: ${data.roomId}, guestId: ${data.guestId}, count: ${data.guestCount}, recording: ${data.recordingId}, name: ${data.name}`);
+        // Guest情報を追加（guestIdをキーにして常に追加）
         setGuestsByRoom((prev) => {
           const next = new Map(prev);
           if (!next.has(data.roomId)) {
             next.set(data.roomId, new Map());
           }
           const roomGuests = next.get(data.roomId)!;
-          const existing = roomGuests.get(data.recordingId);
-          roomGuests.set(data.recordingId, {
-            recordingId: data.recordingId,
-            name: existing?.name,
-            syncState: data.syncState,
-            uploadedChunks: data.uploadedChunks,
-            totalChunks: data.totalChunks,
-            isConnected: existing?.isConnected ?? true,
-            lastUpdatedAt: data.timestamp,
+          const existing = roomGuests.get(data.guestId);
+          roomGuests.set(data.guestId, {
+            guestId: data.guestId,
+            recordingId: data.recordingId ?? existing?.recordingId,
+            name: data.name ?? existing?.name,
+            syncState: existing?.syncState ?? 'idle',
+            uploadedChunks: existing?.uploadedChunks ?? 0,
+            totalChunks: existing?.totalChunks ?? 0,
+            isConnected: true,
+            lastUpdatedAt: new Date().toISOString(),
           });
           return next;
+        });
+      },
+      onGuestLeft: (data) => {
+        console.log(`📡 [useRoomManagerWebSocket] Guest left room: ${data.roomId}, guestId: ${data.guestId}, count: ${data.guestCount}, recording: ${data.recordingId}, name: ${data.name}`);
+        // Guest情報を更新（接続状態をfalseに）
+        setGuestsByRoom((prev) => {
+          const next = new Map(prev);
+          const roomGuests = next.get(data.roomId);
+          if (roomGuests) {
+            const guest = roomGuests.get(data.guestId);
+            if (guest) {
+              roomGuests.set(data.guestId, {
+                ...guest,
+                isConnected: false,
+                lastUpdatedAt: new Date().toISOString(),
+              });
+            }
+          }
+          return next;
+        });
+      },
+      onGuestRecordingLinked: (data) => {
+        console.log(`📡 [useRoomManagerWebSocket] Guest recording linked: room=${data.roomId}, guestId=${data.guestId}, recording=${data.recordingId}, name=${data.name}`);
+        // GuestのrecordingIdを更新
+        setGuestsByRoom((prev) => {
+          const next = new Map(prev);
+          const roomGuests = next.get(data.roomId);
+          if (roomGuests) {
+            const guest = roomGuests.get(data.guestId);
+            if (guest) {
+              roomGuests.set(data.guestId, {
+                ...guest,
+                recordingId: data.recordingId,
+                lastUpdatedAt: new Date().toISOString(),
+              });
+            }
+          }
+          return next;
+        });
+      },
+      onGuestSyncStateChanged: (data: GuestSyncStateChanged) => {
+        console.log(`📡 [useRoomManagerWebSocket] Guest sync state changed: room=${data.roomId}, recording=${data.recordingId}, state=${data.syncState}`);
+        setGuestsByRoom((prev) => {
+          const next = new Map(prev);
+          const roomGuests = next.get(data.roomId);
+          if (!roomGuests) return prev;
+
+          // recordingIdでゲストを検索
+          for (const [guestId, guest] of roomGuests.entries()) {
+            if (guest.recordingId === data.recordingId) {
+              roomGuests.set(guestId, {
+                ...guest,
+                syncState: data.syncState,
+                uploadedChunks: data.uploadedChunks,
+                totalChunks: data.totalChunks,
+                lastUpdatedAt: data.timestamp,
+              });
+              return next;
+            }
+          }
+          return prev;
         });
       },
       onGuestSyncComplete: (data: GuestSyncComplete) => {
@@ -215,19 +243,22 @@ export function useRoomManagerWebSocket(
         setGuestsByRoom((prev) => {
           const next = new Map(prev);
           const roomGuests = next.get(data.roomId);
-          if (roomGuests) {
-            const existing = roomGuests.get(data.recordingId);
-            roomGuests.set(data.recordingId, {
-              recordingId: data.recordingId,
-              name: existing?.name,
-              syncState: 'synced',
-              uploadedChunks: data.totalChunks,
-              totalChunks: data.totalChunks,
-              isConnected: existing?.isConnected ?? true,
-              lastUpdatedAt: data.timestamp,
-            });
+          if (!roomGuests) return prev;
+
+          // recordingIdでゲストを検索
+          for (const [guestId, guest] of roomGuests.entries()) {
+            if (guest.recordingId === data.recordingId) {
+              roomGuests.set(guestId, {
+                ...guest,
+                syncState: 'synced',
+                uploadedChunks: data.totalChunks,
+                totalChunks: data.totalChunks,
+                lastUpdatedAt: data.timestamp,
+              });
+              return next;
+            }
           }
-          return next;
+          return prev;
         });
       },
       onGuestSyncError: (data: GuestSyncError) => {
@@ -235,20 +266,21 @@ export function useRoomManagerWebSocket(
         setGuestsByRoom((prev) => {
           const next = new Map(prev);
           const roomGuests = next.get(data.roomId);
-          if (roomGuests) {
-            const existing = roomGuests.get(data.recordingId);
-            roomGuests.set(data.recordingId, {
-              recordingId: data.recordingId,
-              name: existing?.name,
-              syncState: 'error',
-              uploadedChunks: existing?.uploadedChunks ?? 0,
-              totalChunks: existing?.totalChunks ?? 0,
-              isConnected: existing?.isConnected ?? true,
-              lastUpdatedAt: data.timestamp,
-              errorMessage: data.errorMessage,
-            });
+          if (!roomGuests) return prev;
+
+          // recordingIdでゲストを検索
+          for (const [guestId, guest] of roomGuests.entries()) {
+            if (guest.recordingId === data.recordingId) {
+              roomGuests.set(guestId, {
+                ...guest,
+                syncState: 'error',
+                errorMessage: data.errorMessage,
+                lastUpdatedAt: data.timestamp,
+              });
+              return next;
+            }
           }
-          return next;
+          return prev;
         });
       },
       onError: (data) => {

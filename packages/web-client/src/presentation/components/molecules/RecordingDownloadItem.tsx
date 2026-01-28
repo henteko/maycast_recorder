@@ -12,6 +12,7 @@ interface RecordingDownloadItemProps {
   isLoading: boolean;
   onDownload: (recordingId: string) => void;
   isDownloading: boolean;
+  guestName?: string;
 }
 
 export const RecordingDownloadItem: React.FC<RecordingDownloadItemProps> = ({
@@ -20,6 +21,7 @@ export const RecordingDownloadItem: React.FC<RecordingDownloadItemProps> = ({
   isLoading,
   onDownload,
   isDownloading,
+  guestName,
 }) => {
   const duration = recording ? RecordingAPIClient.calculateDuration(recording) : null;
 
@@ -30,9 +32,16 @@ export const RecordingDownloadItem: React.FC<RecordingDownloadItemProps> = ({
           <DocumentArrowDownIcon className="w-4 h-4 text-maycast-safe" />
         </div>
         <div>
-          <span className="text-sm font-mono text-maycast-text">
-            {recordingId.substring(0, 8)}...
-          </span>
+          <div className="flex items-center gap-2">
+            {guestName && (
+              <span className="text-sm font-semibold text-maycast-text">
+                {guestName}
+              </span>
+            )}
+            <span className="text-sm font-mono text-maycast-text-secondary">
+              {recordingId.substring(0, 8)}...
+            </span>
+          </div>
           {recording && (
             <div className="flex items-center gap-2 text-xs text-maycast-text-secondary mt-0.5">
               {duration !== null && (

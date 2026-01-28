@@ -30,7 +30,7 @@ export interface UseRoomWebSocketResult {
  *
  * @param roomId Room ID
  * @param fallbackPollInterval WebSocket接続失敗時のフォールバックポーリング間隔（ミリ秒）
- * @param guestName Guest名（任意）
+ * @param guestName Guest名（指定するとゲストとして追跡される）
  */
 export function useRoomWebSocket(
   roomId: string | null,
@@ -43,7 +43,6 @@ export function useRoomWebSocket(
   const [isRoomNotFound, setIsRoomNotFound] = useState(false);
   const [isWebSocketConnected, setIsWebSocketConnected] = useState(false);
   const [guestCount, setGuestCount] = useState(0);
-  const [recordingId, setRecordingIdState] = useState<string | null>(null);
 
   const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const wsClientRef = useRef<ReturnType<typeof getWebSocketRoomClient> | null>(null);
@@ -114,7 +113,7 @@ export function useRoomWebSocket(
         console.log('✅ [useRoomWebSocket] WebSocket connected');
         setIsWebSocketConnected(true);
         stopPolling();
-        wsClient.joinRoom(roomId, recordingId ?? undefined, guestName);
+        wsClient.joinRoom(roomId, guestName);
       },
       onDisconnect: () => {
         console.log('🔌 [useRoomWebSocket] WebSocket disconnected, starting polling');
@@ -150,9 +149,20 @@ export function useRoomWebSocket(
       }
       // Note: WebSocket接続自体は維持（他のコンポーネントが使う可能性あり）
     };
-    // Note: recordingIdは意図的に依存配列から除外（初回接続時のjoinRoomにのみ使用、後からsetRecordingIdで更新可能）
+    // Note: guestNameは意図的に依存配列から除外（下の別エフェクトで対応）
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId, fetchRoom, startPolling, stopPolling]);
+
+  // guestNameが設定されたら再度Roomに参加（名前付きで）
+  useEffect(() => {
+    if (!roomId || !guestName) return;
+
+    const wsClient = wsClientRef.current;
+    if (wsClient && isWebSocketConnected) {
+      console.log(`🔄 [useRoomWebSocket] Re-joining room with name: ${guestName}`);
+      wsClient.joinRoom(roomId, guestName);
+    }
+  }, [roomId, guestName, isWebSocketConnected]);
 
   // クリーンアップ
   useEffect(() => {
@@ -162,16 +172,13 @@ export function useRoomWebSocket(
     };
   }, [stopPolling]);
 
-  // Recording IDを設定してRoomに再参加
+  // Recording IDを設定（guestIdとrecordingIdを紐付け）
   const setRecordingId = useCallback((newRecordingId: string) => {
-    setRecordingIdState(newRecordingId);
     const wsClient = wsClientRef.current;
     if (wsClient && roomId && isWebSocketConnected) {
-      // 一旦離脱してから再参加
-      wsClient.leaveRoom(roomId);
-      wsClient.joinRoom(roomId, newRecordingId, guestName);
+      wsClient.setRecordingId(roomId, newRecordingId);
     }
-  }, [roomId, isWebSocketConnected, guestName]);
+  }, [roomId, isWebSocketConnected]);
 
   return {
     room,

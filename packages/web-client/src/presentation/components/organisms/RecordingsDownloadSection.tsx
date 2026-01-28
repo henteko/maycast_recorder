@@ -8,18 +8,26 @@ import { RecordingAPIClient, type RecordingInfo } from '../../../infrastructure/
 import { getServerUrl } from '../../../infrastructure/config/serverConfig';
 import { Button } from '../atoms/Button';
 import { RecordingDownloadItem } from '../molecules/RecordingDownloadItem';
+import type { GuestInfo } from '@maycast/common-types';
 
 interface RecordingsDownloadSectionProps {
   recordingIds: string[];
   onDownloadAll: () => void;
   isDownloadingAll: boolean;
+  guests?: GuestInfo[];
 }
 
 export const RecordingsDownloadSection: React.FC<RecordingsDownloadSectionProps> = ({
   recordingIds,
   onDownloadAll,
   isDownloadingAll,
+  guests = [],
 }) => {
+  // recordingId -> guestName のマッピングを作成
+  const getGuestNameForRecording = useCallback((recordingId: string): string | undefined => {
+    const guest = guests.find((g) => g.recordingId === recordingId);
+    return guest?.name;
+  }, [guests]);
   const [recordings, setRecordings] = useState<Map<string, RecordingInfo>>(new Map());
   const [loadingIds, setLoadingIds] = useState<Set<string>>(new Set());
   const [downloadingIds, setDownloadingIds] = useState<Set<string>>(new Set());
@@ -134,6 +142,7 @@ export const RecordingsDownloadSection: React.FC<RecordingsDownloadSectionProps>
             isLoading={loadingIds.has(recordingId)}
             onDownload={handleDownload}
             isDownloading={downloadingIds.has(recordingId)}
+            guestName={getGuestNameForRecording(recordingId)}
           />
         ))}
       </div>
