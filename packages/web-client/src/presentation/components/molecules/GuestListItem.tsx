@@ -5,12 +5,17 @@
 import { VideoCameraIcon, VideoCameraSlashIcon, MicrophoneIcon } from '@heroicons/react/24/solid';
 import type { GuestInfo } from '@maycast/common-types';
 import { GuestSyncBadge } from '../atoms/GuestSyncBadge';
+import { WaveformDisplay } from '../atoms/WaveformDisplay';
 
 interface GuestListItemProps {
   guest: GuestInfo;
+  /** 波形データ（Director用） */
+  waveformData?: number[] | null;
+  /** 無音状態かどうか（Guest側で判定） */
+  isSilent?: boolean;
 }
 
-export const GuestListItem: React.FC<GuestListItemProps> = ({ guest }) => {
+export const GuestListItem: React.FC<GuestListItemProps> = ({ guest, waveformData, isSilent = false }) => {
   const guestIdentifier = guest.guestId || guest.recordingId || 'unknown';
   const displayName = guest.name || `Guest ${guestIdentifier.substring(0, 6)}`;
   const mediaStatus = guest.mediaStatus;
@@ -74,6 +79,23 @@ export const GuestListItem: React.FC<GuestListItemProps> = ({ guest }) => {
           <GuestSyncBadge syncState={guest.syncState} />
         </div>
       </div>
+
+      {/* 中段: 波形表示 */}
+      {waveformData && (
+        <div className="mt-2 pt-2 border-t border-maycast-border/20">
+          <div className="flex items-center gap-2">
+            <MicrophoneIcon className="w-3 h-3 flex-shrink-0 text-maycast-text-secondary" />
+            <WaveformDisplay
+              waveformData={waveformData}
+              width={180}
+              height={28}
+              color={mediaStatus?.isMicMuted ? '#ef4444' : '#22c55e'}
+              backgroundColor="rgba(0,0,0,0.3)"
+              isSilent={isSilent}
+            />
+          </div>
+        </div>
+      )}
 
       {/* 下段: デバイス情報 */}
       {mediaStatus && (mediaStatus.cameraDevice || mediaStatus.micDevice) && (

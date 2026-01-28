@@ -27,6 +27,8 @@ export interface UseRoomManagerWebSocketResult {
   isWebSocketConnected: boolean;
   /** Room毎のGuest情報 (roomId -> guestId -> GuestInfo) */
   guestsByRoom: Map<string, Map<string, GuestInfo>>;
+  /** Room毎のGuest波形データ (roomId -> guestId -> { waveformData, isSilent }) */
+  waveformsByRoom: Map<string, Map<string, { waveformData: number[]; isSilent: boolean }>>;
   createRoom: () => Promise<string | null>;
   deleteRoom: (roomId: string) => Promise<boolean>;
   updateRoomState: (roomId: string, state: RoomState) => Promise<boolean>;
@@ -46,6 +48,7 @@ export function useRoomManagerWebSocket(
   const [error, setError] = useState<string | null>(null);
   const [isWebSocketConnected, setIsWebSocketConnected] = useState(false);
   const [guestsByRoom, setGuestsByRoom] = useState<Map<string, Map<string, GuestInfo>>>(new Map());
+  const [waveformsByRoom, setWaveformsByRoom] = useState<Map<string, Map<string, { waveformData: number[]; isSilent: boolean }>>>(new Map());
 
   const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const wsClientRef = useRef<ReturnType<typeof getWebSocketRoomClient> | null>(null);
@@ -327,6 +330,20 @@ export function useRoomManagerWebSocket(
           return next;
         });
       },
+      onGuestWaveformChanged: (data) => {
+        setWaveformsByRoom((prev) => {
+          const next = new Map(prev);
+          if (!next.has(data.roomId)) {
+            next.set(data.roomId, new Map());
+          }
+          const roomWaveforms = next.get(data.roomId)!;
+          roomWaveforms.set(data.guestId, {
+            waveformData: data.waveformData,
+            isSilent: data.isSilent,
+          });
+          return next;
+        });
+      },
       onError: (data) => {
         console.error('❌ [useRoomManagerWebSocket] Error:', data.message);
         setError(data.message);
@@ -435,6 +452,7 @@ export function useRoomManagerWebSocket(
     error,
     isWebSocketConnected,
     guestsByRoom,
+    waveformsByRoom,
     createRoom,
     deleteRoom,
     updateRoomState,

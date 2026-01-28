@@ -18,6 +18,7 @@ export const DirectorPage: React.FC = () => {
     error,
     isWebSocketConnected,
     guestsByRoom,
+    waveformsByRoom,
     createRoom,
     deleteRoom,
     updateRoomState,
@@ -65,6 +66,10 @@ export const DirectorPage: React.FC = () => {
     return Array.from(roomGuests.values());
   };
 
+  const getWaveformsForRoom = (roomId: string): Map<string, { waveformData: number[]; isSilent: boolean }> | undefined => {
+    return waveformsByRoom.get(roomId);
+  };
+
   // Loading
   if (isLoading) {
     return (
@@ -106,6 +111,7 @@ export const DirectorPage: React.FC = () => {
                 key={room.id}
                 room={room}
                 guests={getGuestsForRoom(room.id)}
+                waveformsByGuest={getWaveformsForRoom(room.id)}
                 onStartRecording={handleStartRecording}
                 onStopRecording={handleStopRecording}
                 onFinalize={handleFinalize}

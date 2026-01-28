@@ -17,6 +17,8 @@ import { RecordingsDownloadSection } from './RecordingsDownloadSection';
 interface RoomCardProps {
   room: RoomInfo;
   guests: GuestInfo[];
+  /** ゲスト毎の波形データ (guestId -> { waveformData, isSilent }) */
+  waveformsByGuest?: Map<string, { waveformData: number[]; isSilent: boolean }>;
   onStartRecording: (roomId: string) => void;
   onStopRecording: (roomId: string) => void;
   onFinalize: (roomId: string) => void;
@@ -27,6 +29,7 @@ interface RoomCardProps {
 export const RoomCard: React.FC<RoomCardProps> = ({
   room,
   guests,
+  waveformsByGuest,
   onStartRecording,
   onStopRecording,
   onFinalize,
@@ -117,9 +120,17 @@ export const RoomCard: React.FC<RoomCardProps> = ({
             参加者 ({guests.length}名)
           </label>
           <div className="space-y-2">
-            {guests.map((guest) => (
-              <GuestListItem key={guest.guestId} guest={guest} />
-            ))}
+            {guests.map((guest) => {
+              const waveformInfo = waveformsByGuest?.get(guest.guestId);
+              return (
+                <GuestListItem
+                  key={guest.guestId}
+                  guest={guest}
+                  waveformData={waveformInfo?.waveformData ?? null}
+                  isSilent={waveformInfo?.isSilent ?? false}
+                />
+              );
+            })}
           </div>
         </div>
       )}

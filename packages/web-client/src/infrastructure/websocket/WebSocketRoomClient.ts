@@ -47,6 +47,11 @@ interface ClientToServerEvents {
     roomId: string;
     mediaStatus: GuestMediaStatus;
   }) => void;
+  guest_waveform_update: (data: {
+    roomId: string;
+    waveformData: number[];
+    isSilent: boolean;
+  }) => void;
 }
 
 /**
@@ -75,6 +80,7 @@ interface ServerToClientEvents {
   guest_left: (data: { roomId: string; guestCount: number; guestId: string; recordingId?: string; name?: string }) => void;
   guest_recording_linked: (data: { roomId: string; guestId: string; recordingId: string; name?: string }) => void;
   guest_media_status_changed: (data: { roomId: string; guestId: string; mediaStatus: GuestMediaStatus }) => void;
+  guest_waveform_changed: (data: { roomId: string; guestId: string; waveformData: number[]; isSilent: boolean }) => void;
   guest_sync_state_changed: (data: GuestSyncStateChanged) => void;
   guest_sync_complete: (data: GuestSyncComplete) => void;
   guest_sync_error: (data: GuestSyncError) => void;
@@ -92,6 +98,7 @@ export interface RoomEventListeners {
   onGuestLeft?: (data: { roomId: string; guestCount: number; guestId: string; recordingId?: string; name?: string }) => void;
   onGuestRecordingLinked?: (data: { roomId: string; guestId: string; recordingId: string; name?: string }) => void;
   onGuestMediaStatusChanged?: (data: { roomId: string; guestId: string; mediaStatus: GuestMediaStatus }) => void;
+  onGuestWaveformChanged?: (data: { roomId: string; guestId: string; waveformData: number[]; isSilent: boolean }) => void;
   onGuestSyncStateChanged?: (data: GuestSyncStateChanged) => void;
   onGuestSyncComplete?: (data: GuestSyncComplete) => void;
   onGuestSyncError?: (data: GuestSyncError) => void;
@@ -193,6 +200,11 @@ export class WebSocketRoomClient {
       this.listeners.onGuestMediaStatusChanged?.(data);
     });
 
+    this.socket.on('guest_waveform_changed', (data) => {
+      // ログは出力しない（頻繁すぎるため）
+      this.listeners.onGuestWaveformChanged?.(data);
+    });
+
     this.socket.on('error', (data) => {
       console.error('❌ [WebSocketRoomClient] error:', data);
       this.listeners.onError?.(data);
@@ -263,6 +275,20 @@ export class WebSocketRoomClient {
     }
 
     this.socket.emit('guest_media_status_update', { roomId, mediaStatus });
+  }
+
+  /**
+   * 波形データを送信
+   * @param roomId Room ID
+   * @param waveformData 波形データ（32サンプル）
+   * @param isSilent 無音状態かどうか
+   */
+  emitWaveformUpdate(roomId: string, waveformData: number[], isSilent: boolean): void {
+    if (!this.socket) {
+      return;
+    }
+
+    this.socket.emit('guest_waveform_update', { roomId, waveformData, isSilent });
   }
 
   /**

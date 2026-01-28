@@ -71,6 +71,11 @@ interface ClientToServerEvents {
     roomId: string;
     mediaStatus: GuestMediaStatus;
   }) => void;
+  guest_waveform_update: (data: {
+    roomId: string;
+    waveformData: number[];
+    isSilent: boolean;
+  }) => void;
 }
 
 /**
@@ -83,6 +88,7 @@ interface ServerToClientEvents {
   guest_left: (data: { roomId: string; guestCount: number; guestId: string; recordingId?: string; name?: string }) => void;
   guest_recording_linked: (data: { roomId: string; guestId: string; recordingId: string; name?: string }) => void;
   guest_media_status_changed: (data: { roomId: string; guestId: string; mediaStatus: GuestMediaStatus }) => void;
+  guest_waveform_changed: (data: { roomId: string; guestId: string; waveformData: number[]; isSilent: boolean }) => void;
   guest_sync_state_changed: (data: GuestSyncStateChanged) => void;
   guest_sync_complete: (data: GuestSyncComplete) => void;
   guest_sync_error: (data: GuestSyncError) => void;
@@ -305,6 +311,25 @@ export class WebSocketManager {
           mediaStatus,
         });
       }
+    });
+
+    // Guest波形データ更新（リアルタイム転送、保存なし）
+    socket.on('guest_waveform_update', ({ roomId, waveformData, isSilent }) => {
+      // socketIdからguestIdを取得
+      const guestMapping = this.socketToGuest.get(socket.id);
+      if (!guestMapping || guestMapping.roomId !== roomId) {
+        return;
+      }
+
+      const { guestId } = guestMapping;
+
+      // Directorに転送（ログは出力しない - 頻繁すぎるため）
+      this.io?.to(`room:${roomId}`).emit('guest_waveform_changed', {
+        roomId,
+        guestId,
+        waveformData,
+        isSilent,
+      });
     });
 
     // Guest同期状態更新

@@ -1,10 +1,12 @@
-import { useRef, useState, useEffect, useImperativeHandle } from 'react'
+import { useRef, useState, useEffect, useImperativeHandle, useCallback } from 'react'
 import { useMediaStream } from '../hooks/useMediaStream'
 import { useSessionManager } from '../hooks/useSessionManager'
 import { useEncoders } from '../hooks/useEncoders'
 import { useRecorder } from '../hooks/useRecorder'
 import { useDevices } from '../hooks/useDevices'
 import { useGuestMediaStatus } from '../hooks/useGuestMediaStatus'
+import { getWebSocketRoomClient } from '../../infrastructure/websocket/WebSocketRoomClient'
+import { getServerUrl } from '../../infrastructure/config/serverConfig'
 // @ts-expect-error - maycast-wasm-core has no type definitions
 import init from 'maycast-wasm-core'
 import type { RecorderSettings } from '../../types/settings'
@@ -18,6 +20,7 @@ import { RecoveryModal } from './organisms/RecoveryModal'
 import { VideoPreview } from './organisms/VideoPreview'
 import { StatsPanel } from './organisms/StatsPanel'
 import { ControlPanel } from './organisms/ControlPanel'
+import { AudioWaveform } from './atoms/AudioWaveform'
 
 import type { RecordingId } from '@maycast/common-types';
 
@@ -188,6 +191,14 @@ export const Recorder: React.FC<RecorderProps> = ({
     audioDevices,
   });
 
+  // Guest mode: 波形データをDirectorに送信
+  const handleWaveformData = useCallback((waveformData: number[], isSilent: boolean) => {
+    if (!guestMode?.roomId || !guestMode.isWebSocketConnected) return;
+    const serverUrl = getServerUrl();
+    const wsClient = getWebSocketRoomClient(serverUrl);
+    wsClient.emitWaveformUpdate(guestMode.roomId, waveformData, isSilent);
+  }, [guestMode?.roomId, guestMode?.isWebSocketConnected]);
+
   // Export recorder state and controls to parent
   useImperativeHandle(exportRef, () => ({
     screenState,
@@ -319,6 +330,26 @@ export const Recorder: React.FC<RecorderProps> = ({
             videoRef={videoRef}
             isRecording={isRecording}
             elapsedTime={formatElapsedTime(elapsedTime)}
+          />
+        </div>
+
+        {/* マイク波形表示 */}
+        <div className="mb-6 px-4 py-4 bg-maycast-bg-secondary/50 rounded-xl border border-maycast-border/30">
+          <div className="flex items-center gap-2 text-maycast-text-secondary text-sm mb-3">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+            </svg>
+            <span>マイク入力</span>
+          </div>
+          <AudioWaveform
+            stream={stream}
+            width={500}
+            height={60}
+            color="#22c55e"
+            backgroundColor="rgba(0,0,0,0.3)"
+            onWaveformData={guestMode ? handleWaveformData : undefined}
+            waveformDataInterval={200}
+            showSilenceWarning={true}
           />
         </div>
 
