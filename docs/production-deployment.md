@@ -1,206 +1,201 @@
-# 🚀 Maycast Recorder: Production Deployment Guide
+# Maycast Recorder: Production Deployment Guide
 
 ## 1. 概要
 
-本ドキュメントは、Maycast RecorderをVPS（さくらVPS等）にプロダクション環境としてデプロイする際の推奨構成を説明します。
+本ドキュメントは、Maycast RecorderをAWS EC2にプロダクション環境としてデプロイする際の推奨構成を説明します。
 
 **設計目標:**
-- VPSのIPアドレスを外部に秘匿する
+- インスタンスのIPアドレスを完全に秘匿する
 - DDoS攻撃からの保護
-- 安全なSSH管理アクセス
-- 無料または低コストでの運用
+- 安全なSSH管理アクセス（ブラウザ経由）
+- Security Groupのインバウンド設定不要
+- WebSocket接続のサポート
+
+**使用するプラン:**
+- Cloudflare Pro ($20/月) - WebSocket無制限、アップロード500MB、強力なDDoS対策
 
 ---
 
 ## 2. 推奨アーキテクチャ
 
-### Cloudflare + Tailscale 構成
+### Cloudflare Tunnel 構成
+
+Cloudflare Tunnel（cloudflared）を使用することで、**インバウンドポートを一切開けずに**Webアプリを公開できます。
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                      VPS (さくらVPS等)                   │
+│                        AWS EC2                          │
 │  ┌─────────────────────────────────────────────────┐   │
 │  │  Docker Compose                                  │   │
-│  │  ┌─────────┐  ┌─────────┐  ┌─────────┐         │   │
-│  │  │  nginx  │  │ client  │  │ server  │         │   │
-│  │  │ :80/443 │  │  :5173  │  │  :3000  │         │   │
-│  │  └─────────┘  └─────────┘  └─────────┘         │   │
+│  │  ┌───────────┐  ┌─────────┐  ┌─────────┐       │   │
+│  │  │cloudflared│  │ client  │  │ server  │       │   │
+│  │  │ (tunnel)  │  │  :5173  │  │  :3000  │       │   │
+│  │  └───────────┘  └─────────┘  └─────────┘       │   │
 │  └─────────────────────────────────────────────────┘   │
 │                                                         │
-│  Tailscale Daemon (100.x.x.x)                          │
-│  └── SSH/管理用アクセス専用                              │
+│  ※ インバウンドポート不要（アウトバウンドのみ）           │
 └─────────────────────────────────────────────────────────┘
-              ↑                              ↑
-      Cloudflare Proxy                Tailscale VPN
-     (HTTP/HTTPS公開)                (SSH/管理のみ)
-              ↑                              ↑
-         一般ユーザー                      管理者
+              │ (アウトバウンド接続)
+              ↓
+      Cloudflare Edge ←───── 一般ユーザー (HTTPS)
+
+
+┌─────────────────────────────────────────────────────────┐
+│  SSH管理: EC2 Instance Connect Endpoint                 │
+│  ※ Security Groupでのインバウンド許可不要                │
+└─────────────────────────────────────────────────────────┘
 ```
 
 ### 各コンポーネントの役割
 
-| レイヤー | 技術 | 用途 | アクセス元 |
-|---------|------|------|-----------|
-| CDN/Proxy | Cloudflare | Webアプリ公開、DDoS対策 | 一般ユーザー |
-| VPN | Tailscale | SSH、監視、デバッグ | 管理者のみ |
+| レイヤー | 技術 | 用途 | 備考 |
+|---------|------|------|------|
+| Tunnel | Cloudflare Tunnel (cloudflared) | Webアプリ公開 | アウトバウンドのみ |
+| CDN/Proxy | Cloudflare | SSL終端、DDoS対策、キャッシュ | 自動 |
+| SSH管理 | EC2 Instance Connect Endpoint | SSH、監視、デバッグ | インバウンド不要 |
 | Container | Docker Compose | アプリケーション実行 | 内部のみ |
-| Firewall | iptables/ufw | アクセス制御 | - |
+| Firewall | Security Group | インバウンドなし | 最小権限 |
+
+### なぜCloudflare Tunnelか
+
+- **インバウンドポート不要**: HTTP/HTTPS/SSHのインバウンドルールが不要
+- **IP範囲の管理不要**: CloudflareのIP範囲をSecurity Groupに設定する必要がない
+- **パブリックIP不要**: プライベートサブネットでも動作可能
+- **IPアドレス完全秘匿**: 外部からインスタンスのIPを知る方法がない
+- **シンプルな設定**: Security Groupはデフォルト（インバウンドなし）でOK
 
 ---
 
 ## 3. セットアップ手順
 
-### 3.1 ドメインとCloudflareの設定
+### 3.1 Cloudflare Tunnelの作成
 
 #### Step 1: Cloudflareにドメインを追加
 
 1. [Cloudflare Dashboard](https://dash.cloudflare.com/) にログイン
 2. 「Add a Site」でドメインを追加
-3. 無料プラン（Free）を選択
+3. **Pro**プランを選択（$20/月）
+   - WebSocket接続が無制限
+   - アップロードサイズ上限500MB
+   - 強化されたDDoS対策
 4. ネームサーバーをCloudflareに変更
 
-#### Step 2: DNSレコードの設定
+#### Step 2: Tunnelの作成
 
-```
-Type: A
-Name: @ (または subdomain)
-Content: <VPSのIPアドレス>
-Proxy status: Proxied (オレンジ色の雲アイコン)
-TTL: Auto
-```
+1. Cloudflare Dashboard → Zero Trust → Networks → Tunnels
+2. 「Create a tunnel」をクリック
+3. 「Cloudflared」を選択
+4. Tunnel名を入力（例: `maycast-production`）
+5. 「Save tunnel」をクリック
 
-**重要:** Proxy statusが「Proxied」になっていることを確認。「DNS only」だとIPが露出します。
+#### Step 3: Tunnelトークンの取得
 
-#### Step 3: SSL/TLS設定
-
-Cloudflare Dashboard → SSL/TLS:
-- **暗号化モード:** Full (strict) を推奨
-- **常にHTTPSを使用:** ON
-- **自動HTTPS書き換え:** ON
-
-#### Step 4: Cloudflare IPアドレス範囲の取得
-
-Cloudflareは定期的にIP範囲を更新します。最新の情報:
-- https://www.cloudflare.com/ips-v4
-- https://www.cloudflare.com/ips-v6
+Tunnel作成後、インストールコマンドが表示されます。トークンを控えておきます:
 
 ```bash
-# 現在のCloudflare IPv4範囲（例）
-173.245.48.0/20
-103.21.244.0/22
-103.22.200.0/22
-103.31.4.0/22
-141.101.64.0/18
-108.162.192.0/18
-190.93.240.0/20
-188.114.96.0/20
-197.234.240.0/22
-198.41.128.0/17
-162.158.0.0/15
-104.16.0.0/13
-104.24.0.0/14
-172.64.0.0/13
-131.0.72.0/22
+# 表示されるコマンド例
+cloudflared service install <YOUR_TUNNEL_TOKEN>
 ```
+
+この `<YOUR_TUNNEL_TOKEN>` を後で使用します。
+
+#### Step 4: Public Hostnameの設定
+
+Tunnelの設定画面で「Public Hostname」を追加:
+
+```
+Subdomain: @ (または www など)
+Domain: your-domain.com
+Service Type: HTTP
+URL: localhost:80
+```
+
+**追加設定（オプション）:**
+- TLS → No TLS Verify: ON（オリジンがHTTPの場合）
 
 ---
 
-### 3.2 VPSの初期設定
+### 3.2 EC2インスタンスの作成
 
-#### Step 1: Tailscaleのインストール
+#### Step 1: インスタンスの起動
 
-```bash
-# Tailscaleのインストール（Ubuntu/Debian）
-curl -fsSL https://tailscale.com/install.sh | sh
+1. AWS Consoleにログイン
+2. EC2 → 「インスタンスを起動」
+3. 以下を設定:
+   - **AMI:** Ubuntu Server 24.04 LTS
+   - **インスタンスタイプ:** t3.small以上を推奨
+   - **キーペア:** 不要（EC2 Instance Connect Endpointを使用）
+   - **ネットワーク設定:**
+     - **VPC:** 既存のVPCまたは新規作成
+     - **サブネット:** パブリックサブネット
+     - **パブリックIP自動割り当て:** 有効（アウトバウンド接続に必要）
+     - **セキュリティグループ:** 新規作成（デフォルトのまま）
 
-# Tailscaleの起動と認証
-sudo tailscale up
+**注意:** パブリックIPが割り当てられますが、Security Groupでインバウンドを全てブロックし、Cloudflare Tunnel経由でのみアクセスするため、IPアドレスが露出しても直接アクセスはできません。
 
-# 表示されるURLをブラウザで開いて認証
-# 認証後、Tailscale IPが割り当てられる（例: 100.64.x.x）
-```
+#### Step 2: Security Groupの設定
 
-#### Step 2: Tailscale IPの確認
+**インバウンドルールは不要です。** デフォルトの空のままで問題ありません。
 
-```bash
-tailscale ip -4
-# 出力例: 100.64.123.45
-```
+| 方向 | ルール |
+|------|--------|
+| インバウンド | なし |
+| アウトバウンド | すべてのトラフィック（デフォルト） |
 
-このIPをメモしておく。以降、SSH接続はこのIPを使用。
+Cloudflare Tunnelはアウトバウンド接続のみを使用するため、インバウンドポートを開ける必要がありません。
 
-#### Step 3: ファイアウォール設定（ufw）
+#### Step 3: EC2 Instance Connect Endpointの作成
 
-```bash
-# ufwのインストール（未インストールの場合）
-sudo apt install ufw
+Security GroupでSSHポートを開けずにSSH接続するため、EC2 Instance Connect Endpoint（EIC Endpoint）を作成します。
 
-# デフォルトポリシー: すべて拒否
-sudo ufw default deny incoming
-sudo ufw default allow outgoing
+1. VPC → エンドポイント → 「エンドポイントを作成」
+2. 以下を設定:
+   - **名前:** `eic-endpoint-maycast`
+   - **サービスカテゴリ:** EC2 Instance Connect Endpoint
+   - **VPC:** インスタンスと同じVPC
+   - **セキュリティグループ:** デフォルト（またはアウトバウンドのみ許可）
+   - **サブネット:** インスタンスと同じサブネット
 
-# Tailscaleからの全アクセスを許可（管理用）
-sudo ufw allow in on tailscale0
+#### Step 4: SSH接続（EC2 Instance Connect Endpoint経由）
 
-# CloudflareのIPからのみHTTP/HTTPSを許可
-# IPv4
-sudo ufw allow from 173.245.48.0/20 to any port 80,443 proto tcp
-sudo ufw allow from 103.21.244.0/22 to any port 80,443 proto tcp
-sudo ufw allow from 103.22.200.0/22 to any port 80,443 proto tcp
-sudo ufw allow from 103.31.4.0/22 to any port 80,443 proto tcp
-sudo ufw allow from 141.101.64.0/18 to any port 80,443 proto tcp
-sudo ufw allow from 108.162.192.0/18 to any port 80,443 proto tcp
-sudo ufw allow from 190.93.240.0/20 to any port 80,443 proto tcp
-sudo ufw allow from 188.114.96.0/20 to any port 80,443 proto tcp
-sudo ufw allow from 197.234.240.0/22 to any port 80,443 proto tcp
-sudo ufw allow from 198.41.128.0/17 to any port 80,443 proto tcp
-sudo ufw allow from 162.158.0.0/15 to any port 80,443 proto tcp
-sudo ufw allow from 104.16.0.0/13 to any port 80,443 proto tcp
-sudo ufw allow from 104.24.0.0/14 to any port 80,443 proto tcp
-sudo ufw allow from 172.64.0.0/13 to any port 80,443 proto tcp
-sudo ufw allow from 131.0.72.0/22 to any port 80,443 proto tcp
+1. EC2コンソールでインスタンスを選択
+2. 「接続」ボタンをクリック
+3. 「EC2 Instance Connect」タブを選択
+4. 「EC2 Instance Connect Endpointを使用して接続」を選択
+5. 「接続」をクリック
 
-# ファイアウォールを有効化
-sudo ufw enable
-
-# 設定確認
-sudo ufw status verbose
-```
-
-**重要:** SSHポート(22)はインターネットから完全にブロックされます。以降はTailscale経由でのみSSH可能。
-
-#### Step 4: SSH設定の変更（オプション）
-
-Tailscale経由でのみSSHするため、さらに安全にする:
-
-```bash
-# /etc/ssh/sshd_config を編集
-sudo nano /etc/ssh/sshd_config
-
-# 以下を追加/変更
-ListenAddress 100.64.x.x  # TailscaleのIP
-PasswordAuthentication no  # 鍵認証のみ
-
-# SSH再起動
-sudo systemctl restart sshd
-```
+ブラウザ上でSSHセッションが開きます。Security GroupでSSHポートを開ける必要はありません。
 
 ---
 
 ### 3.3 アプリケーションのデプロイ
 
-#### Step 1: リポジトリのクローン
+#### Step 1: 必要なツールのインストール
 
 ```bash
-# Tailscale経由でSSH接続
-ssh user@100.64.x.x
+# Docker
+curl -fsSL https://get.docker.com | sh
+sudo usermod -aG docker $USER
 
-# リポジトリをクローン
+# Docker Compose
+sudo apt-get update
+sudo apt-get install -y docker-compose-plugin
+
+# Task (タスクランナー)
+sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin
+
+# 一度ログアウトして再ログイン（dockerグループを反映）
+exit
+```
+
+#### Step 2: リポジトリのクローン
+
+```bash
 git clone https://github.com/your-org/maycast_recorder.git
 cd maycast_recorder
 ```
 
-#### Step 2: 環境変数の設定
+#### Step 3: 環境変数の設定
 
 ```bash
 # サーバー用
@@ -217,99 +212,87 @@ VITE_SERVER_URL=https://your-domain.com
 EOF
 ```
 
-#### Step 3: Docker Composeでデプロイ
+#### Step 4: docker-compose.ymlにcloudflaredを追加
+
+`docker-compose.yml` または `docker-compose.prod.yml` を編集して、cloudflaredサービスを追加:
+
+```yaml
+services:
+  # 既存のサービス...
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel run
+    environment:
+      - TUNNEL_TOKEN=${CLOUDFLARE_TUNNEL_TOKEN}
+    depends_on:
+      - nginx
+```
+
+#### Step 5: Tunnelトークンの設定
+
+```bash
+# .envファイルにトークンを追加
+echo "CLOUDFLARE_TUNNEL_TOKEN=<YOUR_TUNNEL_TOKEN>" >> .env
+```
+
+#### Step 6: デプロイ
 
 ```bash
 # ビルドと起動
-task docker:dev:up
-
-# または直接docker-compose
-docker-compose -f docker-compose.yml up -d --build
+docker compose up -d --build
 
 # ログ確認
-docker-compose logs -f
+docker compose logs -f
+
+# cloudflaredの接続状態確認
+docker compose logs cloudflared
 ```
 
-#### Step 4: Cloudflare側のSSL証明書設定
+#### Step 7: 動作確認
 
-Cloudflareの「Full (strict)」モードを使う場合、VPS側にもSSL証明書が必要です。
-
-**オプションA: Cloudflare Origin Certificate（推奨）**
-
-1. Cloudflare Dashboard → SSL/TLS → Origin Server
-2. 「Create Certificate」をクリック
-3. 証明書と秘密鍵をダウンロード
-4. VPSのnginxに配置
-
-```bash
-# 証明書を配置
-sudo mkdir -p /etc/ssl/cloudflare
-sudo nano /etc/ssl/cloudflare/cert.pem  # 証明書を貼り付け
-sudo nano /etc/ssl/cloudflare/key.pem   # 秘密鍵を貼り付け
-sudo chmod 600 /etc/ssl/cloudflare/key.pem
-```
-
-**オプションB: Let's Encrypt（Cloudflareと組み合わせる場合は非推奨）**
-
-Cloudflare Proxyが有効だとLet's EncryptのHTTP-01チャレンジが失敗するため、DNS-01チャレンジが必要になり設定が複雑になります。
+- `https://your-domain.com` でアプリにアクセスできる
+- Cloudflare Dashboard → Zero Trust → Networks → Tunnels で接続状態が「HEALTHY」になっている
 
 ---
 
 ## 4. nginx設定（プロダクション用）
 
-Docker内のnginxを本番用に調整する場合の設定例:
+Cloudflare Tunnel経由の場合、nginxの設定はシンプルになります:
 
 ```nginx
 # /etc/nginx/conf.d/default.conf
 
-# Cloudflare IPからのみ許可
-set_real_ip_from 173.245.48.0/20;
-set_real_ip_from 103.21.244.0/22;
-set_real_ip_from 103.22.200.0/22;
-set_real_ip_from 103.31.4.0/22;
-set_real_ip_from 141.101.64.0/18;
-set_real_ip_from 108.162.192.0/18;
-set_real_ip_from 190.93.240.0/20;
-set_real_ip_from 188.114.96.0/20;
-set_real_ip_from 197.234.240.0/22;
-set_real_ip_from 198.41.128.0/17;
-set_real_ip_from 162.158.0.0/15;
-set_real_ip_from 104.16.0.0/13;
-set_real_ip_from 104.24.0.0/14;
-set_real_ip_from 172.64.0.0/13;
-set_real_ip_from 131.0.72.0/22;
-real_ip_header CF-Connecting-IP;
-
 server {
     listen 80;
-    server_name your-domain.com;
-
-    # Cloudflare以外からのアクセスを拒否
-    if ($http_cf_connecting_ip = "") {
-        return 403;
-    }
+    server_name localhost;
 
     location / {
         proxy_pass http://web-client:5173;
         proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $http_cf_connecting_ip;
-        proxy_set_header X-Forwarded-For $http_cf_connecting_ip;
-        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
     }
 
     location /api {
         proxy_pass http://server:3000;
         proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $http_cf_connecting_ip;
-        proxy_set_header X-Forwarded-For $http_cf_connecting_ip;
-        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
 
-        # アップロード用の設定
-        client_max_body_size 100M;
+        # アップロード用の設定（Cloudflare Proは500MBまで）
+        client_max_body_size 500M;
         proxy_request_buffering off;
     }
 }
 ```
+
+**ポイント:**
+- `X-Forwarded-Proto: https` を設定（Cloudflareが常にHTTPSで受けるため）
+- Cloudflare IPの検証は不要（Tunnel経由のため、外部から直接アクセスされることがない）
 
 ---
 
@@ -317,70 +300,90 @@ server {
 
 ### デプロイ前
 
-- [ ] Cloudflareでドメインが「Proxied」になっている
-- [ ] VPSファイアウォールでSSHポートがインターネットからブロックされている
-- [ ] Tailscale経由でSSH接続できることを確認
-- [ ] CloudflareのIP範囲からのみHTTP/HTTPSが許可されている
+- [ ] Cloudflare Tunnelが作成されている
+- [ ] Public Hostnameが正しく設定されている
+- [ ] Security Groupにインバウンドルールがない
+- [ ] EC2 Instance Connect Endpoint経由でSSH接続できる
 
 ### デプロイ後
 
-- [ ] `dig your-domain.com` でCloudflareのIPが返ってくる（VPSのIPではない）
-- [ ] https://your-domain.com でアプリにアクセスできる
-- [ ] 直接VPSのIPにアクセスしても接続できない
-- [ ] Cloudflare Analyticsでトラフィックが確認できる
+- [ ] `https://your-domain.com` でアプリにアクセスできる
+- [ ] Cloudflare Dashboard → Tunnels で「HEALTHY」と表示されている
+- [ ] 直接インスタンスのIPにアクセスできない（パブリックIPがない場合は自動的に達成）
+- [ ] `dig your-domain.com` でCloudflareのIPが返ってくる
 
 ### 定期確認
 
-- [ ] CloudflareのIP範囲が更新されていないか（月1回程度）
-- [ ] Tailscaleの接続状態が正常か
+- [ ] Tunnelの接続状態が正常か
 - [ ] ログに不審なアクセスがないか
+- [ ] cloudflaredイメージが最新か
 
 ---
 
 ## 6. トラブルシューティング
 
-### Tailscale経由でSSHできない
+### Tunnelが接続されない
 
 ```bash
-# VPS側でTailscaleの状態確認
-sudo tailscale status
+# cloudflaredのログを確認
+docker compose logs cloudflared
 
-# 再認証が必要な場合
-sudo tailscale up --reset
+# よくある原因:
+# - TUNNEL_TOKENが正しくない
+# - パブリックIPが割り当てられていない（アウトバウンド接続に必要）
+# - cloudflaredイメージが古い
 ```
 
-### Cloudflare経由でアクセスできない
+### ブラウザSSHで接続できない
 
-1. DNSの伝播を確認（最大48時間かかることも）
+- EC2 Instance Connect Endpointが作成されているか確認
+- エンドポイントのサブネットがインスタンスと同じか確認
+- VPCエンドポイントの状態が「available」か確認
+- インスタンスのセキュリティグループがエンドポイントからの接続を許可しているか確認
+
+### アプリにアクセスできない
+
+1. Tunnelの状態を確認:
    ```bash
-   dig your-domain.com
+   docker compose logs cloudflared
    ```
-2. Cloudflare Dashboard → Analytics → Traffic でリクエストが来ているか確認
-3. VPS側でnginxのエラーログを確認
+2. Cloudflare Dashboard → Zero Trust → Tunnels で接続状態を確認
+3. Public Hostnameの設定が正しいか確認（Service: HTTP、URL: localhost:80）
+4. nginxが正常に起動しているか確認:
    ```bash
-   docker-compose logs nginx
+   docker compose logs nginx
    ```
 
 ### アップロードが失敗する
 
-Cloudflare無料プランでは100MBのボディサイズ制限があります。
+Cloudflare Proプランでは500MBのボディサイズ制限があります。
 
 **対策:**
 - チャンクサイズを小さくする（現在の実装では1秒間隔のチャンク）
-- Cloudflare Pro（有料）にアップグレード（500MB制限）
+- Cloudflare Business（$200/月）にアップグレード（500MB以上）
 
 ---
 
 ## 7. コスト
 
-| サービス | プラン | 月額費用 |
-|---------|-------|---------|
-| さくらVPS | 1GB | ¥880〜 |
-| Cloudflare | Free | ¥0 |
-| Tailscale | Personal | ¥0 |
-| ドメイン | .com等 | ¥1,500/年程度 |
+| サービス | プラン | 月額費用（目安） |
+|---------|-------|-----------------|
+| EC2 | t3.small (東京) | 約$15〜20 |
+| EBS | 30GB gp3 | 約$2.5 |
+| EC2 Instance Connect Endpoint | - | 無料 |
+| Cloudflare | Pro | $20 |
+| ドメイン | .com等 | 約$12/年 |
 
-**合計: 約¥1,000/月〜**
+**合計: 約$40/月〜**
+
+**Cloudflare Proのメリット:**
+- WebSocket接続が無制限（Freeは100秒制限）
+- アップロードサイズ上限500MB（Freeは100MB）
+- 強化されたDDoS対策
+- より詳細なAnalytics
+
+**コスト削減オプション:**
+- リザーブドインスタンスやSavings Plansで割引可能
 
 ---
 
@@ -388,21 +391,33 @@ Cloudflare無料プランでは100MBのボディサイズ制限があります�
 
 ### スケールアウト時
 
-複数VPSに拡張する場合:
-- Cloudflare Load Balancing（有料）を使用
-- またはCloudflare Argo Tunnel（Cloudflare Tunnel）に移行
+Cloudflare Tunnelは複数インスタンスへのロードバランシングをサポート:
+
+1. 各インスタンスで同じTunnelトークンを使用してcloudflaredを起動
+2. Cloudflareが自動的にロードバランシング
+
+または:
+- Cloudflare Load Balancing（有料）でより細かい制御
+- Application Load Balancer + Auto Scaling Group
 
 ### より高いセキュリティが必要な場合
 
-- Cloudflare Access（Zero Trust）の導入
-- WAFルールの追加（有料プラン）
-- Bot対策の強化
+- **Cloudflare Access:** Zero Trustアクセス制御（Pro以上で利用可能）
+- **Cloudflare WAF:** Proプランでマネージドルールセットが利用可能
+- **Cloudflare Business/Enterprise:** より高度なWAFルール、カスタムルール
+
+### Cloudflare Access（認証付きアクセス）
+
+管理画面など特定のパスに認証を追加:
+
+1. Zero Trust → Access → Applications
+2. 「Add an application」→ Self-hosted
+3. 認証ポリシーを設定（メール、Google、GitHub等）
 
 ---
 
 ## 参考リンク
 
-- [Cloudflare IP Ranges](https://www.cloudflare.com/ips/)
-- [Tailscale Documentation](https://tailscale.com/kb/)
-- [Cloudflare SSL/TLS設定ガイド](https://developers.cloudflare.com/ssl/)
-- [さくらVPS ファイアウォール設定](https://help.sakura.ad.jp/vps/)
+- [Cloudflare Tunnel Documentation](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/)
+- [cloudflared Docker Image](https://hub.docker.com/r/cloudflare/cloudflared)
+- [AWS EC2 Instance Connect Endpoint](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/connect-using-eice.html)
