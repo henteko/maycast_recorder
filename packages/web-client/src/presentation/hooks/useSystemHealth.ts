@@ -1,7 +1,7 @@
 /**
  * useSystemHealth Hook
  *
- * システムヘルス情報（CPU負荷、ストレージ使用量、ネットワーク状態）を監視
+ * システムヘルス情報（OPFSストレージ使用量）を監視
  *
  * ブラウザAPIを直接使用してリアルタイムのシステム情報を提供
  * Use Caseを介する必要がない純粋なUI情報
@@ -9,56 +9,23 @@
 
 import { useState, useEffect } from 'react';
 import type { SystemHealth } from '../components/organisms/SidebarFooter';
-
-// Network Information API types
-interface NetworkInformation extends EventTarget {
-  effectiveType?: '2g' | '3g' | '4g' | 'slow-2g';
-  addEventListener(type: 'change', listener: () => void): void;
-  removeEventListener(type: 'change', listener: () => void): void;
-}
-
-interface NavigatorWithConnection extends Navigator {
-  connection?: NetworkInformation;
-  mozConnection?: NetworkInformation;
-  webkitConnection?: NetworkInformation;
-}
+import { calculateTotalUsage } from '../../infrastructure/storage/opfs';
 
 export const useSystemHealth = (): SystemHealth => {
-  const [cpuLoad, setCpuLoad] = useState(0);
   const [opfsUsed, setOpfsUsed] = useState(0);
   const [opfsTotal, setOpfsTotal] = useState(0);
-  const [networkStatus, setNetworkStatus] = useState<SystemHealth['networkStatus']>('online');
 
-  // Monitor CPU Load (estimated using performance metrics)
-  useEffect(() => {
-    let lastTime = performance.now();
-
-    const measureCPU = () => {
-      const currentTime = performance.now();
-      const elapsed = currentTime - lastTime;
-
-      // Simple estimation based on frame rate
-      // In a busy CPU, this callback will be delayed
-      const delay = elapsed - 2000; // Expected 2000ms interval
-      const estimatedLoad = Math.min(100, Math.max(0, (delay / 2000) * 100));
-
-      setCpuLoad(estimatedLoad);
-      lastTime = currentTime;
-    };
-
-    // Check every 2 seconds
-    const interval = setInterval(measureCPU, 2000);
-
-    return () => clearInterval(interval);
-  }, []);
-
-  // Monitor OPFS Usage
+  // OPFS使用量を正確に計算
   useEffect(() => {
     const updateStorage = async () => {
       try {
+        // OPFS内の実際のファイルサイズを計算
+        const used = await calculateTotalUsage();
+        setOpfsUsed(used);
+
+        // ブラウザのストレージクォータ（上限）を取得
         if ('storage' in navigator && 'estimate' in navigator.storage) {
           const estimate = await navigator.storage.estimate();
-          setOpfsUsed(estimate.usage || 0);
           setOpfsTotal(estimate.quota || 0);
         }
       } catch (err) {
@@ -66,64 +33,15 @@ export const useSystemHealth = (): SystemHealth => {
       }
     };
 
-    // Update immediately and then every 5 seconds
+    // 初回実行と5秒ごとに更新
     updateStorage();
     const interval = setInterval(updateStorage, 5000);
 
     return () => clearInterval(interval);
   }, []);
 
-  // Monitor Network Status
-  useEffect(() => {
-    const updateNetworkStatus = () => {
-      if (!navigator.onLine) {
-        setNetworkStatus('offline');
-        return;
-      }
-
-      // Check connection quality if available
-      const connection = (navigator as NavigatorWithConnection).connection ||
-                        (navigator as NavigatorWithConnection).mozConnection ||
-                        (navigator as NavigatorWithConnection).webkitConnection;
-
-      if (connection?.effectiveType) {
-        const effectiveType = connection.effectiveType;
-        if (effectiveType === 'slow-2g' || effectiveType === '2g') {
-          setNetworkStatus('degraded');
-        } else {
-          setNetworkStatus('online');
-        }
-      } else {
-        setNetworkStatus('online');
-      }
-    };
-
-    updateNetworkStatus();
-
-    window.addEventListener('online', updateNetworkStatus);
-    window.addEventListener('offline', updateNetworkStatus);
-
-    // Also listen to connection change events if available
-    const connection = (navigator as NavigatorWithConnection).connection ||
-                      (navigator as NavigatorWithConnection).mozConnection ||
-                      (navigator as NavigatorWithConnection).webkitConnection;
-    if (connection) {
-      connection.addEventListener('change', updateNetworkStatus);
-    }
-
-    return () => {
-      window.removeEventListener('online', updateNetworkStatus);
-      window.removeEventListener('offline', updateNetworkStatus);
-      if (connection) {
-        connection.removeEventListener('change', updateNetworkStatus);
-      }
-    };
-  }, []);
-
   return {
-    cpuLoad,
     opfsUsed,
     opfsTotal,
-    networkStatus,
   };
 };

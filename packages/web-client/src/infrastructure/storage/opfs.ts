@@ -163,3 +163,45 @@ export async function readInitSegment(recordingId: RecordingId): Promise<Uint8Ar
 
   return new Uint8Array(arrayBuffer);
 }
+
+/**
+ * OPFSの総使用量を計算
+ * すべての録画ディレクトリ内のファイルサイズを合計
+ */
+export async function calculateTotalUsage(): Promise<number> {
+  const root = await getRoot();
+  let totalSize = 0;
+
+  // @ts-expect-error - FileSystemDirectoryHandle.values() is experimental
+  for await (const entry of root.values()) {
+    if (entry.kind === 'directory') {
+      totalSize += await calculateDirectorySize(entry);
+    }
+  }
+
+  return totalSize;
+}
+
+/**
+ * ディレクトリ内のすべてのファイルサイズを計算
+ */
+async function calculateDirectorySize(dirHandle: FileSystemDirectoryHandle): Promise<number> {
+  let size = 0;
+
+  // @ts-expect-error - FileSystemDirectoryHandle.values() is experimental
+  for await (const entry of dirHandle.values()) {
+    if (entry.kind === 'file') {
+      try {
+        const file = await entry.getFile();
+        size += file.size;
+      } catch {
+        // ファイルが読めない場合はスキップ
+      }
+    } else if (entry.kind === 'directory') {
+      // サブディレクトリがある場合は再帰的に計算
+      size += await calculateDirectorySize(entry);
+    }
+  }
+
+  return size;
+}

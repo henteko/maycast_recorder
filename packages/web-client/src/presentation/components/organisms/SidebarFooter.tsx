@@ -1,12 +1,10 @@
 import React from 'react';
-import { CpuChipIcon, CircleStackIcon, SignalIcon } from '@heroicons/react/24/solid';
+import { CircleStackIcon } from '@heroicons/react/24/solid';
 import { SystemHealthItem } from '../molecules/SystemHealthItem';
 
 export interface SystemHealth {
-  cpuLoad: number;
   opfsUsed: number;
   opfsTotal: number;
-  networkStatus: 'online' | 'offline' | 'degraded';
 }
 
 interface SidebarFooterProps {
@@ -22,48 +20,21 @@ export const SidebarFooter: React.FC<SidebarFooterProps> = ({ systemHealth }) =>
     return `${(bytes / Math.pow(k, i)).toFixed(1)} ${sizes[i]}`;
   };
 
-  const getNetworkStatusText = (status: SystemHealth['networkStatus']): string => {
-    switch (status) {
-      case 'online':
-        return 'Online';
-      case 'offline':
-        return 'Offline';
-      case 'degraded':
-        return 'Degraded';
-    }
-  };
-
-  const getNetworkStatus = (
-    status: SystemHealth['networkStatus']
-  ): 'normal' | 'warning' | 'error' => {
-    switch (status) {
-      case 'online':
-        return 'normal';
-      case 'offline':
-        return 'error';
-      case 'degraded':
-        return 'warning';
-    }
+  const getStorageStatus = (): 'normal' | 'warning' | 'error' => {
+    if (systemHealth.opfsTotal === 0) return 'normal';
+    const usageRatio = systemHealth.opfsUsed / systemHealth.opfsTotal;
+    if (usageRatio > 0.9) return 'error';
+    if (usageRatio > 0.7) return 'warning';
+    return 'normal';
   };
 
   return (
     <div className="border-t border-maycast-border py-3">
       <SystemHealthItem
-        icon={<CpuChipIcon />}
-        label="CPU Load"
-        value={`${systemHealth.cpuLoad.toFixed(0)}%`}
-        status={systemHealth.cpuLoad > 80 ? 'warning' : 'normal'}
-      />
-      <SystemHealthItem
         icon={<CircleStackIcon />}
         label="OPFS"
         value={`${formatBytes(systemHealth.opfsUsed)} / ${formatBytes(systemHealth.opfsTotal)}`}
-      />
-      <SystemHealthItem
-        icon={<SignalIcon />}
-        label="Network"
-        value={getNetworkStatusText(systemHealth.networkStatus)}
-        status={getNetworkStatus(systemHealth.networkStatus)}
+        status={getStorageStatus()}
       />
     </div>
   );
