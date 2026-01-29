@@ -89,7 +89,7 @@ export class RecordingAPIClient {
    */
   async updateRecordingState(
     recordingId: string,
-    state: 'standby' | 'recording' | 'finalizing' | 'synced'
+    state: RecordingState
   ): Promise<void> {
     console.log('🔄 [RecordingAPI] Updating recording state:', { recordingId, state });
 

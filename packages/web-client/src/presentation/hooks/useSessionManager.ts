@@ -3,7 +3,6 @@ import type { Recording, RecordingId } from '@maycast/common-types';
 import { useDI } from '../../infrastructure/di';
 import type { ListRecordingsUseCase } from '../../domain/usecases/ListRecordings.usecase';
 import type { DeleteRecordingUseCase } from '../../domain/usecases/DeleteRecording.usecase';
-import type { CompleteRecordingUseCase } from '../../domain/usecases/CompleteRecording.usecase';
 import type { ResumeUploadManager } from '../../infrastructure/upload/ResumeUploadManager';
 import { detectUnfinishedRecordings, type UnfinishedRecording } from '../../infrastructure/upload/resume-upload';
 import type { UploadProgress } from '../../infrastructure/upload/types';
@@ -22,10 +21,12 @@ export const useSessionManager = () => {
   const [isResuming, setIsResuming] = useState(false);
   const progressIntervalRef = useRef<number | null>(null);
 
+  // 初回チェック済みフラグ（再表示防止用）
+  const initialCheckDoneRef = useRef(false);
+
   const di = useDI();
   const listRecordingsUseCase = di.resolve<ListRecordingsUseCase>('ListRecordingsUseCase');
   const deleteRecordingUseCase = di.resolve<DeleteRecordingUseCase>('DeleteRecordingUseCase');
-  const completeRecordingUseCase = di.resolve<CompleteRecordingUseCase>('CompleteRecordingUseCase');
   const recordingRepository = di.resolve<IRecordingRepository>('RecordingRepository');
   const chunkRepository = di.resolve<IChunkRepository>('ChunkRepository');
 
@@ -53,15 +54,33 @@ export const useSessionManager = () => {
         return;
       }
 
-      // Standalone モードのみ: 従来の復元チェック
-      const incompleteRecordings = result.recordings.filter(
-        r => r.state !== 'synced' && r.chunkCount > 0
-      );
-      if (incompleteRecordings.length > 0) {
-        const mostRecent = incompleteRecordings.sort((a, b) => b.startTime - a.startTime)[0];
-        console.log('🔄 Found incomplete recording:', mostRecent.id);
-        setRecoveryRecording(mostRecent);
-        setShowRecoveryModal(true);
+      // Standalone モードのみ: 初回のみ不完全な録画があれば interrupted 状態に更新し、通知を表示
+      // (synced, interrupted 以外の状態で chunkCount > 0 のものを対象)
+      if (!initialCheckDoneRef.current) {
+        initialCheckDoneRef.current = true;
+
+        const incompleteRecordings = result.recordings.filter(
+          r => r.state !== 'synced' && r.state !== 'interrupted' && r.chunkCount > 0
+        );
+        if (incompleteRecordings.length > 0) {
+          const mostRecent = incompleteRecordings.sort((a, b) => b.startTime - a.startTime)[0];
+          console.log('ℹ️ Found incomplete recording:', mostRecent.id, 'state:', mostRecent.state);
+
+          // 状態を interrupted に更新
+          try {
+            await recordingRepository.updateState(mostRecent.id, 'interrupted');
+            console.log('✅ Recording marked as interrupted:', mostRecent.id);
+            // 録画リストを再読み込み
+            const updatedResult = await listRecordingsUseCase.execute();
+            setSavedRecordings(updatedResult.recordings);
+          } catch (err) {
+            console.error('❌ Failed to mark recording as interrupted:', err);
+          }
+
+          // 通知用のモーダルを表示（Libraryからダウンロード可能であることを案内）
+          setRecoveryRecording(mostRecent);
+          setShowRecoveryModal(true);
+        }
       }
     } catch (err) {
       console.error('❌ Failed to load recordings:', err);
@@ -141,36 +160,6 @@ export const useSessionManager = () => {
     }
   };
 
-  const recoverRecording = async (recordingId: RecordingId) => {
-    try {
-      // CompleteRecordingUseCaseを使用して録画を完了状態にする
-      await completeRecordingUseCase.execute({ recordingId });
-      await loadRecordings();
-      console.log('✅ Recording recovered:', recordingId);
-      return true;
-    } catch (err) {
-      console.error('❌ Failed to recover recording:', err);
-      alert('録画の復元に失敗しました');
-      return false;
-    }
-  };
-
-  const discardRecoveryRecording = async (recordingId: RecordingId) => {
-    if (!confirm('この録画を削除してもよろしいですか？この操作は取り消せません。')) {
-      return false;
-    }
-
-    try {
-      await deleteRecordingUseCase.execute({ recordingId });
-      await loadRecordings();
-      console.log('🗑️ Recovery recording discarded:', recordingId);
-      return true;
-    } catch (err) {
-      console.error('❌ Failed to discard recording:', err);
-      alert('録画の削除に失敗しました');
-      return false;
-    }
-  };
 
   /**
    * 全ての未完了 Recording を再アップロード
@@ -222,12 +211,9 @@ export const useSessionManager = () => {
     recoveryRecording,
     showRecoveryModal,
     setShowRecoveryModal,
-    setRecoveryRecording,
     loadRecordings,
     deleteRecording,
     clearAllRecordings,
-    recoverRecording,
-    discardRecoveryRecording,
     // Resume Upload 関連
     unfinishedRecordings,
     showResumeModal,
@@ -239,11 +225,8 @@ export const useSessionManager = () => {
     // Deprecated aliases for backward compatibility
     savedSessions: savedRecordings,
     recoverySession: recoveryRecording,
-    setRecoverySession: setRecoveryRecording,
     loadSessions: loadRecordings,
     deleteSession: deleteRecording,
     clearAllSessions: clearAllRecordings,
-    recoverSession: recoverRecording,
-    discardRecoverySession: discardRecoveryRecording,
   };
 };

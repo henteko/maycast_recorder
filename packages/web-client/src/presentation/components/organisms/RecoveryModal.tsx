@@ -1,4 +1,4 @@
-import { ArrowPathIcon, CheckIcon, TrashIcon, CloudArrowUpIcon, XMarkIcon } from '@heroicons/react/24/solid';
+import { InformationCircleIcon, FolderOpenIcon, XMarkIcon, CloudArrowUpIcon, ArrowPathIcon } from '@heroicons/react/24/solid';
 import type { Recording } from '@maycast/common-types';
 import type { UnfinishedRecording } from '../../../infrastructure/upload/resume-upload';
 import type { UploadProgress } from '../../../infrastructure/upload/types';
@@ -7,8 +7,7 @@ interface RecoveryModalProps {
   isOpen: boolean;
   onClose: () => void;
   recording: Recording | null;
-  onRecover: () => void;
-  onDiscard: () => void;
+  onGoToLibrary: () => void;
   formatElapsedTime: (seconds: number) => string;
 }
 
@@ -16,8 +15,7 @@ export const RecoveryModal = ({
   isOpen,
   onClose,
   recording,
-  onRecover,
-  onDiscard,
+  onGoToLibrary,
   formatElapsedTime,
 }: RecoveryModalProps) => {
   if (!isOpen || !recording) return null
@@ -32,15 +30,15 @@ export const RecoveryModal = ({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-3 mb-4">
-          <ArrowPathIcon className="w-7 h-7 text-maycast-primary" />
-          <h2 className="text-2xl font-bold text-maycast-text">セッションの復元</h2>
+          <InformationCircleIcon className="w-7 h-7 text-maycast-primary" />
+          <h2 className="text-2xl font-bold text-maycast-text">前回の録画について</h2>
         </div>
         <p className="text-maycast-subtext mb-6">
-          前回の収録が正常に完了していません。復元しますか？
+          前回の録画が途中で終了しました。Libraryからダウンロードできます。
         </p>
 
         <div className="bg-white p-4 rounded-xl mb-6 border-2 border-maycast-border">
-          <p className="text-sm text-gray-600 font-semibold mb-2">セッション情報</p>
+          <p className="text-sm text-gray-600 font-semibold mb-2">録画情報</p>
           <p className="text-lg text-gray-900 font-bold mt-2">
             {new Date(recording.startTime).toLocaleString('ja-JP')}
           </p>
@@ -56,18 +54,18 @@ export const RecoveryModal = ({
 
         <div className="flex gap-4">
           <button
-            onClick={onRecover}
+            onClick={onGoToLibrary}
             className="flex-1 py-3 px-6 bg-maycast-primary hover:bg-maycast-primary/80 rounded-xl font-bold transition-all shadow-lg flex items-center justify-center gap-2 text-white cursor-pointer"
           >
-            <CheckIcon className="w-5 h-5" />
-            復元する
+            <FolderOpenIcon className="w-5 h-5" />
+            Libraryを見る
           </button>
           <button
-            onClick={onDiscard}
-            className="flex-1 py-3 px-6 bg-white hover:bg-gray-100 rounded-xl font-bold transition-all border-2 border-maycast-rec flex items-center justify-center gap-2 text-gray-900 cursor-pointer"
+            onClick={onClose}
+            className="flex-1 py-3 px-6 bg-white hover:bg-gray-100 rounded-xl font-bold transition-all border-2 border-maycast-border flex items-center justify-center gap-2 text-gray-900 cursor-pointer"
           >
-            <TrashIcon className="w-5 h-5" />
-            破棄する
+            <XMarkIcon className="w-5 h-5" />
+            閉じる
           </button>
         </div>
       </div>

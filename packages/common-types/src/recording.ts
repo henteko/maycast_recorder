@@ -5,8 +5,13 @@ export type RecordingId = string;
 
 /**
  * Recording state
+ * - standby: 録画準備中
+ * - recording: 録画中
+ * - finalizing: 録画終了処理中
+ * - synced: 同期完了（正常終了）
+ * - interrupted: 異常終了（クラッシュ等で中断）
  */
-export type RecordingState = 'standby' | 'recording' | 'finalizing' | 'synced';
+export type RecordingState = 'standby' | 'recording' | 'finalizing' | 'synced' | 'interrupted';
 
 /**
  * Recording metadata

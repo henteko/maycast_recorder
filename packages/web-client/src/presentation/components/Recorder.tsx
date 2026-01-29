@@ -51,6 +51,8 @@ interface RecorderProps {
   hideControls?: boolean;
   /** Guest mode configuration */
   guestMode?: GuestModeConfig;
+  /** Callback to navigate to Library page */
+  onNavigateToLibrary?: () => void;
 }
 
 export const Recorder: React.FC<RecorderProps> = ({
@@ -62,6 +64,7 @@ export const Recorder: React.FC<RecorderProps> = ({
   exportRef,
   hideControls = false,
   guestMode,
+  onNavigateToLibrary,
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null)
   const { stream, error, startCapture } = useMediaStream()
@@ -74,9 +77,6 @@ export const Recorder: React.FC<RecorderProps> = ({
     recoveryRecording,
     showRecoveryModal,
     setShowRecoveryModal,
-    setRecoveryRecording,
-    recoverRecording,
-    discardRecoveryRecording,
   } = useSessionManager();
 
   const {
@@ -248,19 +248,9 @@ export const Recorder: React.FC<RecorderProps> = ({
     }
   };
 
-  const handleRecoverRecording = async () => {
-    if (!recoveryRecording) return;
+  const handleGoToLibrary = () => {
     setShowRecoveryModal(false);
-    await recoverRecording(recoveryRecording.id);
-    setRecoveryRecording(null);
-    onSessionComplete?.();
-  };
-
-  const handleDiscardRecovery = async () => {
-    if (!recoveryRecording) return;
-    setShowRecoveryModal(false);
-    await discardRecoveryRecording(recoveryRecording.id);
-    setRecoveryRecording(null);
+    onNavigateToLibrary?.();
   };
 
   return (
@@ -269,8 +259,7 @@ export const Recorder: React.FC<RecorderProps> = ({
         isOpen={showRecoveryModal}
         onClose={() => setShowRecoveryModal(false)}
         recording={recoveryRecording}
-        onRecover={handleRecoverRecording}
-        onDiscard={handleDiscardRecovery}
+        onGoToLibrary={handleGoToLibrary}
         formatElapsedTime={formatElapsedTime}
       />
 

@@ -65,6 +65,7 @@ export const SoloPage: React.FC = () => {
           onSessionComplete={loadRecordings}
           onDownload={downloadRecordingById}
           downloadProgress={downloadProgress}
+          onNavigateToLibrary={() => setCurrentPage('library')}
         />
       )}
       {currentPage === 'library' && (

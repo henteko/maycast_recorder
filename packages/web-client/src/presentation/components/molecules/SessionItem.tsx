@@ -4,6 +4,7 @@ import {
   CheckIcon,
   ServerStackIcon,
   VideoCameraIcon,
+  ExclamationTriangleIcon,
 } from '@heroicons/react/24/solid';
 import type { Recording, RecordingId } from '@maycast/common-types';
 
@@ -25,12 +26,19 @@ export const SessionItem = ({ recording, onDownload, onDelete, isDownloading }: 
           <p className="text-sm text-maycast-text font-medium">
             {isValidStart ? startDate.toLocaleString('ja-JP') : 'Invalid Date'}
           </p>
-          {recording.state === 'synced' ? (
+          {recording.state === 'synced' && (
             <span className="flex items-center gap-1 px-2 py-1 bg-maycast-safe/20 text-maycast-safe text-xs font-semibold rounded-lg border border-maycast-safe/30">
               <CheckIcon className="w-3 h-3" />
               完了
             </span>
-          ) : (
+          )}
+          {recording.state === 'interrupted' && (
+            <span className="flex items-center gap-1 px-2 py-1 bg-orange-500/20 text-orange-300 text-xs font-semibold rounded-lg border border-orange-500/30">
+              <ExclamationTriangleIcon className="w-3 h-3" />
+              中断
+            </span>
+          )}
+          {recording.state !== 'synced' && recording.state !== 'interrupted' && (
             <span className="flex items-center gap-1 px-2 py-1 bg-yellow-500/20 text-yellow-300 text-xs font-semibold rounded-lg border border-yellow-500/30">
               <VideoCameraIcon className="w-3 h-3" />
               録画中

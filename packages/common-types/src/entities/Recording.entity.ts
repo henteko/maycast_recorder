@@ -104,6 +104,23 @@ export class RecordingEntity {
   }
 
   /**
+   * ビジネスルール: 異常終了としてマーク
+   * standby, recording, finalizing 状態から遷移可能
+   * （クラッシュ等で中断された録画を復旧時にマークする）
+   */
+  markAsInterrupted(): void {
+    if (this.state === 'synced' || this.state === 'interrupted') {
+      throw new InvalidStateTransitionError(
+        `Cannot mark as interrupted from state: ${this.state}. Recording is already completed.`
+      );
+    }
+    this.state = 'interrupted';
+    if (!this.finishedAt) {
+      this.finishedAt = new Date();
+    }
+  }
+
+  /**
    * ビジネスルール: メタデータ設定
    * standby または recording 状態でのみ設定可能
    */
@@ -152,7 +169,7 @@ export class RecordingEntity {
    * 完了済みかどうか
    */
   isCompleted(): boolean {
-    return this.state === 'finalizing' || this.state === 'synced';
+    return this.state === 'finalizing' || this.state === 'synced' || this.state === 'interrupted';
   }
 
   // Getters
