@@ -7,6 +7,7 @@ import path from 'path'
 // Solo専用Vite設定
 // 出力先: dist-solo/
 export default defineConfig({
+  base: process.env.VITE_BASE_PATH || '/',
   plugins: [
     react(),
     wasm(),
