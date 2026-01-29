@@ -5,9 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:solo": "vite --config vite.solo.config.ts",
     "build": "tsc -b && vite build",
+    "build:solo": "tsc -b && vite build --config vite.solo.config.ts",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "preview:solo": "vite preview --config vite.solo.config.ts"
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",

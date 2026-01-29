@@ -33,6 +33,13 @@ tasks:
     cmds:
       - npm run dev
 
+  dev:solo:
+    desc: Start Solo-only development server
+    deps: [build:common-types, build:wasm]
+    dir: '{{.CLIENT_DIR}}'
+    cmds:
+      - npm run dev:solo
+
   # Build tasks
   build:
     desc: Build everything (common-types + WASM + client + server)
@@ -73,6 +80,13 @@ tasks:
     deps: [build:common-types, build:wasm]
     cmds:
       - npm run build
+
+  build:solo:
+    desc: Build Solo-only client for production
+    dir: '{{.CLIENT_DIR}}'
+    deps: [build:common-types, build:wasm]
+    cmds:
+      - npm run build:solo
 
   build:server:
     desc: Build server for production
@@ -200,6 +214,7 @@ tasks:
     dir: '{{.CLIENT_DIR}}'
     cmds:
       - rm -rf dist
+      - rm -rf dist-solo
       - rm -rf node_modules
 
   clean:server:

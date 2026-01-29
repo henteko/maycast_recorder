@@ -11,6 +11,7 @@ packages/wasm-core/target/
 # Node.js
 node_modules/
 packages/web-client/dist/
+packages/web-client/dist-solo/
 packages/web-client/node_modules/
 
 # IDE
