@@ -15,7 +15,6 @@ import type { NavigationPage } from '../organisms/SidebarNavigation';
 import { useSystemHealth } from '../../hooks/useSystemHealth';
 import { useSessionManager } from '../../hooks/useSessionManager';
 import { useDownload } from '../../hooks/useDownload';
-import { useDevices } from '../../hooks/useDevices';
 import { loadSettings, saveSettings } from '../../../types/settings';
 import type { RecorderSettings } from '../../../types/settings';
 import { StandaloneStorageStrategy } from '../../../storage-strategies/StandaloneStorageStrategy';
@@ -25,7 +24,6 @@ export const SoloPage: React.FC = () => {
   const [settings, setSettings] = useState<RecorderSettings>(loadSettings());
 
   const systemHealth = useSystemHealth();
-  const { videoDevices, audioDevices } = useDevices();
   const {
     savedRecordings,
     loadRecordings,
@@ -48,6 +46,12 @@ export const SoloPage: React.FC = () => {
     console.log('✅ Settings saved:', settings);
   };
 
+  const handleSettingsChange = (newSettings: RecorderSettings) => {
+    setSettings(newSettings);
+    saveSettings(newSettings);
+    console.log('✅ Settings saved from Recorder:', newSettings);
+  };
+
   return (
     <MainLayout
       sidebar={
@@ -66,6 +70,7 @@ export const SoloPage: React.FC = () => {
           onDownload={downloadRecordingById}
           downloadProgress={downloadProgress}
           onNavigateToLibrary={() => setCurrentPage('library')}
+          onSettingsChange={handleSettingsChange}
         />
       )}
       {currentPage === 'library' && (
@@ -82,8 +87,6 @@ export const SoloPage: React.FC = () => {
           settings={settings}
           onSettingsChange={setSettings}
           onSave={handleSaveSettings}
-          videoDevices={videoDevices}
-          audioDevices={audioDevices}
           showServerSettings={false}
         />
       )}

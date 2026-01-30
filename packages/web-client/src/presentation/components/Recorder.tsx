@@ -53,6 +53,8 @@ interface RecorderProps {
   guestMode?: GuestModeConfig;
   /** Callback to navigate to Library page */
   onNavigateToLibrary?: () => void;
+  /** Callback when settings (device selection) changes */
+  onSettingsChange?: (settings: RecorderSettings) => void;
 }
 
 export const Recorder: React.FC<RecorderProps> = ({
@@ -65,13 +67,19 @@ export const Recorder: React.FC<RecorderProps> = ({
   hideControls = false,
   guestMode,
   onNavigateToLibrary,
+  onSettingsChange,
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null)
   const { stream, error, startCapture } = useMediaStream()
 
   const [wasmInitialized, setWasmInitialized] = useState(false)
   const [elapsedTime, setElapsedTime] = useState(0)
-  const [settings] = useState<RecorderSettings>(externalSettings)
+  const [settings, setSettings] = useState<RecorderSettings>(externalSettings)
+
+  // Sync with external settings changes
+  useEffect(() => {
+    setSettings(externalSettings);
+  }, [externalSettings]);
 
   const {
     recoveryRecording,
@@ -190,14 +198,6 @@ export const Recorder: React.FC<RecorderProps> = ({
     audioDevices,
   });
 
-  // 選択中のデバイス名を取得
-  const selectedCameraName = videoDevices.find(d => d.deviceId === settings.videoDeviceId)?.label
-    || videoDevices[0]?.label
-    || 'カメラ';
-  const selectedMicName = audioDevices.find(d => d.deviceId === settings.audioDeviceId)?.label
-    || audioDevices[0]?.label
-    || 'マイク';
-
   // Guest mode: 波形データをDirectorに送信
   const handleWaveformData = useCallback((waveformData: number[], isSilent: boolean) => {
     if (!guestMode?.roomId || !guestMode.isWebSocketConnected) return;
@@ -252,6 +252,25 @@ export const Recorder: React.FC<RecorderProps> = ({
     setShowRecoveryModal(false);
     onNavigateToLibrary?.();
   };
+
+  // Handle device change - update settings and restart capture
+  const handleDeviceChange = useCallback(async (newSettings: RecorderSettings) => {
+    if (isRecording) {
+      return; // Don't change devices while recording
+    }
+    setSettings(newSettings);
+    onSettingsChange?.(newSettings);
+
+    // Restart capture with new device
+    const qualityConfig = QUALITY_PRESETS[newSettings.qualityPreset];
+    await startCapture({
+      videoDeviceId: newSettings.videoDeviceId,
+      audioDeviceId: newSettings.audioDeviceId,
+      width: qualityConfig.width,
+      height: qualityConfig.height,
+      frameRate: qualityConfig.framerate,
+    });
+  }, [isRecording, onSettingsChange, startCapture]);
 
   return (
     <div className="flex flex-col h-full bg-maycast-bg text-maycast-text">
@@ -322,12 +341,24 @@ export const Recorder: React.FC<RecorderProps> = ({
         )}
 
         <div className="mt-6">
-          {/* カメラデバイス名 */}
+          {/* カメラデバイス選択 */}
           <div className="flex items-center gap-2 text-maycast-text-secondary text-sm mb-2 px-1">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
             </svg>
-            <span>{selectedCameraName}</span>
+            <select
+              value={settings.videoDeviceId || ''}
+              onChange={(e) => handleDeviceChange({ ...settings, videoDeviceId: e.target.value || undefined })}
+              disabled={isRecording}
+              className="bg-transparent text-maycast-text-secondary text-sm border-none outline-none cursor-pointer hover:text-maycast-text disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <option value="" className="bg-maycast-bg text-maycast-text">デフォルト</option>
+              {videoDevices.map(device => (
+                <option key={device.deviceId} value={device.deviceId} className="bg-maycast-bg text-maycast-text">
+                  {device.label || `カメラ ${device.deviceId.slice(0, 8)}`}
+                </option>
+              ))}
+            </select>
           </div>
           <VideoPreview
             videoRef={videoRef}
@@ -342,7 +373,19 @@ export const Recorder: React.FC<RecorderProps> = ({
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
             </svg>
-            <span>{selectedMicName}</span>
+            <select
+              value={settings.audioDeviceId || ''}
+              onChange={(e) => handleDeviceChange({ ...settings, audioDeviceId: e.target.value || undefined })}
+              disabled={isRecording}
+              className="bg-transparent text-maycast-text-secondary text-sm border-none outline-none cursor-pointer hover:text-maycast-text disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <option value="" className="bg-maycast-bg text-maycast-text">デフォルト</option>
+              {audioDevices.map(device => (
+                <option key={device.deviceId} value={device.deviceId} className="bg-maycast-bg text-maycast-text">
+                  {device.label || `マイク ${device.deviceId.slice(0, 8)}`}
+                </option>
+              ))}
+            </select>
           </div>
           <AudioWaveform
             stream={stream}

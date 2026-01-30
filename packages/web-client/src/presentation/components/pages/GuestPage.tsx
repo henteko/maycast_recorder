@@ -21,7 +21,6 @@ import type { NavigationPage } from '../organisms/SidebarNavigation';
 import { useSystemHealth } from '../../hooks/useSystemHealth';
 import { useSessionManager } from '../../hooks/useSessionManager';
 import { useDownload } from '../../hooks/useDownload';
-import { useDevices } from '../../hooks/useDevices';
 import { useGuestRecordingControl } from '../../hooks/useGuestRecordingControl';
 import { loadSettings, saveSettings } from '../../../types/settings';
 import type { RecorderSettings } from '../../../types/settings';
@@ -49,7 +48,6 @@ export const GuestPage: React.FC<GuestPageProps> = ({ roomId }) => {
   const [hasJoined, setHasJoined] = useState(false);
 
   const systemHealth = useSystemHealth();
-  const { videoDevices, audioDevices } = useDevices();
   const {
     savedRecordings,
     loadRecordings,
@@ -91,6 +89,12 @@ export const GuestPage: React.FC<GuestPageProps> = ({ roomId }) => {
   const handleSaveSettings = () => {
     saveSettings(settings);
     console.log('✅ Settings saved:', settings);
+  };
+
+  const handleSettingsChange = (newSettings: RecorderSettings) => {
+    setSettings(newSettings);
+    saveSettings(newSettings);
+    console.log('✅ Settings saved from Recorder:', newSettings);
   };
 
   const handleJoinRoom = (name: string) => {
@@ -165,6 +169,7 @@ export const GuestPage: React.FC<GuestPageProps> = ({ roomId }) => {
               isWebSocketConnected,
               waitingMessage: getWaitingMessage(),
             }}
+            onSettingsChange={handleSettingsChange}
           />
         )}
         {currentPage === 'library' && (
@@ -181,8 +186,6 @@ export const GuestPage: React.FC<GuestPageProps> = ({ roomId }) => {
             settings={settings}
             onSettingsChange={setSettings}
             onSave={handleSaveSettings}
-            videoDevices={videoDevices}
-            audioDevices={audioDevices}
             showServerSettings={true}
           />
         )}

@@ -1,6 +1,5 @@
 import React from 'react';
 import { Cog6ToothIcon, CheckIcon } from '@heroicons/react/24/solid';
-import { DeviceSelector } from '../molecules/DeviceSelector';
 import { QualityPresetSelector } from '../molecules/QualityPresetSelector';
 import { ServerUrlSettings } from '../molecules/ServerUrlSettings';
 import type { RecorderSettings, QualityPreset } from '../../../types/settings';
@@ -9,8 +8,6 @@ interface SettingsPageProps {
   settings: RecorderSettings;
   onSettingsChange: (settings: RecorderSettings) => void;
   onSave: () => void;
-  videoDevices: MediaDeviceInfo[];
-  audioDevices: MediaDeviceInfo[];
   showServerSettings?: boolean; // Remote Modeでのみtrue
 }
 
@@ -18,8 +15,6 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
   settings,
   onSettingsChange,
   onSave,
-  videoDevices,
-  audioDevices,
   showServerSettings = false,
 }) => {
   return (
@@ -35,29 +30,6 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
       {/* Content */}
       <div className="flex-1 overflow-y-auto px-8 py-6">
         <div className="max-w-2xl mx-auto space-y-6">
-          {/* Device Settings Card */}
-          <div className="bg-maycast-panel/30 backdrop-blur-md p-6 rounded-2xl border border-maycast-border/40 shadow-xl">
-            <h2 className="text-lg font-bold text-maycast-text mb-4 flex items-center gap-2">
-              デバイス設定
-            </h2>
-
-            <DeviceSelector
-              label="カメラ"
-              value={settings.videoDeviceId}
-              onChange={(value) => onSettingsChange({ ...settings, videoDeviceId: value })}
-              devices={videoDevices}
-              deviceType="camera"
-            />
-
-            <DeviceSelector
-              label="マイク"
-              value={settings.audioDeviceId}
-              onChange={(value) => onSettingsChange({ ...settings, audioDeviceId: value })}
-              devices={audioDevices}
-              deviceType="microphone"
-            />
-          </div>
-
           {/* Quality Settings Card */}
           <div className="bg-maycast-panel/30 backdrop-blur-md p-6 rounded-2xl border border-maycast-border/40 shadow-xl">
             <h2 className="text-lg font-bold text-maycast-text mb-4 flex items-center gap-2">
