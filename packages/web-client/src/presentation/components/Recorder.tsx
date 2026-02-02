@@ -70,7 +70,7 @@ export const Recorder: React.FC<RecorderProps> = ({
   onSettingsChange,
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null)
-  const { stream, error, startCapture, restartCapture } = useMediaStream()
+  const { stream, error, startCapture, restartCapture, videoCapabilities } = useMediaStream()
 
   const [wasmInitialized, setWasmInitialized] = useState(false)
   const [elapsedTime, setElapsedTime] = useState(0)
@@ -378,15 +378,32 @@ export const Recorder: React.FC<RecorderProps> = ({
             </div>
             {/* 画質設定表示 */}
             <div className="flex items-center gap-3 text-xs">
-              <span className="px-2 py-1 bg-maycast-bg-secondary rounded">
-                {QUALITY_PRESETS[settings.qualityPreset].width}x{QUALITY_PRESETS[settings.qualityPreset].height}
-              </span>
-              <span className="px-2 py-1 bg-maycast-bg-secondary rounded">
-                {(QUALITY_PRESETS[settings.qualityPreset].bitrate / 1_000_000).toFixed(1)} Mbps
-              </span>
-              <span className="px-2 py-1 bg-maycast-bg-secondary rounded">
-                {QUALITY_PRESETS[settings.qualityPreset].framerate} fps
-              </span>
+              {(() => {
+                const qualityConfig = QUALITY_PRESETS[settings.qualityPreset];
+                const isUnsupported = videoCapabilities && (
+                  qualityConfig.width > videoCapabilities.maxWidth ||
+                  qualityConfig.height > videoCapabilities.maxHeight
+                );
+                return (
+                  <>
+                    <span className={`px-2 py-1 rounded ${isUnsupported ? 'bg-amber-500/20 text-amber-400' : 'bg-maycast-bg-secondary'}`}>
+                      {qualityConfig.width}x{qualityConfig.height}
+                      {isUnsupported && ' (非対応)'}
+                    </span>
+                    <span className="px-2 py-1 bg-maycast-bg-secondary rounded">
+                      {(qualityConfig.bitrate / 1_000_000).toFixed(1)} Mbps
+                    </span>
+                    <span className="px-2 py-1 bg-maycast-bg-secondary rounded">
+                      {qualityConfig.framerate} fps
+                    </span>
+                    {videoCapabilities && (
+                      <span className="px-2 py-1 bg-maycast-primary/20 text-maycast-primary rounded" title={`カメラ最大: ${videoCapabilities.maxWidth}x${videoCapabilities.maxHeight}`}>
+                        Max {videoCapabilities.maxWidth}x{videoCapabilities.maxHeight}
+                      </span>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           </div>
           <VideoPreview

@@ -11,6 +11,14 @@ export interface MediaStreamOptions {
   frameRate?: number;
 }
 
+export interface VideoCapabilities {
+  maxWidth: number;
+  maxHeight: number;
+  maxFrameRate: number;
+  supports4K: boolean;
+  supports1080p: boolean;
+}
+
 interface UseMediaStreamResult {
   stream: MediaStream | null;
   error: string | null;
@@ -18,6 +26,7 @@ interface UseMediaStreamResult {
   restartCapture: (options?: MediaStreamOptions) => Promise<MediaStream | null>;
   stopCapture: () => void;
   isCapturing: boolean;
+  videoCapabilities: VideoCapabilities | null;
 }
 
 /**
@@ -33,6 +42,7 @@ export const useMediaStream = (): UseMediaStreamResult => {
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
+  const [videoCapabilities, setVideoCapabilities] = useState<VideoCapabilities | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
   const startCapture = useCallback(
@@ -76,6 +86,29 @@ export const useMediaStream = (): UseMediaStreamResult => {
         streamRef.current = mediaStream;
         setStream(mediaStream);
         setIsCapturing(true);
+
+        // ビデオトラックの capabilities を取得
+        const videoTrack = mediaStream.getVideoTracks()[0];
+        if (videoTrack && typeof videoTrack.getCapabilities === 'function') {
+          try {
+            const capabilities = videoTrack.getCapabilities();
+            const maxWidth = (capabilities.width as { max?: number })?.max || 0;
+            const maxHeight = (capabilities.height as { max?: number })?.max || 0;
+            const maxFrameRate = (capabilities.frameRate as { max?: number })?.max || 30;
+
+            const caps: VideoCapabilities = {
+              maxWidth,
+              maxHeight,
+              maxFrameRate,
+              supports4K: maxWidth >= 3840 && maxHeight >= 2160,
+              supports1080p: maxWidth >= 1920 && maxHeight >= 1080,
+            };
+            setVideoCapabilities(caps);
+            console.log('📹 Video capabilities:', caps);
+          } catch (err) {
+            console.warn('⚠️ Failed to get video capabilities:', err);
+          }
+        }
 
         return mediaStream;
       } catch (err) {
@@ -123,5 +156,6 @@ export const useMediaStream = (): UseMediaStreamResult => {
     restartCapture,
     stopCapture,
     isCapturing,
+    videoCapabilities,
   };
 };

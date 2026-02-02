@@ -39,6 +39,22 @@ export const QualityPresetSelector = ({ value, onChange }: QualityPresetSelector
             <p className="text-sm text-gray-600">1080p / 5Mbps / 3秒ごとキーフレーム</p>
           </div>
         </label>
+
+        <label className="flex items-center p-4 bg-white rounded-xl cursor-pointer hover:bg-gray-50 border-2 border-maycast-border hover:border-maycast-primary transition-all">
+          <input
+            type="radio"
+            name="quality"
+            value="4k"
+            checked={value === '4k'}
+            onChange={(e) => onChange(e.target.value as QualityPreset)}
+            className="mr-3 w-4 h-4 cursor-pointer"
+          />
+          <div className="flex-1">
+            <p className="font-bold text-gray-900">4K Mode（超高画質）</p>
+            <p className="text-sm text-gray-600">4K / 20Mbps / 3秒ごとキーフレーム</p>
+            <p className="text-xs text-amber-600 mt-1">※ 高性能なPCとカメラが必要です</p>
+          </div>
+        </label>
       </div>
     </div>
   )

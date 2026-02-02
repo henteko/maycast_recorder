@@ -141,10 +141,13 @@ export const useEncoders = ({ wasmInitialized, settings, storageStrategy, onStat
     // 解像度に応じてAVCレベルを選択
     // Level 3.1 (0x1f): 最大1280x720
     // Level 4.0 (0x28): 最大1920x1080
-    // Level 4.2 (0x2a): 最大2048x1088
+    // Level 5.1 (0x33): 最大4096x2160
     const getAvcCodec = (width: number, height: number): string => {
       const pixels = width * height
-      if (pixels > 921600) { // 1280x720より大きい場合
+      if (pixels > 2073600) { // 1920x1080より大きい場合 (4K)
+        return 'avc1.640033' // High Profile, Level 5.1
+      }
+      if (pixels > 921600) { // 1280x720より大きい場合 (1080p)
         return 'avc1.640028' // High Profile, Level 4.0
       }
       return 'avc1.42001f' // Baseline Profile, Level 3.1

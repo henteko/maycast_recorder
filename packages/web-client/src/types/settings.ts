@@ -1,4 +1,4 @@
-export type QualityPreset = 'stability' | 'quality'
+export type QualityPreset = 'stability' | 'quality' | '4k'
 
 export interface RecorderSettings {
   videoDeviceId?: string
@@ -26,6 +26,13 @@ export const QUALITY_PRESETS: Record<QualityPreset, QualityConfig> = {
     width: 1920,
     height: 1080,
     bitrate: 5_000_000, // 5 Mbps
+    framerate: 30,
+    keyframeInterval: 90, // 3秒ごと (30fps)
+  },
+  '4k': {
+    width: 3840,
+    height: 2160,
+    bitrate: 20_000_000, // 20 Mbps
     framerate: 30,
     keyframeInterval: 90, // 3秒ごと (30fps)
   },
