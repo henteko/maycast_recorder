@@ -15,6 +15,7 @@ interface UseMediaStreamResult {
   stream: MediaStream | null;
   error: string | null;
   startCapture: (options?: MediaStreamOptions) => Promise<MediaStream | null>;
+  restartCapture: (options?: MediaStreamOptions) => Promise<MediaStream | null>;
   stopCapture: () => void;
   isCapturing: boolean;
 }
@@ -96,10 +97,30 @@ export const useMediaStream = (): UseMediaStreamResult => {
     }
   }, [mediaStreamService]);
 
+  // 既存のストリームを停止してから新しいストリームを取得する
+  // デバイス変更や画質変更時に使用
+  const restartCapture = useCallback(
+    async (options?: MediaStreamOptions) => {
+      // 既存のストリームを停止
+      if (streamRef.current) {
+        console.log('📹 Stopping existing stream for restart...');
+        mediaStreamService.stopStream(streamRef.current);
+        streamRef.current = null;
+        setStream(null);
+        setIsCapturing(false);
+      }
+
+      // 新しいストリームを取得
+      return startCapture(options);
+    },
+    [mediaStreamService, startCapture]
+  );
+
   return {
     stream,
     error,
     startCapture,
+    restartCapture,
     stopCapture,
     isCapturing,
   };

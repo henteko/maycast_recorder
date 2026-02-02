@@ -138,9 +138,21 @@ export const useEncoders = ({ wasmInitialized, settings, storageStrategy, onStat
 
     console.log('🎤 Audio track settings:', audioSettings)
 
+    // 解像度に応じてAVCレベルを選択
+    // Level 3.1 (0x1f): 最大1280x720
+    // Level 4.0 (0x28): 最大1920x1080
+    // Level 4.2 (0x2a): 最大2048x1088
+    const getAvcCodec = (width: number, height: number): string => {
+      const pixels = width * height
+      if (pixels > 921600) { // 1280x720より大きい場合
+        return 'avc1.640028' // High Profile, Level 4.0
+      }
+      return 'avc1.42001f' // Baseline Profile, Level 3.1
+    }
+
     // Initialize VideoEncoder
     const videoConfig = {
-      codec: 'avc1.42001f',
+      codec: getAvcCodec(qualityConfig.width, qualityConfig.height),
       width: qualityConfig.width,
       height: qualityConfig.height,
       bitrate: qualityConfig.bitrate,

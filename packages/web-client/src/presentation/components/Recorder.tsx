@@ -70,16 +70,11 @@ export const Recorder: React.FC<RecorderProps> = ({
   onSettingsChange,
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null)
-  const { stream, error, startCapture } = useMediaStream()
+  const { stream, error, startCapture, restartCapture } = useMediaStream()
 
   const [wasmInitialized, setWasmInitialized] = useState(false)
   const [elapsedTime, setElapsedTime] = useState(0)
   const [settings, setSettings] = useState<RecorderSettings>(externalSettings)
-
-  // Sync with external settings changes
-  useEffect(() => {
-    setSettings(externalSettings);
-  }, [externalSettings]);
 
   const {
     recoveryRecording,
@@ -127,6 +122,25 @@ export const Recorder: React.FC<RecorderProps> = ({
     settings,
     onSessionComplete,
   })
+
+  // Sync with external settings changes and restart capture if quality preset changed
+  useEffect(() => {
+    const qualityPresetChanged = externalSettings.qualityPreset !== settings.qualityPreset;
+    setSettings(externalSettings);
+
+    // 画質設定が変わった場合、録画中でなければストリームを再取得
+    if (qualityPresetChanged && !isRecording) {
+      const qualityConfig = QUALITY_PRESETS[externalSettings.qualityPreset];
+      console.log('🔄 Quality preset changed, restarting capture with:', externalSettings.qualityPreset);
+      restartCapture({
+        videoDeviceId: externalSettings.videoDeviceId,
+        audioDeviceId: externalSettings.audioDeviceId,
+        width: qualityConfig.width,
+        height: qualityConfig.height,
+        frameRate: qualityConfig.framerate,
+      });
+    }
+  }, [externalSettings, isRecording, restartCapture, settings.qualityPreset]);
 
   // Initialize WASM
   useEffect(() => {
@@ -261,16 +275,17 @@ export const Recorder: React.FC<RecorderProps> = ({
     setSettings(newSettings);
     onSettingsChange?.(newSettings);
 
-    // Restart capture with new device
+    // Restart capture with new device/quality settings
+    // restartCapture は既存ストリームを停止してから新しいストリームを取得する
     const qualityConfig = QUALITY_PRESETS[newSettings.qualityPreset];
-    await startCapture({
+    await restartCapture({
       videoDeviceId: newSettings.videoDeviceId,
       audioDeviceId: newSettings.audioDeviceId,
       width: qualityConfig.width,
       height: qualityConfig.height,
       frameRate: qualityConfig.framerate,
     });
-  }, [isRecording, onSettingsChange, startCapture]);
+  }, [isRecording, onSettingsChange, restartCapture]);
 
   return (
     <div className="flex flex-col h-full bg-maycast-bg text-maycast-text">
@@ -341,24 +356,38 @@ export const Recorder: React.FC<RecorderProps> = ({
         )}
 
         <div className="mt-6">
-          {/* カメラデバイス選択 */}
-          <div className="flex items-center gap-2 text-maycast-text-secondary text-sm mb-2 px-1">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-            </svg>
-            <select
-              value={settings.videoDeviceId || ''}
-              onChange={(e) => handleDeviceChange({ ...settings, videoDeviceId: e.target.value || undefined })}
-              disabled={isRecording}
-              className="bg-transparent text-maycast-text-secondary text-sm border-none outline-none cursor-pointer hover:text-maycast-text disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <option value="" className="bg-maycast-bg text-maycast-text">デフォルト</option>
-              {videoDevices.map(device => (
-                <option key={device.deviceId} value={device.deviceId} className="bg-maycast-bg text-maycast-text">
-                  {device.label || `カメラ ${device.deviceId.slice(0, 8)}`}
-                </option>
-              ))}
-            </select>
+          {/* カメラデバイス選択と画質設定表示 */}
+          <div className="flex items-center justify-between text-maycast-text-secondary text-sm mb-2 px-1">
+            <div className="flex items-center gap-2">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+              </svg>
+              <select
+                value={settings.videoDeviceId || ''}
+                onChange={(e) => handleDeviceChange({ ...settings, videoDeviceId: e.target.value || undefined })}
+                disabled={isRecording}
+                className="bg-transparent text-maycast-text-secondary text-sm border-none outline-none cursor-pointer hover:text-maycast-text disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <option value="" className="bg-maycast-bg text-maycast-text">デフォルト</option>
+                {videoDevices.map(device => (
+                  <option key={device.deviceId} value={device.deviceId} className="bg-maycast-bg text-maycast-text">
+                    {device.label || `カメラ ${device.deviceId.slice(0, 8)}`}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {/* 画質設定表示 */}
+            <div className="flex items-center gap-3 text-xs">
+              <span className="px-2 py-1 bg-maycast-bg-secondary rounded">
+                {QUALITY_PRESETS[settings.qualityPreset].width}x{QUALITY_PRESETS[settings.qualityPreset].height}
+              </span>
+              <span className="px-2 py-1 bg-maycast-bg-secondary rounded">
+                {(QUALITY_PRESETS[settings.qualityPreset].bitrate / 1_000_000).toFixed(1)} Mbps
+              </span>
+              <span className="px-2 py-1 bg-maycast-bg-secondary rounded">
+                {QUALITY_PRESETS[settings.qualityPreset].framerate} fps
+              </span>
+            </div>
           </div>
           <VideoPreview
             videoRef={videoRef}
