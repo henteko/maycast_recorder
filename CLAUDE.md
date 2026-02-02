@@ -4,16 +4,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-**Maycast Recorder** is a WebCodecs-based video/audio recorder with OPFS storage and real-time server synchronization. It's a monorepo project with Clean Architecture + DDD patterns, supporting both standalone mode (browser-only) and remote mode (with server sync).
+**Maycast Recorder** is a WebCodecs-based video/audio recorder with OPFS storage and real-time server synchronization. It's a monorepo project with Clean Architecture + DDD patterns, supporting multiple modes:
+
+- **Solo Mode**: Browser-only standalone recording (no server required)
+- **Director Mode**: Room-based multi-guest recording management via Socket.IO
+- **Guest Mode**: Participate in director-controlled recording sessions
 
 ## Project Structure
 
 This is a **npm workspaces monorepo** with 4 packages:
 
-- **`packages/common-types`** - Shared TypeScript types, entities, and domain errors
-- **`packages/web-client`** - React + TypeScript frontend (Vite)
-- **`packages/server`** - Express + TypeScript backend
-- **`packages/wasm-core`** - Rust WASM module for fMP4 muxing
+- **`packages/common-types`** - Shared TypeScript types, entities, and domain errors (`@maycast/common-types`)
+- **`packages/web-client`** - React 19 + TypeScript 5.9 frontend (Vite 7)
+- **`packages/server`** - Express + TypeScript 5.9 backend with Socket.IO (`@maycast/server`)
+- **`packages/wasm-core`** - Rust WASM module for fMP4 muxing (using muxide + mp4 crates)
 
 ## Common Commands
 
@@ -33,6 +37,9 @@ task dev:server
 
 # Watch mode for WASM development
 task dev:wasm
+
+# Start Solo Mode only (standalone, no server needed)
+task dev:solo
 ```
 
 ### Building
@@ -45,6 +52,7 @@ task build
 task build:common-types   # Compile TypeScript types
 task build:wasm           # Build Rust WASM with wasm-pack
 task build:client         # Build React app for production
+task build:solo           # Build Solo-only client (outputs to dist-solo/)
 task build:server         # Compile server TypeScript
 ```
 
@@ -137,13 +145,20 @@ This codebase follows **Clean Architecture + Domain-Driven Design (DDD)**:
   - Server: `InMemoryRecordingRepository`, `LocalFileSystemChunkRepository`
 - **Service Implementations**: `BrowserMediaStreamService`, `RemoteUploadStrategy`, `NoOpUploadStrategy`
 - **API Clients**: `RecordingAPIClient` for HTTP communication
+- **WebSocket Clients**: `WebSocketRoomClient` for Socket.IO room communication
 - **DI Container**: Custom dependency injection in `packages/*/src/infrastructure/di/`
 
 #### 3. Presentation Layer (outermost)
 - **Controllers** (server): `RecordingController`, `ChunkController`
 - **React Components** (web-client): Organized as Atomic Design (atoms/molecules/organisms/pages/templates)
-- **Custom Hooks**: `useRecorder`, `useMediaStream`, `useDownload`, etc.
+  - **Pages**: `SoloPage`, `DirectorPage`, `GuestPage`, `LibraryPage`, `SettingsPage`
+- **Custom Hooks**:
+  - Core: `useRecorder`, `useMediaStream`, `useDownload`, `useDevices`, `useEncoders`
+  - Room/Director: `useRoomManager`, `useRoomManagerWebSocket`, `useRoomWebSocket`, `useRoomMetadata`
+  - Guest: `useGuestMediaStatus`, `useGuestRecordingControl`
+  - Session: `useSessionManager`, `useSystemHealth`
 - **API Routes**: Express routes in `packages/server/src/presentation/routes/`
+- **WebSocket**: Socket.IO handlers in `packages/server/src/infrastructure/websocket/`
 
 ### Dependency Injection System
 
@@ -196,9 +211,10 @@ When adding new dependencies:
 
 `packages/wasm-core` is a Rust-based fMP4 muxer:
 - **Purpose**: Generate fragmented MP4 format for streaming
-- **Build**: `wasm-pack build --target web`
-- **API**: `initialize()`, `push_video()`, `push_audio()` methods
-- **Current Status**: Interface ready but not yet integrated into recording pipeline
+- **Build**: `wasm-pack build --target web --out-dir pkg`
+- **Dependencies**: `muxide` + `mp4` crates for media processing, `blake3` for hashing
+- **Key Files**: `lib.rs` (entry point), `muxide_muxer.rs` (muxer implementation)
+- **Optimization**: Release build with `-O4`, LTO enabled, stripped symbols
 
 ## Key Implementation Details
 
@@ -274,11 +290,14 @@ Both web-client and server depend on `@maycast/common-types`.
 When getting started, read these files in order:
 
 1. **`packages/common-types/src/entities/Recording.entity.ts`** - Core business rules and state machine
-2. **`packages/web-client/src/infrastructure/di/setupContainer.ts`** - Dependency wiring
+2. **`packages/web-client/src/infrastructure/di/setupContainer.ts`** - Dependency wiring (mode-aware)
 3. **`packages/web-client/src/presentation/hooks/useRecorder.ts`** - Full recording lifecycle
-4. **`packages/server/src/infrastructure/di/setupContainer.ts`** - Server dependency setup
-5. **`packages/web-client/src/storage-strategies/RemoteStorageStrategy.ts`** - Upload orchestration
-6. **`docs/standalone-mode.md`** - Standalone mode specification and design
+4. **`packages/web-client/src/presentation/hooks/useEncoders.ts`** - WebCodecs encoder management (4K support)
+5. **`packages/web-client/src/infrastructure/websocket/WebSocketRoomClient.ts`** - Socket.IO room client
+6. **`packages/web-client/src/presentation/hooks/useRoomManagerWebSocket.ts`** - Director Mode room management
+7. **`packages/server/src/infrastructure/di/setupContainer.ts`** - Server dependency setup
+8. **`packages/web-client/src/storage-strategies/RemoteStorageStrategy.ts`** - Upload orchestration
+9. **`docs/standalone-mode.md`** - Standalone mode specification and design
 
 ## Testing
 
@@ -328,12 +347,20 @@ STORAGE_PATH=./recordings-data
 5. **Strategy Pattern**: Swap behavior (upload strategy, storage strategy) without code changes
 6. **DI Container**: Dependencies injected via constructor, not imported directly
 
-## Future Phases
+## Implementation Status
 
+### Completed Features
+- **Solo Mode**: Standalone browser-only recording with crash recovery
+- **Director Mode (Phase 4)**: Socket.IO-based room management for multi-guest recording
+- **Guest Mode**: Participate in director-controlled sessions
+- **4K Support**: High-resolution video encoding via WebCodecs
+- **Library**: Recording history management
+
+### Future Phases
 Based on comments in code:
 - **Phase 7**: Replace in-memory recording repository with real database
-- **Phase 4+**: WebSocket support for room-based collaboration (Director Mode)
 - **WASM Integration**: Complete integration of fMP4 muxer into recording pipeline
+- **E2E Tests**: Planned for Phase 1A-6+
 
 ## Troubleshooting
 

@@ -4,14 +4,16 @@ WebCodecs-based video/audio recorder with OPFS storage and real-time server sync
 
 ## 特徴
 
-- **高品質録画**: WebCodecs APIを使用した効率的なビデオ/オーディオエンコーディング
+- **高品質録画**: WebCodecs APIを使用した効率的なビデオ/オーディオエンコーディング（4K対応）
 - **デュアルストレージ**: OPFS（ローカル）+ サーバー同期によるデータ保護
-- **リアルタイムアップロード**: 録画中に並行してチャンクをサーバーへアップロード（最大10並列）
+- **リアルタイムアップロード**: 録画中に並行してチャンクをサーバーへアップロード（最大5並列）
 - **ハッシュ検証**: Blake3ハッシュによる整合性チェックとデデュプリケーション
 - **HTTP/2対応**: 効率的なマルチプレックス通信（15-25%の高速化）
 - **オフライン対応**: ネットワーク障害時もローカル保存継続
 - **リトライ機能**: アップロード失敗時の自動リトライ（最大3回）
 - **Docker対応**: 開発環境も本番環境もDocker Composeで簡単にセットアップ
+- **Director Mode**: Socket.IOによるリアルタイムRoom機能で複数ゲストの同時録画管理
+- **Solo Mode**: サーバー不要のスタンドアロン録画（軽量専用ビルド対応）
 
 ## アーキテクチャ
 
@@ -45,16 +47,21 @@ WebCodecs-based video/audio recorder with OPFS storage and real-time server sync
 ├── Cargo.toml                  # Rust workspace root
 ├── Taskfile.yml                # Task automation
 ├── /packages
-│   ├── /common-types           # 共有TypeScript型定義
-│   ├── /wasm-core              # Rust WASM Muxer (fMP4生成)
-│   ├── /web-client             # React + TypeScript Frontend
-│   └── /server                 # Express Backend
+│   ├── /common-types           # 共有TypeScript型定義 (@maycast/common-types)
+│   ├── /wasm-core              # Rust WASM Muxer (fMP4生成, muxide使用)
+│   ├── /web-client             # React 19 + TypeScript 5.9 Frontend (Vite)
+│   └── /server                 # Express Backend (@maycast/server)
 ├── /nginx                      # nginx設定
 │   ├── Dockerfile
 │   ├── nginx.conf
 │   └── /conf.d
 │       ├── development.conf
 │       └── production.conf
+├── /docs                       # プロジェクトドキュメント
+│   ├── development-plan.md
+│   ├── production-deployment.md
+│   ├── standalone-mode.md
+│   └── ...
 └── /scripts                    # ユーティリティスクリプト
     ├── generate-dev-certs.sh
     └── init-letsencrypt.sh
@@ -63,15 +70,17 @@ WebCodecs-based video/audio recorder with OPFS storage and real-time server sync
 ## 技術スタック
 
 ### Frontend
-- **React 18** + **TypeScript** + **Vite**
-- **Tailwind CSS** - スタイリング
-- **WebCodecs API** - ビデオ/オーディオエンコーディング
+- **React 19** + **TypeScript 5.9** + **Vite 7**
+- **Tailwind CSS 4** - スタイリング
+- **WebCodecs API** - ビデオ/オーディオエンコーディング（4K対応）
 - **OPFS** - ローカルストレージ
 - **IndexedDB** - アップロード状態管理
+- **Socket.IO Client** - リアルタイム通信（Director Mode）
 - **WASM** - fMP4 muxing (Rust)
 
 ### Backend
-- **Express** + **TypeScript**
+- **Express** + **TypeScript 5.9**
+- **Socket.IO** - WebSocket通信（Room機能）
 - **Blake3** - ハッシュ計算
 - **CORS** - クロスオリジン対応
 - **Morgan** - ログ管理
@@ -83,7 +92,7 @@ WebCodecs-based video/audio recorder with OPFS storage and real-time server sync
 
 ### WASM
 - **Rust** + **wasm-bindgen**
-- **mp4 crate** - fMP4生成
+- **muxide** + **mp4 crate** - fMP4生成
 
 ## クイックスタート（Docker Compose）
 
@@ -154,20 +163,39 @@ docker compose -f docker-compose.yml -f docker-compose.dev.yml down -v
 
 ## 使い方
 
-### Standalone Mode
+### Solo Mode（スタンドアロン録画）
 
 1. http://localhost にアクセス
-2. "Standalone Mode"を選択
-3. 録画開始 → 停止
-4. ダウンロードボタンでMP4を保存
+2. Solo Modeを選択（または `task dev:solo` でSolo専用版を起動）
+3. デバイスと画質を選択
+4. 録画開始 → 停止
+5. ダウンロードボタンでMP4を保存
 
-### Remote Mode
+**Solo専用ビルド**: サーバー不要の軽量版を生成
+```bash
+task build:solo
+# dist-solo/ に出力される
+```
+
+### Director Mode（ルーム管理）
 
 1. http://localhost にアクセス
-2. "Remote Mode"を選択
-3. 録画開始 → リアルタイムでサーバーへアップロード
-4. 録画停止 → すべてのチャンクがアップロード完了
-5. サーバーからダウンロード可能
+2. Director Modeを選択
+3. ルームを作成してゲストを招待
+4. ゲストの映像をリアルタイムでモニタリング
+5. 全ゲストの録画を一括開始/停止
+
+### Guest Mode（ゲスト参加）
+
+1. ディレクターから共有されたルームURLにアクセス
+2. カメラ/マイクを許可
+3. ディレクターの指示を待つ
+4. 録画はディレクター側からコントロールされる
+
+### Library（録画ライブラリ）
+
+- 過去の録画を一覧表示
+- ダウンロード/削除が可能
 
 ## 本番環境へのデプロイ
 
@@ -402,15 +430,17 @@ task dev
 
 ```bash
 # 開発
-task dev              # すべて起動
+task dev              # すべて起動（WASM + Client）
 task dev:client       # Clientのみ
 task dev:server       # Serverのみ
 task dev:wasm         # WASM watch mode
+task dev:solo         # Solo Mode専用開発サーバー
 
 # ビルド
 task build            # すべてビルド
 task build:wasm       # WASMのみ
 task build:client     # Clientのみ
+task build:solo       # Solo専用ビルド（dist-solo/に出力）
 task build:server     # Serverのみ
 
 # コード品質
@@ -453,7 +483,7 @@ task check            # コンパイルチェック
 1. **HTTP/2**: 有効化済み（15-25%の高速化）
 2. **gzip圧縮**: 有効化済み（テキストファイルの圧縮）
 3. **Keep-Alive**: HTTP接続の再利用（設定済み）
-4. **並列アップロード**: 最大10並列（ChunkUploader設定）
+4. **並列アップロード**: 最大5並列（ChunkUploader設定）
 5. **WASM最適化**: Release buildで最適化済み
 
 ### 監視
@@ -507,7 +537,7 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --scale se
 
 ### Q: 複数ユーザーで使えますか？
 
-現在の実装はシングルユーザー向けです。マルチユーザー対応はPhase 4（Director Mode）で実装予定です。
+**Director Mode**を使用することで、複数ゲストの同時録画が可能です。ディレクター（管理者）がルームを作成し、ゲストを招待して録画を一括管理できます。
 
 ### Q: データの保存期間は？
 
