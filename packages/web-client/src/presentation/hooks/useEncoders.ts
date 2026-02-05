@@ -43,8 +43,7 @@ export const useEncoders = ({ wasmInitialized, settings, storageStrategy, onStat
   const audioConfigRef = useRef<Uint8Array | null>(null)
   const audioSettingsRef = useRef<{ sampleRate: number; channelCount: number } | null>(null)
   const activeStreamRef = useRef<MediaStream | null>(null)
-  const baseVideoTimestampRef = useRef<number | null>(null)
-  const baseAudioTimestampRef = useRef<number | null>(null)
+  const baseTimestampRef = useRef<number | null>(null)
   const recordingIdRef = useRef<RecordingId | null>(null)
 
   const initializeMuxerWithConfigs = useCallback(async () => {
@@ -170,13 +169,13 @@ export const useEncoders = ({ wasmInitialized, settings, storageStrategy, onStat
           initializeMuxerWithConfigs()
         }
 
-        if (baseVideoTimestampRef.current === null) {
-          baseVideoTimestampRef.current = chunk.timestamp
-          console.log('📹 Base video timestamp set:', chunk.timestamp)
+        if (baseTimestampRef.current === null) {
+          baseTimestampRef.current = chunk.timestamp
+          console.log('📹 Base timestamp set (from video):', chunk.timestamp)
         }
 
         const isKeyframe = chunk.type === 'key'
-        const relativeTimestamp = chunk.timestamp - baseVideoTimestampRef.current
+        const relativeTimestamp = Math.max(0, chunk.timestamp - baseTimestampRef.current)
         const buffer = new Uint8Array(chunk.byteLength)
         chunk.copyTo(buffer)
 
@@ -238,15 +237,15 @@ export const useEncoders = ({ wasmInitialized, settings, storageStrategy, onStat
           initializeMuxerWithConfigs()
         }
 
-        if (baseAudioTimestampRef.current === null) {
-          baseAudioTimestampRef.current = chunk.timestamp
-          console.log('🎤 Base audio timestamp set:', chunk.timestamp)
+        if (baseTimestampRef.current === null) {
+          baseTimestampRef.current = chunk.timestamp
+          console.log('🎤 Base timestamp set (from audio):', chunk.timestamp)
         }
 
         // Muxerにオーディオを送信
         if (muxerRef.current && muxerRef.current.has_audio && muxerRef.current.has_audio()) {
           try {
-            const relativeTimestamp = chunk.timestamp - baseAudioTimestampRef.current
+            const relativeTimestamp = Math.max(0, chunk.timestamp - baseTimestampRef.current)
             const buffer = new Uint8Array(chunk.byteLength)
             chunk.copyTo(buffer)
             // duration is in microseconds from WebCodecs
@@ -310,8 +309,7 @@ export const useEncoders = ({ wasmInitialized, settings, storageStrategy, onStat
     muxerRef.current = null
     initSegmentRef.current = null
     activeStreamRef.current = null
-    baseVideoTimestampRef.current = null
-    baseAudioTimestampRef.current = null
+    baseTimestampRef.current = null
     recordingIdRef.current = null
   }, [])
 

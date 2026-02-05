@@ -60,6 +60,7 @@ struct VideoSample {
 #[derive(Debug, Clone)]
 struct AudioSample {
     /// Presentation timestamp in timescale units
+    #[allow(dead_code)] // May be used for future per-sample audio PTS adjustments
     pts: u64,
     /// Sample data (raw AAC frame, no ADTS header)
     data: Vec<u8>,
@@ -197,7 +198,11 @@ impl MuxideMuxerState {
 
         // Convert timestamp from microseconds to timescale units
         let pts = (timestamp * audio_timescale as u64) / 1_000_000;
-        let duration_ts = (duration as u64 * audio_timescale as u64 / 1_000_000) as u32;
+        // Use rounding instead of truncation to avoid cumulative drift.
+        // e.g. 21333µs * 48000 / 1_000_000 = 1023.984 → truncated to 1023, but should be 1024.
+        // Over 20000+ frames, 1-tick loss per frame accumulates to ~0.3s of A/V desync.
+        let duration_ts =
+            ((duration as u64 * audio_timescale as u64 + 500_000) / 1_000_000) as u32;
 
         self.audio_samples.push(AudioSample {
             pts,
@@ -225,6 +230,31 @@ impl MuxideMuxerState {
         }
     }
 
+    /// Calculate total video duration matching trun box logic exactly.
+    /// This ensures segment[N].tfdt + sum(trun_durations) == segment[N+1].tfdt.
+    fn calculate_video_trun_total_duration(samples: &[VideoSample]) -> u64 {
+        if samples.is_empty() {
+            return 0;
+        }
+        let mut total: u64 = 0;
+        for i in 0..samples.len() {
+            let duration = if i + 1 < samples.len() {
+                (samples[i + 1].dts - samples[i].dts) as u32
+            } else if i > 0 {
+                (samples[i].dts - samples[i - 1].dts) as u32
+            } else {
+                3000 // Default: 1 frame at 30fps
+            };
+            total += duration as u64;
+        }
+        total
+    }
+
+    /// Calculate total audio duration from sample durations.
+    fn calculate_audio_trun_total_duration(samples: &[AudioSample]) -> u64 {
+        samples.iter().map(|s| s.duration as u64).sum()
+    }
+
     /// Flush all pending samples into a media segment
     fn flush_segments(&mut self) {
         if self.video_samples.is_empty() {
@@ -240,21 +270,15 @@ impl MuxideMuxerState {
             &self.config,
         );
 
-        // Update state for next segment
+        // Update state for next segment using cumulative duration.
+        // This guarantees: segment[N].tfdt + sum(segment[N].trun_durations) == segment[N+1].tfdt
+        // No rounding error accumulates across segments.
         self.video_sequence_number += 1;
-        if let Some(last) = self.video_samples.last() {
-            if self.video_samples.len() >= 2 {
-                let avg_duration = (last.dts - self.video_samples[0].dts)
-                    / (self.video_samples.len() as u64 - 1);
-                self.video_base_media_decode_time = last.dts + avg_duration;
-            } else {
-                self.video_base_media_decode_time = last.dts + 3000;
-            }
-        }
+        let video_total_duration = Self::calculate_video_trun_total_duration(&self.video_samples);
+        self.video_base_media_decode_time += video_total_duration;
 
-        if let Some(last) = self.audio_samples.last() {
-            self.audio_base_media_decode_time = last.pts + last.duration as u64;
-        }
+        let audio_total_duration = Self::calculate_audio_trun_total_duration(&self.audio_samples);
+        self.audio_base_media_decode_time += audio_total_duration;
 
         self.video_samples.clear();
         self.audio_samples.clear();
