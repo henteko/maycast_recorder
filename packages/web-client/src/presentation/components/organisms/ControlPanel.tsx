@@ -1,4 +1,4 @@
-import { PlayIcon, ArrowDownTrayIcon, TrashIcon, ArrowPathIcon, CheckIcon, ServerStackIcon } from '@heroicons/react/24/solid'
+import { PlayIcon, ArrowDownTrayIcon, TrashIcon, ArrowPathIcon, CheckIcon } from '@heroicons/react/24/solid'
 import { Button } from '../atoms/Button'
 import { ProgressBar } from '../atoms/ProgressBar'
 
@@ -27,20 +27,6 @@ export const ControlPanel = ({
 }: ControlPanelProps) => {
   return (
     <div className="space-y-5 mb-8">
-      {/* Recording Status Message */}
-      {screenState === 'recording' && (
-        <div className="bg-maycast-safe/30 backdrop-blur-md border border-maycast-safe/50 p-5 rounded-2xl shadow-xl">
-          <div className="flex items-center justify-center gap-3">
-            <div className="relative">
-              <div className="w-4 h-4 bg-maycast-safe rounded-full animate-pulse" />
-              <div className="absolute inset-0 w-4 h-4 bg-maycast-safe rounded-full animate-ping opacity-75" />
-            </div>
-            <ServerStackIcon className="w-6 h-6 text-maycast-safe/80" />
-            <p className="text-white font-semibold text-lg">ローカルに保存中 (OPFS) - {savedChunks} chunks</p>
-          </div>
-        </div>
-      )}
-
       {/* Completed Screen */}
       {screenState === 'completed' && savedChunks > 0 && (
         <div className="space-y-5">

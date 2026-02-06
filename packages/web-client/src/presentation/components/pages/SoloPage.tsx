@@ -11,10 +11,12 @@ import { LibraryPage } from './LibraryPage';
 import { SettingsPage } from './SettingsPage';
 import { MainLayout } from '../templates/MainLayout';
 import { Sidebar } from '../organisms/Sidebar';
+import { Toast } from '../atoms/Toast';
 import type { NavigationPage } from '../organisms/SidebarNavigation';
 import { useSystemHealth } from '../../hooks/useSystemHealth';
 import { useSessionManager } from '../../hooks/useSessionManager';
 import { useDownload } from '../../hooks/useDownload';
+import { useToast } from '../../hooks/useToast';
 import { loadSettings, saveSettings } from '../../../types/settings';
 import type { RecorderSettings } from '../../../types/settings';
 import { StandaloneStorageStrategy } from '../../../storage-strategies/StandaloneStorageStrategy';
@@ -31,6 +33,7 @@ export const SoloPage: React.FC = () => {
     clearAllRecordings,
   } = useSessionManager();
   const { downloadProgress, downloadRecordingById } = useDownload();
+  const { toast, showToast } = useToast();
 
   const storageStrategy = useMemo(() => {
     console.log('🔄 [SoloPage] Using StandaloneStorageStrategy');
@@ -62,6 +65,7 @@ export const SoloPage: React.FC = () => {
         />
       }
     >
+      {toast && <Toast message={toast.message} visible={toast.visible} />}
       {currentPage === 'recorder' && (
         <Recorder
           settings={settings}
@@ -71,6 +75,8 @@ export const SoloPage: React.FC = () => {
           downloadProgress={downloadProgress}
           onNavigateToLibrary={() => setCurrentPage('library')}
           onSettingsChange={handleSettingsChange}
+          autoResetToStandby={true}
+          onRecordingComplete={() => showToast('録画の保存が完了しました')}
         />
       )}
       {currentPage === 'library' && (

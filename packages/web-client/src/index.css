@@ -25,4 +25,18 @@ html, body, #root {
   --color-maycast-rec: #EF4444;      /* Crimson - Recording State */
   --color-maycast-safe: #10B981;     /* Neon Mint - Success/Safe State */
   --color-maycast-warn: #F59E0B;     /* Amber - Warning State */
+
+  /* Animations */
+  --animate-slide-in-top: slide-in-top 0.3s ease-out;
+}
+
+@keyframes slide-in-top {
+  from {
+    opacity: 0;
+    transform: translateY(-1rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }

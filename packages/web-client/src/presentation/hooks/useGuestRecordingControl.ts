@@ -30,6 +30,7 @@ interface UseGuestRecordingControlResult {
   isWebSocketConnected: boolean;
   getWaitingMessage: () => string | undefined;
   handleDownload: (recordingId: RecordingId) => Promise<void>;
+  resetAfterSync: () => void;
 }
 
 export const useGuestRecordingControl = ({
@@ -179,6 +180,12 @@ export const useGuestRecordingControl = ({
     return undefined;
   }, [roomState]);
 
+  // 同期完了後のリセット
+  const resetAfterSync = useCallback(() => {
+    setGuestSyncState('idle');
+    setHasStartedRecording(false);
+  }, []);
+
   // ダウンロードハンドラー
   const handleDownload = useCallback(async (recordingId: RecordingId) => {
     try {
@@ -212,5 +219,6 @@ export const useGuestRecordingControl = ({
     isWebSocketConnected,
     getWaitingMessage,
     handleDownload,
+    resetAfterSync,
   };
 };

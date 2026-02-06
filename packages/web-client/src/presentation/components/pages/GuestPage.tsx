@@ -5,22 +5,24 @@
  * Room状態に応じて自動的に録画制御を行う
  */
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Recorder } from '../Recorder';
 import { LibraryPage } from './LibraryPage';
 import { SettingsPage } from './SettingsPage';
 import { MainLayout } from '../templates/MainLayout';
 import { Sidebar } from '../organisms/Sidebar';
 import { ResumeUploadModal } from '../organisms/RecoveryModal';
+import { Toast } from '../atoms/Toast';
 import { LoadingScreen } from '../molecules/LoadingScreen';
 import { RoomNotFoundScreen } from '../molecules/RoomNotFoundScreen';
-import { SyncCompleteScreen } from '../molecules/SyncCompleteScreen';
+import { GuestCompletePage } from '../molecules/GuestCompletePage';
 import { GuestNameInput } from '../molecules/GuestNameInput';
 import { RoomClosedScreen } from '../molecules/RoomClosedScreen';
 import type { NavigationPage } from '../organisms/SidebarNavigation';
 import { useSystemHealth } from '../../hooks/useSystemHealth';
 import { useSessionManager } from '../../hooks/useSessionManager';
 import { useDownload } from '../../hooks/useDownload';
+import { useToast } from '../../hooks/useToast';
 import { useGuestRecordingControl } from '../../hooks/useGuestRecordingControl';
 import { loadSettings, saveSettings } from '../../../types/settings';
 import type { RecorderSettings } from '../../../types/settings';
@@ -62,6 +64,7 @@ export const GuestPage: React.FC<GuestPageProps> = ({ roomId }) => {
     skipResume,
   } = useSessionManager();
   const { downloadProgress, downloadRecordingById } = useDownload();
+  const { toast, showToast } = useToast();
 
   const {
     recorderRef,
@@ -78,6 +81,15 @@ export const GuestPage: React.FC<GuestPageProps> = ({ roomId }) => {
     roomId,
     guestName: guestName ?? undefined,
   });
+
+  // sync完了時にトースト表示
+  const prevSyncStateRef = useRef(guestSyncState);
+  useEffect(() => {
+    if (prevSyncStateRef.current !== 'synced' && guestSyncState === 'synced') {
+      showToast('録画データのアップロードが完了しました');
+    }
+    prevSyncStateRef.current = guestSyncState;
+  }, [guestSyncState, showToast]);
 
   // 参加可能なRoom状態かどうか
   const canJoinRoom = roomState === 'idle' || roomState === 'recording';
@@ -130,7 +142,16 @@ export const GuestPage: React.FC<GuestPageProps> = ({ roomId }) => {
 
   // Complete画面 (sync完了後)
   if (guestSyncState === 'synced') {
-    return <SyncCompleteScreen />;
+    return (
+      <>
+        {toast && <Toast message={toast.message} visible={toast.visible} />}
+        <GuestCompletePage
+          recordings={savedRecordings}
+          onDownload={handleDownload}
+          isDownloading={downloadProgress.isDownloading}
+        />
+      </>
+    );
   }
 
   return (
@@ -170,6 +191,7 @@ export const GuestPage: React.FC<GuestPageProps> = ({ roomId }) => {
               waitingMessage: getWaitingMessage(),
             }}
             onSettingsChange={handleSettingsChange}
+            autoResetToStandby={true}
           />
         )}
         {currentPage === 'library' && (

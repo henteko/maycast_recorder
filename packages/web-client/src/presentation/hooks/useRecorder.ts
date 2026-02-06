@@ -39,6 +39,8 @@ interface UseRecorderProps {
   startCapture: (options?: MediaStreamOptions) => Promise<MediaStream | null>
   settings: RecorderSettings
   onSessionComplete?: () => void | Promise<void>
+  /** When true, automatically reset to standby after stopping instead of going to completed */
+  autoResetToStandby?: boolean
 }
 
 export const useRecorder = ({
@@ -52,6 +54,7 @@ export const useRecorder = ({
   startCapture,
   settings,
   onSessionComplete,
+  autoResetToStandby = false,
 }: UseRecorderProps) => {
   const [screenState, setScreenState] = useState<ScreenState>('standby')
   const [isRecording, setIsRecording] = useState(false)
@@ -202,12 +205,21 @@ export const useRecorder = ({
       await onSessionComplete()
     }
 
-    setScreenState('completed')
+    if (autoResetToStandby) {
+      setScreenState('standby')
+      setSavedChunks(0)
+      setStats({
+        videoChunks: 0,
+        audioChunks: 0,
+        keyframes: 0,
+        totalSize: 0,
+      })
+    } else {
+      setScreenState('completed')
+    }
 
     console.log('⏹️ Recording stopped')
-    console.log('📊 Final stats:', stats)
-    console.log('💾 Saved chunks:', savedChunks)
-  }, [closeEncoders, storageStrategy, onSessionComplete, stats, savedChunks])
+  }, [closeEncoders, storageStrategy, onSessionComplete, autoResetToStandby])
 
   const handleNewRecording = useCallback(() => {
     setScreenState('standby')

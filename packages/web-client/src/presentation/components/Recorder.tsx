@@ -18,7 +18,6 @@ import type { IStorageStrategy } from '../../storage-strategies/IStorageStrategy
 import { MainHeader } from './organisms/MainHeader'
 import { RecoveryModal } from './organisms/RecoveryModal'
 import { VideoPreview } from './organisms/VideoPreview'
-import { StatsPanel } from './organisms/StatsPanel'
 import { ControlPanel } from './organisms/ControlPanel'
 import { AudioWaveform } from './atoms/AudioWaveform'
 
@@ -55,6 +54,10 @@ interface RecorderProps {
   onNavigateToLibrary?: () => void;
   /** Callback when settings (device selection) changes */
   onSettingsChange?: (settings: RecorderSettings) => void;
+  /** When true, automatically reset to standby after stopping */
+  autoResetToStandby?: boolean;
+  /** Callback fired after recording completes (for toast notifications etc.) */
+  onRecordingComplete?: () => void;
 }
 
 export const Recorder: React.FC<RecorderProps> = ({
@@ -68,6 +71,8 @@ export const Recorder: React.FC<RecorderProps> = ({
   guestMode,
   onNavigateToLibrary,
   onSettingsChange,
+  autoResetToStandby = false,
+  onRecordingComplete,
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null)
   const { stream, error, startCapture, restartCapture, videoCapabilities } = useMediaStream()
@@ -100,7 +105,6 @@ export const Recorder: React.FC<RecorderProps> = ({
   const {
     screenState,
     isRecording,
-    stats,
     savedChunks,
     recordingStartTime,
     recordingIdRef,
@@ -120,7 +124,13 @@ export const Recorder: React.FC<RecorderProps> = ({
     setRecordingId,
     startCapture,
     settings,
-    onSessionComplete,
+    onSessionComplete: async () => {
+      if (onSessionComplete) {
+        await onSessionComplete();
+      }
+      onRecordingComplete?.();
+    },
+    autoResetToStandby,
   })
 
   // Sync with external settings changes and restart capture if quality preset changed
@@ -444,10 +454,6 @@ export const Recorder: React.FC<RecorderProps> = ({
             showSilenceWarning={true}
           />
         </div>
-
-        {screenState !== 'standby' && (
-          <StatsPanel stats={stats} />
-        )}
 
         <ControlPanel
           screenState={screenState}
