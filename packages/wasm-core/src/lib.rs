@@ -2,7 +2,9 @@ use wasm_bindgen::prelude::*;
 
 mod muxide_muxer;
 
-pub use muxide_muxer::{MuxideConfig, MuxideMuxerState, annex_b_to_avcc, extract_sps_pps_from_avcc};
+pub use muxide_muxer::{
+    annex_b_to_avcc, extract_sps_pps_from_avcc, MuxideConfig, MuxideMuxerState,
+};
 
 // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global allocator.
 // This is optional and can help reduce WASM binary size.
@@ -80,7 +82,11 @@ impl MuxideMuxer {
     /// This extracts SPS and PPS from the avcC box automatically.
     /// Video-only mode (no audio).
     #[wasm_bindgen]
-    pub fn from_avcc(video_width: u32, video_height: u32, avcc: &[u8]) -> Result<MuxideMuxer, String> {
+    pub fn from_avcc(
+        video_width: u32,
+        video_height: u32,
+        avcc: &[u8],
+    ) -> Result<MuxideMuxer, String> {
         let (sps, pps) = extract_sps_pps_from_avcc(avcc)?;
 
         let config = MuxideConfig {
@@ -177,7 +183,8 @@ impl MuxideMuxer {
     ) -> Result<(), String> {
         let avcc_data = annex_b_to_avcc(data);
         let timestamp_us = timestamp as u64;
-        self.state.push_video_chunk(&avcc_data, timestamp_us, is_keyframe)
+        self.state
+            .push_video_chunk(&avcc_data, timestamp_us, is_keyframe)
     }
 
     /// Add an audio chunk
@@ -187,12 +194,7 @@ impl MuxideMuxer {
     /// * `timestamp` - Presentation timestamp in microseconds (from WebCodecs)
     /// * `duration` - Duration in microseconds (from WebCodecs)
     #[wasm_bindgen]
-    pub fn push_audio(
-        &mut self,
-        data: &[u8],
-        timestamp: f64,
-        duration: u32,
-    ) -> Result<(), String> {
+    pub fn push_audio(&mut self, data: &[u8], timestamp: f64, duration: u32) -> Result<(), String> {
         let timestamp_us = timestamp as u64;
         self.state.push_audio_chunk(data, timestamp_us, duration)
     }

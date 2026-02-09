@@ -192,17 +192,17 @@ impl MuxideMuxerState {
             return Err("Audio not configured".to_string());
         }
 
-        let audio_timescale = self.config.audio_timescale.unwrap_or(
-            self.config.audio_sample_rate.unwrap_or(48000),
-        );
+        let audio_timescale = self
+            .config
+            .audio_timescale
+            .unwrap_or(self.config.audio_sample_rate.unwrap_or(48000));
 
         // Convert timestamp from microseconds to timescale units
         let pts = (timestamp * audio_timescale as u64) / 1_000_000;
         // Use rounding instead of truncation to avoid cumulative drift.
         // e.g. 21333µs * 48000 / 1_000_000 = 1023.984 → truncated to 1023, but should be 1024.
         // Over 20000+ frames, 1-tick loss per frame accumulates to ~0.3s of A/V desync.
-        let duration_ts =
-            ((duration as u64 * audio_timescale as u64 + 500_000) / 1_000_000) as u32;
+        let duration_ts = ((duration as u64 * audio_timescale as u64 + 500_000) / 1_000_000) as u32;
 
         self.audio_samples.push(AudioSample {
             pts,
@@ -558,7 +558,7 @@ fn build_mvhd(timescale: u32, next_track_id: u32) -> Vec<u8> {
     payload.extend_from_slice(&0x0001_0000_u32.to_be_bytes()); // Rate (1.0)
     payload.extend_from_slice(&0x0100_u16.to_be_bytes()); // Volume (1.0)
     payload.extend_from_slice(&[0u8; 10]); // Reserved
-    // Unity matrix (36 bytes)
+                                           // Unity matrix (36 bytes)
     payload.extend_from_slice(&0x0001_0000_u32.to_be_bytes());
     payload.extend_from_slice(&[0u8; 12]);
     payload.extend_from_slice(&0x0001_0000_u32.to_be_bytes());
@@ -627,7 +627,7 @@ fn build_video_tkhd(config: &MuxideConfig) -> Vec<u8> {
     payload.extend_from_slice(&0u16.to_be_bytes()); // Alternate group
     payload.extend_from_slice(&0u16.to_be_bytes()); // Volume (0 for video)
     payload.extend_from_slice(&0u16.to_be_bytes()); // Reserved
-    // Unity matrix (36 bytes)
+                                                    // Unity matrix (36 bytes)
     payload.extend_from_slice(&0x0001_0000_u32.to_be_bytes());
     payload.extend_from_slice(&[0u8; 12]);
     payload.extend_from_slice(&0x0001_0000_u32.to_be_bytes());
@@ -666,7 +666,7 @@ fn build_mdhd(timescale: u32) -> Vec<u8> {
     payload.extend_from_slice(&0u32.to_be_bytes()); // Modification time
     payload.extend_from_slice(&timescale.to_be_bytes()); // Timescale
     payload.extend_from_slice(&0u32.to_be_bytes()); // Duration (unknown)
-    // Language: "und" (undetermined) encoded as packed ISO 639-2/T
+                                                    // Language: "und" (undetermined) encoded as packed ISO 639-2/T
     let lang = encode_language_code("und");
     payload.extend_from_slice(&lang);
     payload.extend_from_slice(&0u16.to_be_bytes()); // Quality
@@ -731,7 +731,7 @@ fn build_dinf() -> Vec<u8> {
     let mut dref_payload = Vec::new();
     dref_payload.extend_from_slice(&0u32.to_be_bytes()); // Version + flags
     dref_payload.extend_from_slice(&1u32.to_be_bytes()); // Entry count
-    // url box (self-contained)
+                                                         // url box (self-contained)
     let url_payload = [0x00, 0x00, 0x00, 0x01]; // Flags: self-contained
     let url_box = build_box(b"url ", &url_payload);
     dref_payload.extend_from_slice(&url_box);
@@ -877,7 +877,7 @@ fn build_audio_tkhd() -> Vec<u8> {
     payload.extend_from_slice(&0u16.to_be_bytes()); // Alternate group
     payload.extend_from_slice(&0x0100_u16.to_be_bytes()); // Volume (1.0 for audio)
     payload.extend_from_slice(&0u16.to_be_bytes()); // Reserved
-    // Unity matrix (36 bytes)
+                                                    // Unity matrix (36 bytes)
     payload.extend_from_slice(&0x0001_0000_u32.to_be_bytes());
     payload.extend_from_slice(&[0u8; 12]);
     payload.extend_from_slice(&0x0001_0000_u32.to_be_bytes());
@@ -891,9 +891,9 @@ fn build_audio_tkhd() -> Vec<u8> {
 
 /// Build audio mdia (media) box
 fn build_audio_mdia(config: &MuxideConfig) -> Vec<u8> {
-    let audio_timescale = config.audio_timescale.unwrap_or(
-        config.audio_sample_rate.unwrap_or(48000),
-    );
+    let audio_timescale = config
+        .audio_timescale
+        .unwrap_or(config.audio_sample_rate.unwrap_or(48000));
 
     let mut payload = Vec::new();
 
@@ -983,7 +983,7 @@ fn build_mp4a(config: &MuxideConfig) -> Vec<u8> {
     payload.extend_from_slice(&16u16.to_be_bytes()); // Sample size (16 bits)
     payload.extend_from_slice(&0u16.to_be_bytes()); // Compression ID
     payload.extend_from_slice(&0u16.to_be_bytes()); // Packet size
-    // Sample rate in 16.16 fixed-point format
+                                                    // Sample rate in 16.16 fixed-point format
     payload.extend_from_slice(&(sample_rate << 16).to_be_bytes());
 
     // esds (Elementary Stream Descriptor) box
@@ -999,9 +999,10 @@ fn build_esds(config: &MuxideConfig) -> Vec<u8> {
     let channels = config.audio_channels.unwrap_or(2);
 
     // Build or use provided AudioSpecificConfig
-    let audio_specific_config = config.audio_specific_config.clone().unwrap_or_else(|| {
-        build_audio_specific_config(sample_rate, channels)
-    });
+    let audio_specific_config = config
+        .audio_specific_config
+        .clone()
+        .unwrap_or_else(|| build_audio_specific_config(sample_rate, channels));
 
     // ES Descriptor
     let mut es_descriptor = Vec::new();
@@ -1014,7 +1015,7 @@ fn build_esds(config: &MuxideConfig) -> Vec<u8> {
     // DecoderConfigDescriptor
     let mut decoder_config = Vec::new();
     decoder_config.push(0x40); // objectTypeIndication: Audio ISO/IEC 14496-3 (AAC)
-    // streamType (6 bits) = 0x05 (AudioStream), upStream (1 bit) = 0, reserved (1 bit) = 1
+                               // streamType (6 bits) = 0x05 (AudioStream), upStream (1 bit) = 0, reserved (1 bit) = 1
     decoder_config.push((0x05 << 2) | 0x01);
     // bufferSizeDB (24 bits)
     decoder_config.extend_from_slice(&[0x00, 0x00, 0x00]);
@@ -1401,7 +1402,9 @@ mod tests {
             avcc_data.extend_from_slice(&nal_data);
 
             let timestamp = (i as u64) * 33333; // ~30fps in microseconds
-            muxer.push_video_chunk(&avcc_data, timestamp, is_keyframe).unwrap();
+            muxer
+                .push_video_chunk(&avcc_data, timestamp, is_keyframe)
+                .unwrap();
         }
 
         // Get complete file
@@ -1445,7 +1448,10 @@ mod tests {
         assert_eq!(&init_segment[4..8], b"ftyp");
 
         // Verify init segment contains audio track (mp4a box)
-        assert!(init_segment.windows(4).any(|w| w == b"mp4a"), "Init segment should contain mp4a box");
+        assert!(
+            init_segment.windows(4).any(|w| w == b"mp4a"),
+            "Init segment should contain mp4a box"
+        );
 
         // Push video and audio frames
         for i in 0..30 {
@@ -1459,7 +1465,9 @@ mod tests {
             avcc_data.extend_from_slice(&nal_data);
 
             let video_timestamp = (i as u64) * 33333; // ~30fps in microseconds
-            muxer.push_video_chunk(&avcc_data, video_timestamp, is_keyframe).unwrap();
+            muxer
+                .push_video_chunk(&avcc_data, video_timestamp, is_keyframe)
+                .unwrap();
 
             // Push ~3 audio frames per video frame (1024 samples @ 48kHz ≈ 21.33ms)
             for j in 0..3 {
@@ -1467,7 +1475,9 @@ mod tests {
                 // Fake AAC frame (just some bytes, not valid AAC but sufficient for structure test)
                 let audio_data = vec![0x21, 0x10, 0x04, 0x60, 0x8c, 0x1c, 0x00, 0x00];
                 let duration = 21333u32; // ~21.33ms in microseconds
-                muxer.push_audio_chunk(&audio_data, audio_timestamp, duration).unwrap();
+                muxer
+                    .push_audio_chunk(&audio_data, audio_timestamp, duration)
+                    .unwrap();
             }
         }
 
@@ -1575,7 +1585,12 @@ mod tests {
 
         // Check second NAL
         let offset = 4 + len1 as usize;
-        let len2 = u32::from_be_bytes([avcc[offset], avcc[offset + 1], avcc[offset + 2], avcc[offset + 3]]);
+        let len2 = u32::from_be_bytes([
+            avcc[offset],
+            avcc[offset + 1],
+            avcc[offset + 2],
+            avcc[offset + 3],
+        ]);
         assert_eq!(len2, 4);
         assert_eq!(avcc[offset + 4], 0x68); // PPS
     }
