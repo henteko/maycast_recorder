@@ -1,9 +1,10 @@
 import { useMemo } from 'react';
-import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useParams } from 'react-router-dom';
 import { DIProvider, setupContainer } from './infrastructure/di';
 import { SoloPage } from './presentation/components/pages/SoloPage';
 import { GuestPage } from './presentation/components/pages/GuestPage';
 import { DirectorPage } from './presentation/components/pages/DirectorPage';
+import { TopPage } from './presentation/components/pages/TopPage';
 
 // Standalone Mode用のルーター
 function SoloModeRouter() {
@@ -67,8 +68,8 @@ function App() {
         {/* Guest Mode - /guest/:roomId */}
         <Route path="/guest/:roomId" element={<GuestModeRouter />} />
 
-        {/* Default redirect to /solo */}
-        <Route path="/" element={<Navigate to="/solo" replace />} />
+        {/* Top Page */}
+        <Route path="/" element={<TopPage />} />
       </Routes>
     </BrowserRouter>
   );
