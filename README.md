@@ -1,24 +1,26 @@
 # Maycast Recorder
 
+[日本語](README_ja.md)
+
 WebCodecs-based video/audio recorder with OPFS storage and real-time server synchronization.
 
-## 特徴
+## Features
 
-- **高品質録画**: WebCodecs APIを使用した効率的なビデオ/オーディオエンコーディング（4K対応）
-- **デュアルストレージ**: OPFS（ローカル）+ サーバー同期によるデータ保護
-- **リアルタイムアップロード**: 録画中に並行してチャンクをサーバーへアップロード（最大5並列）
-- **オフライン対応**: ネットワーク障害時もローカル保存継続
-- **Director Mode**: Socket.IOによるリアルタイムRoom機能で複数ゲストの同時録画管理
-- **Solo Mode**: サーバー不要のスタンドアロン録画（軽量専用ビルド対応）
+- **High-Quality Recording**: Efficient video/audio encoding using the WebCodecs API (4K supported)
+- **Dual Storage**: Data protection with OPFS (local) + server synchronization
+- **Real-Time Upload**: Chunks are uploaded to the server in parallel during recording (up to 5 concurrent)
+- **Offline Support**: Local saving continues during network failures
+- **Director Mode**: Real-time room management via Socket.IO for simultaneous multi-guest recording
+- **Solo Mode**: Standalone recording without a server (lightweight dedicated build available)
 
-## クイックスタート
+## Quick Start
 
-### 前提条件
+### Prerequisites
 
 - [Docker](https://www.docker.com/) 20.10+
-- [Task](https://taskfile.dev/)（推奨）
+- [Task](https://taskfile.dev/) (recommended)
 
-### セットアップ
+### Setup
 
 ```bash
 git clone https://github.com/henteko/maycast_recorder.git
@@ -26,37 +28,37 @@ cd maycast_recorder
 task docker:dev:up
 ```
 
-起動後、http://localhost にアクセスしてください。
+Once started, visit http://localhost.
 
-## 使い方
+## Usage
 
-### Solo Mode（スタンドアロン録画）
+### Solo Mode (Standalone Recording)
 
-1. http://localhost/solo にアクセス
-2. デバイスと画質を選択
-4. 録画開始 → 停止
-5. ダウンロードボタンでMP4を保存
+1. Visit http://localhost/solo
+2. Select device and quality
+4. Start recording → Stop
+5. Save as MP4 with the download button
 
-### Director Mode（ルーム管理）
+### Director Mode (Room Management)
 
-1. http://localhost/director にアクセス
-3. ルームを作成してゲストを招待
-4. ゲストの映像をリアルタイムでモニタリング
-5. 全ゲストの録画を一括開始/停止
+1. Visit http://localhost/director
+3. Create a room and invite guests
+4. Monitor guest video in real time
+5. Start/stop recording for all guests at once
 
-### Guest Mode（ゲスト参加）
+### Guest Mode
 
-1. ディレクターから共有されたルームURLにアクセス
-2. カメラ/マイクを許可
-3. 録画はディレクター側からコントロールされる
+1. Access the room URL shared by the director
+2. Allow camera/microphone access
+3. Recording is controlled by the director
 
-## システム構成
+## Architecture
 
 ```
 ┌─────────────────────────────────────┐
-│  nginx (リバースプロキシ)           │
+│  nginx (Reverse Proxy)              │
 │  - HTTP/2                           │
-│  - Let's Encrypt (本番)             │
+│  - Let's Encrypt (production)       │
 │  Port: 80, 443                      │
 └─────────────────────────────────────┘
             ↓          ↓
@@ -71,43 +73,43 @@ task docker:dev:up
 
 npm workspaces monorepo:
 
-| パッケージ | 説明 |
+| Package | Description |
 |---|---|
-| `packages/common-types` | 共有TypeScript型定義 |
-| `packages/web-client` | React 19 + TypeScript 5.9 フロントエンド |
-| `packages/server` | Express + Socket.IO バックエンド |
+| `packages/common-types` | Shared TypeScript type definitions |
+| `packages/web-client` | React 19 + TypeScript 5.9 frontend |
+| `packages/server` | Express + Socket.IO backend |
 | `packages/wasm-core` | Rust WASM fMP4 Muxer |
 
-## 開発
+## Development
 
-[Task](https://taskfile.dev/) でコマンドを管理しています。
+Commands are managed with [Task](https://taskfile.dev/).
 
 ```bash
-# 開発サーバー起動（WASM ビルド + Client）
+# Start dev server (WASM build + Client)
 task dev
 
-# 個別起動
-task dev:client       # Client のみ
-task dev:server       # Server のみ
-task dev:solo         # Solo Mode 専用
+# Start individually
+task dev:client       # Client only
+task dev:server       # Server only
+task dev:solo         # Solo Mode only
 
-# ビルド
-task build            # すべてビルド
-task build:wasm       # WASM のみ
-task build:solo       # Solo 専用ビルド（dist-solo/ に出力）
+# Build
+task build            # Build everything
+task build:wasm       # WASM only
+task build:solo       # Solo dedicated build (outputs to dist-solo/)
 
-# テスト・リント
-task test             # すべてのテスト
-task lint             # すべてのリント
-task fmt              # フォーマット
+# Test & Lint
+task test             # Run all tests
+task lint             # Run all linters
+task fmt              # Format code
 
 # Docker
-task docker:dev:up    # 開発環境起動
-task docker:dev:down  # 開発環境停止
-task docker:dev:logs      # ログ表示
-task docker:dev:restart   # 再起動
+task docker:dev:up    # Start dev environment
+task docker:dev:down  # Stop dev environment
+task docker:dev:logs      # View logs
+task docker:dev:restart   # Restart
 ```
 
-## ライセンス
+## License
 
 [Apache-2.0](LICENSE)
