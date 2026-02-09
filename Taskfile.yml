@@ -159,18 +159,11 @@ tasks:
     desc: Format all code
     cmds:
       - task: fmt:rust
-      - task: fmt:ts
 
   fmt:rust:
     desc: Format Rust code
     cmds:
       - cargo fmt --all
-
-  fmt:ts:
-    desc: Format TypeScript code
-    dir: '{{.CLIENT_DIR}}'
-    cmds:
-      - npm run format || echo "Add format script to package.json if needed"
 
   # Dependency management
   deps:install:
