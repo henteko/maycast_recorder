@@ -78,6 +78,36 @@ npm workspaces monorepo:
 | `packages/server` | Express + Socket.IO バックエンド |
 | `packages/wasm-core` | Rust WASM fMP4 Muxer |
 
+## 開発
+
+[Task](https://taskfile.dev/) でコマンドを管理しています。
+
+```bash
+# 開発サーバー起動（WASM ビルド + Client）
+task dev
+
+# 個別起動
+task dev:client       # Client のみ
+task dev:server       # Server のみ
+task dev:solo         # Solo Mode 専用
+
+# ビルド
+task build            # すべてビルド
+task build:wasm       # WASM のみ
+task build:solo       # Solo 専用ビルド（dist-solo/ に出力）
+
+# テスト・リント
+task test             # すべてのテスト
+task lint             # すべてのリント
+task fmt              # フォーマット
+
+# Docker
+task docker:dev:up    # 開発環境起動
+task docker:dev:down  # 開発環境停止
+task docker:dev:logs      # ログ表示
+task docker:dev:restart   # 再起動
+```
+
 ## ライセンス
 
 [Apache-2.0](LICENSE)
