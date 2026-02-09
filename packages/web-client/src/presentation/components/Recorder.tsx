@@ -378,10 +378,10 @@ export const Recorder: React.FC<RecorderProps> = ({
                 disabled={isRecording}
                 className="bg-transparent text-maycast-text-secondary text-sm border-none outline-none cursor-pointer hover:text-maycast-text disabled:cursor-not-allowed disabled:opacity-50"
               >
-                <option value="" className="bg-maycast-bg text-maycast-text">デフォルト</option>
+                <option value="" className="bg-maycast-bg text-maycast-text">Default</option>
                 {videoDevices.map(device => (
                   <option key={device.deviceId} value={device.deviceId} className="bg-maycast-bg text-maycast-text">
-                    {device.label || `カメラ ${device.deviceId.slice(0, 8)}`}
+                    {device.label || `Camera ${device.deviceId.slice(0, 8)}`}
                   </option>
                 ))}
               </select>
@@ -398,7 +398,7 @@ export const Recorder: React.FC<RecorderProps> = ({
                   <>
                     <span className={`px-2 py-1 rounded ${isUnsupported ? 'bg-amber-500/20 text-amber-400' : 'bg-maycast-bg-secondary'}`}>
                       {qualityConfig.width}x{qualityConfig.height}
-                      {isUnsupported && ' (非対応)'}
+                      {isUnsupported && ' (unsupported)'}
                     </span>
                     <span className="px-2 py-1 bg-maycast-bg-secondary rounded">
                       {(qualityConfig.bitrate / 1_000_000).toFixed(1)} Mbps
@@ -407,7 +407,7 @@ export const Recorder: React.FC<RecorderProps> = ({
                       {qualityConfig.framerate} fps
                     </span>
                     {videoCapabilities && (
-                      <span className="px-2 py-1 bg-maycast-primary/20 text-maycast-primary rounded" title={`カメラ最大: ${videoCapabilities.maxWidth}x${videoCapabilities.maxHeight}`}>
+                      <span className="px-2 py-1 bg-maycast-primary/20 text-maycast-primary rounded" title={`Camera max: ${videoCapabilities.maxWidth}x${videoCapabilities.maxHeight}`}>
                         Max {videoCapabilities.maxWidth}x{videoCapabilities.maxHeight}
                       </span>
                     )}
@@ -435,10 +435,10 @@ export const Recorder: React.FC<RecorderProps> = ({
               disabled={isRecording}
               className="bg-transparent text-maycast-text-secondary text-sm border-none outline-none cursor-pointer hover:text-maycast-text disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <option value="" className="bg-maycast-bg text-maycast-text">デフォルト</option>
+              <option value="" className="bg-maycast-bg text-maycast-text">Default</option>
               {audioDevices.map(device => (
                 <option key={device.deviceId} value={device.deviceId} className="bg-maycast-bg text-maycast-text">
-                  {device.label || `マイク ${device.deviceId.slice(0, 8)}`}
+                  {device.label || `Mic ${device.deviceId.slice(0, 8)}`}
                 </option>
               ))}
             </select>

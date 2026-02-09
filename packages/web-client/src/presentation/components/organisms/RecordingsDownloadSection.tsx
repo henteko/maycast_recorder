@@ -97,7 +97,7 @@ export const RecordingsDownloadSection: React.FC<RecordingsDownloadSectionProps>
   if (recordingIds.length === 0) {
     return (
       <div className="text-sm text-maycast-text-secondary text-center py-4">
-        録画データがありません
+        No recording data
       </div>
     );
   }
@@ -108,7 +108,7 @@ export const RecordingsDownloadSection: React.FC<RecordingsDownloadSectionProps>
         <div className="flex items-center gap-2">
           <CheckIcon className="w-5 h-5 text-maycast-safe" />
           <span className="font-semibold text-maycast-text">
-            録画完了 ({recordingIds.length}件)
+            Recording Complete ({recordingIds.length})
           </span>
         </div>
         {recordingIds.length > 1 && (
@@ -122,12 +122,12 @@ export const RecordingsDownloadSection: React.FC<RecordingsDownloadSectionProps>
             {isDownloadingAll ? (
               <>
                 <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                ダウンロード中...
+                Downloading...
               </>
             ) : (
               <>
                 <ArrowDownTrayIcon className="w-4 h-4" />
-                すべてダウンロード
+                Download All
               </>
             )}
           </Button>

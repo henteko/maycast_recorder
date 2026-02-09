@@ -7,7 +7,7 @@ interface LoadingScreenProps {
 }
 
 export const LoadingScreen: React.FC<LoadingScreenProps> = ({
-  message = '読み込み中...',
+  message = 'Loading...',
 }) => {
   return (
     <div className="flex flex-col items-center justify-center h-full bg-maycast-bg text-maycast-text">

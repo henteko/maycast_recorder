@@ -44,7 +44,7 @@ export const ServerUrlSettings: React.FC = () => {
       <div className="flex items-center gap-2">
         <ServerIcon className="w-5 h-5 text-maycast-primary" />
         <label className="text-sm font-semibold text-maycast-text">
-          サーバーURL (Remote Mode用)
+          Server URL (for Remote Mode)
         </label>
       </div>
 
@@ -60,13 +60,13 @@ export const ServerUrlSettings: React.FC = () => {
           onClick={handleSave}
           className="px-4 py-2 bg-maycast-primary/20 hover:bg-maycast-primary/30 text-maycast-primary rounded-xl font-medium transition-colors"
         >
-          保存
+          Save
         </button>
         <button
           onClick={handleReset}
           className="px-4 py-2 bg-maycast-panel/30 hover:bg-maycast-panel/50 text-maycast-text/70 rounded-xl font-medium transition-colors"
         >
-          リセット
+          Reset
         </button>
       </div>
 
@@ -76,26 +76,26 @@ export const ServerUrlSettings: React.FC = () => {
           disabled={isChecking}
           className="px-5 py-2 bg-maycast-safe/20 hover:bg-maycast-safe/30 text-maycast-safe rounded-xl font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {isChecking ? '接続確認中...' : '接続テスト'}
+          {isChecking ? 'Checking...' : 'Test Connection'}
         </button>
 
         {connectionStatus === 'connected' && (
           <div className="flex items-center gap-2 text-maycast-safe">
             <CheckCircleIcon className="w-5 h-5" />
-            <span className="text-sm font-medium">接続成功</span>
+            <span className="text-sm font-medium">Connected</span>
           </div>
         )}
 
         {connectionStatus === 'disconnected' && (
           <div className="flex items-center gap-2 text-maycast-rec">
             <XCircleIcon className="w-5 h-5" />
-            <span className="text-sm font-medium">接続失敗</span>
+            <span className="text-sm font-medium">Connection Failed</span>
           </div>
         )}
       </div>
 
       <p className="text-xs text-maycast-text/50">
-        Remote Modeで録画データをサーバーにアップロードする際のサーバーURLを設定します。
+        Set the server URL for uploading recording data in Remote Mode.
       </p>
     </div>
   );

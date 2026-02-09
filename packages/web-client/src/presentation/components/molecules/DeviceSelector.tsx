@@ -7,7 +7,7 @@ interface DeviceSelectorProps {
 }
 
 export const DeviceSelector = ({ label, value, onChange, devices, deviceType }: DeviceSelectorProps) => {
-  const defaultLabel = deviceType === 'camera' ? 'カメラ' : 'マイク'
+  const defaultLabel = deviceType === 'camera' ? 'Camera' : 'Microphone'
 
   return (
     <div className="mb-6">
@@ -17,7 +17,7 @@ export const DeviceSelector = ({ label, value, onChange, devices, deviceType }: 
         onChange={(e) => onChange(e.target.value || undefined)}
         className="w-full bg-white text-gray-900 px-4 py-3 rounded-xl border-2 border-maycast-border focus:border-maycast-primary focus:outline-none focus:ring-2 focus:ring-maycast-primary/50 font-medium cursor-pointer"
       >
-        <option value="">デフォルト</option>
+        <option value="">Default</option>
         {devices.map(device => (
           <option key={device.deviceId} value={device.deviceId}>
             {device.label || `${defaultLabel} ${device.deviceId.slice(0, 8)}`}

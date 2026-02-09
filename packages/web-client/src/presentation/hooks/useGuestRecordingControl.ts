@@ -175,7 +175,7 @@ export const useGuestRecordingControl = ({
   // 待機メッセージの決定
   const getWaitingMessage = useCallback((): string | undefined => {
     if (roomState === 'idle') {
-      return 'Directorの開始を待機中...';
+      return 'Waiting for Director to start...';
     }
     return undefined;
   }, [roomState]);

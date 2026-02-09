@@ -26,7 +26,7 @@ export const GuestUrlInput: React.FC<GuestUrlInputProps> = ({ url }) => {
   return (
     <div>
       <label className="text-xs text-maycast-text-secondary mb-2 block font-medium">
-        ゲスト招待URL
+        Guest Invitation URL
       </label>
       <div className="flex items-center gap-2">
         <input
@@ -50,7 +50,7 @@ export const GuestUrlInput: React.FC<GuestUrlInputProps> = ({ url }) => {
       </div>
       {copied && (
         <p className="text-xs text-maycast-safe mt-2 font-medium">
-          クリップボードにコピーしました!
+          Copied to clipboard!
         </p>
       )}
     </div>

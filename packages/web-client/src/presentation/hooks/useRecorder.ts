@@ -235,7 +235,7 @@ export const useRecorder = ({
   const handleDiscardRecording = useCallback(async () => {
     if (!recordingIdRef.current) return
 
-    if (!confirm('この録画を削除しますか？この操作は取り消せません。')) {
+    if (!confirm('Delete this recording? This action cannot be undone.')) {
       return
     }
 
@@ -252,7 +252,7 @@ export const useRecorder = ({
       console.log('🗑️ Recording discarded:', recordingIdRef.current)
     } catch (err) {
       console.error('❌ Failed to discard recording:', err)
-      alert('録画の削除に失敗しました')
+      alert('Failed to delete recording')
     }
   }, [onSessionComplete])
 

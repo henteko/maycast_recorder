@@ -55,10 +55,10 @@ export const GuestCompletePage: React.FC<GuestCompletePageProps> = ({
               <CheckCircleIcon className="w-8 h-8 text-maycast-safe" />
             </div>
             <h1 className="text-2xl font-bold text-maycast-text mb-3">
-              録画セッションが完了しました
+              Recording session completed
             </h1>
             <p className="text-sm text-maycast-subtext leading-relaxed">
-              次回の録画は、Directorから共有されたURLにアクセスしてください。
+              For the next recording, access the URL shared by the Director.
             </p>
           </div>
 
@@ -67,7 +67,7 @@ export const GuestCompletePage: React.FC<GuestCompletePageProps> = ({
             <div className="mt-6">
               <div className="flex items-center gap-2 mb-3">
                 <div className="flex-1 h-px bg-maycast-border/40" />
-                <span className="text-xs font-semibold text-maycast-subtext px-2">録画履歴</span>
+                <span className="text-xs font-semibold text-maycast-subtext px-2">Recording History</span>
                 <div className="flex-1 h-px bg-maycast-border/40" />
               </div>
 
@@ -86,7 +86,7 @@ export const GuestCompletePage: React.FC<GuestCompletePageProps> = ({
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-maycast-text truncate">
-                          {isValidStart ? startDate.toLocaleString('ja-JP') : 'Unknown'}
+                          {isValidStart ? startDate.toLocaleString('en-US') : 'Unknown'}
                         </p>
                         <div className="flex items-center gap-3 text-xs text-maycast-subtext mt-0.5">
                           <span>{formatDuration(recording.startTime, recording.endTime)}</span>

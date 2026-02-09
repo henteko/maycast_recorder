@@ -14,7 +14,7 @@ export const RoomStateBadge: React.FC<RoomStateBadgeProps> = ({ state }) => {
     return (
       <div className="flex items-center gap-2 px-3 py-1.5 bg-maycast-primary/20 backdrop-blur-sm rounded-full border border-maycast-primary/30">
         <div className="w-2 h-2 bg-maycast-primary rounded-full" />
-        <span className="text-maycast-primary/80 font-semibold text-sm">待機中</span>
+        <span className="text-maycast-primary/80 font-semibold text-sm">Standby</span>
       </div>
     );
   }
@@ -38,7 +38,7 @@ export const RoomStateBadge: React.FC<RoomStateBadgeProps> = ({ state }) => {
           <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse" />
           <div className="absolute inset-0 w-2 h-2 bg-yellow-400 rounded-full animate-ping opacity-75" />
         </div>
-        <span className="text-yellow-400/80 font-semibold text-sm">同期中</span>
+        <span className="text-yellow-400/80 font-semibold text-sm">Syncing</span>
       </div>
     );
   }
@@ -46,7 +46,7 @@ export const RoomStateBadge: React.FC<RoomStateBadgeProps> = ({ state }) => {
   return (
     <div className="flex items-center gap-2 px-3 py-1.5 bg-maycast-safe/20 backdrop-blur-sm rounded-full border border-maycast-safe/30">
       <CheckIcon className="w-4 h-4 text-maycast-safe" />
-      <span className="text-maycast-safe/80 font-semibold text-sm">完了</span>
+      <span className="text-maycast-safe/80 font-semibold text-sm">Complete</span>
     </div>
   );
 };

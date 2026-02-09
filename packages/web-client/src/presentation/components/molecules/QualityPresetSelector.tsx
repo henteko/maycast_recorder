@@ -8,7 +8,7 @@ interface QualityPresetSelectorProps {
 export const QualityPresetSelector = ({ value, onChange }: QualityPresetSelectorProps) => {
   return (
     <div className="mb-6">
-      <label className="block text-sm text-maycast-subtext mb-2 font-semibold">画質プリセット</label>
+      <label className="block text-sm text-maycast-subtext mb-2 font-semibold">Quality Preset</label>
       <div className="space-y-3">
         <label className="flex items-center p-4 bg-white rounded-xl cursor-pointer hover:bg-gray-50 border-2 border-maycast-border hover:border-maycast-primary transition-all">
           <input
@@ -20,8 +20,8 @@ export const QualityPresetSelector = ({ value, onChange }: QualityPresetSelector
             className="mr-3 w-4 h-4 cursor-pointer"
           />
           <div className="flex-1">
-            <p className="font-bold text-gray-900">Stability Mode（安定優先）</p>
-            <p className="text-sm text-gray-600">720p / 2Mbps / 1秒ごとキーフレーム</p>
+            <p className="font-bold text-gray-900">Stability Mode</p>
+            <p className="text-sm text-gray-600">720p / 2Mbps / keyframe every 1s</p>
           </div>
         </label>
 
@@ -35,8 +35,8 @@ export const QualityPresetSelector = ({ value, onChange }: QualityPresetSelector
             className="mr-3 w-4 h-4 cursor-pointer"
           />
           <div className="flex-1">
-            <p className="font-bold text-gray-900">Quality Mode（高画質）</p>
-            <p className="text-sm text-gray-600">1080p / 5Mbps / 3秒ごとキーフレーム</p>
+            <p className="font-bold text-gray-900">Quality Mode</p>
+            <p className="text-sm text-gray-600">1080p / 5Mbps / keyframe every 3s</p>
           </div>
         </label>
 
@@ -50,9 +50,9 @@ export const QualityPresetSelector = ({ value, onChange }: QualityPresetSelector
             className="mr-3 w-4 h-4 cursor-pointer"
           />
           <div className="flex-1">
-            <p className="font-bold text-gray-900">4K Mode（超高画質）</p>
-            <p className="text-sm text-gray-600">4K / 20Mbps / 3秒ごとキーフレーム</p>
-            <p className="text-xs text-amber-600 mt-1">※ 高性能なPCとカメラが必要です</p>
+            <p className="font-bold text-gray-900">4K Mode</p>
+            <p className="text-sm text-gray-600">4K / 20Mbps / keyframe every 3s</p>
+            <p className="text-xs text-amber-600 mt-1">Requires a high-performance PC and camera</p>
           </div>
         </label>
       </div>

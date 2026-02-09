@@ -24,18 +24,18 @@ export const SessionItem = ({ recording, onDownload, onDelete, isDownloading }: 
       <div className="flex-1">
         <div className="flex items-center gap-3 mb-2">
           <p className="text-sm text-maycast-text font-medium">
-            {isValidStart ? startDate.toLocaleString('ja-JP') : 'Invalid Date'}
+            {isValidStart ? startDate.toLocaleString('en-US') : 'Invalid Date'}
           </p>
           {recording.state === 'synced' && (
             <span className="flex items-center gap-1 px-2 py-1 bg-maycast-safe/20 text-maycast-safe text-xs font-semibold rounded-lg border border-maycast-safe/30">
               <CheckIcon className="w-3 h-3" />
-              完了
+              Completed
             </span>
           )}
           {recording.state === 'interrupted' && (
             <span className="flex items-center gap-1 px-2 py-1 bg-orange-500/20 text-orange-300 text-xs font-semibold rounded-lg border border-orange-500/30">
               <ExclamationTriangleIcon className="w-3 h-3" />
-              中断
+              Interrupted
             </span>
           )}
           {recording.state !== 'synced' && recording.state !== 'interrupted' && (
@@ -62,7 +62,7 @@ export const SessionItem = ({ recording, onDownload, onDelete, isDownloading }: 
               ? 'bg-gray-600 cursor-not-allowed opacity-50'
               : 'bg-maycast-safe hover:bg-maycast-safe/80 shadow-lg cursor-pointer'
           }`}
-          title="ダウンロード"
+          title="Download"
         >
           <ArrowDownTrayIcon className="w-5 h-5" />
         </button>
@@ -74,7 +74,7 @@ export const SessionItem = ({ recording, onDownload, onDelete, isDownloading }: 
               ? 'bg-gray-600 cursor-not-allowed opacity-50'
               : 'bg-maycast-rec/20 hover:bg-maycast-rec/30 border border-maycast-rec/50 cursor-pointer'
           }`}
-          title="削除"
+          title="Delete"
         >
           <TrashIcon className="w-5 h-5" />
         </button>

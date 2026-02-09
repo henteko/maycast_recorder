@@ -35,11 +35,11 @@ export const SettingsModal = ({
       >
         <div className="flex items-center gap-3 mb-6">
           <CogIcon className="w-7 h-7 text-maycast-primary" />
-          <h2 className="text-2xl font-bold text-maycast-text">設定</h2>
+          <h2 className="text-2xl font-bold text-maycast-text">Settings</h2>
         </div>
 
         <DeviceSelector
-          label="カメラ"
+          label="Camera"
           value={settings.videoDeviceId}
           onChange={(value) => onSettingsChange({ ...settings, videoDeviceId: value })}
           devices={videoDevices}
@@ -47,7 +47,7 @@ export const SettingsModal = ({
         />
 
         <DeviceSelector
-          label="マイク"
+          label="Microphone"
           value={settings.audioDeviceId}
           onChange={(value) => onSettingsChange({ ...settings, audioDeviceId: value })}
           devices={audioDevices}
@@ -64,13 +64,13 @@ export const SettingsModal = ({
             onClick={onClose}
             className="flex-1 py-3 px-6 bg-white hover:bg-gray-100 rounded-xl font-bold transition-all border-2 border-maycast-border text-gray-900 cursor-pointer"
           >
-            キャンセル
+            Cancel
           </button>
           <button
             onClick={onSave}
             className="flex-1 py-3 px-6 bg-maycast-primary hover:bg-maycast-primary/80 rounded-xl font-bold transition-all shadow-lg text-white cursor-pointer"
           >
-            保存
+            Save
           </button>
         </div>
       </div>

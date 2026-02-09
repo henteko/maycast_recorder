@@ -36,7 +36,7 @@ export const SessionsModal = ({
           <div className="flex items-center gap-3">
             <ServerStackIcon className="w-7 h-7 text-maycast-primary" />
             <h2 className="text-2xl font-bold text-maycast-text">
-              保存済み録画 <span className="text-maycast-primary">({recordings.length})</span>
+              Saved Recordings <span className="text-maycast-primary">({recordings.length})</span>
             </h2>
           </div>
           {recordings.length > 0 && (
@@ -45,7 +45,7 @@ export const SessionsModal = ({
               className="px-4 py-2 bg-maycast-rec/20 hover:bg-maycast-rec/30 rounded-xl text-sm font-semibold transition-all border border-maycast-rec/50 flex items-center gap-2 text-white cursor-pointer"
             >
               <TrashIcon className="w-4 h-4" />
-              すべて削除
+              Delete All
             </button>
           )}
         </div>
@@ -53,7 +53,7 @@ export const SessionsModal = ({
         {recordings.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-12 text-maycast-subtext">
             <ServerStackIcon className="w-16 h-16 mb-4 opacity-50" />
-            <p className="text-lg">保存済み録画はありません</p>
+            <p className="text-lg">No saved recordings</p>
           </div>
         ) : (
           <div className="space-y-3 overflow-y-auto pr-2">

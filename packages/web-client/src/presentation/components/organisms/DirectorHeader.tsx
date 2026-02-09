@@ -52,7 +52,7 @@ export const DirectorHeader: React.FC<DirectorHeaderProps> = ({
         </Button>
         <Button onClick={onCreateRoom} disabled={isUpdating} variant="primary" size="sm">
           <PlusIcon className="w-5 h-5" />
-          Roomを作成
+          Create Room
         </Button>
       </div>
     </div>

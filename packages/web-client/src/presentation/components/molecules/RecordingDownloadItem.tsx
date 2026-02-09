@@ -64,12 +64,12 @@ export const RecordingDownloadItem: React.FC<RecordingDownloadItemProps> = ({
         {isDownloading ? (
           <>
             <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-            <span>処理中...</span>
+            <span>Processing...</span>
           </>
         ) : (
           <>
             <ArrowDownTrayIcon className="w-4 h-4" />
-            <span>ダウンロード</span>
+            <span>Download</span>
           </>
         )}
       </Button>

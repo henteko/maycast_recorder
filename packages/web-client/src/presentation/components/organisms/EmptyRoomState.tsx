@@ -22,14 +22,14 @@ export const EmptyRoomState: React.FC<EmptyRoomStateProps> = ({
             <UsersIcon className="w-16 h-16 text-maycast-primary/60" />
           </div>
           <p className="text-xl font-bold text-maycast-text mb-2">
-            Roomがありません
+            No Rooms
           </p>
           <p className="text-sm mb-6 text-center">
-            Roomを作成して、ゲストを招待しましょう
+            Create a room and invite guests
           </p>
           <Button onClick={onCreateRoom} disabled={isUpdating} variant="primary" size="sm">
             <PlusIcon className="w-5 h-5" />
-            最初のRoomを作成
+            Create First Room
           </Button>
         </div>
       </div>

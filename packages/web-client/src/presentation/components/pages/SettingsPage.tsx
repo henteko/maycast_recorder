@@ -23,7 +23,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
       <div className="flex items-center justify-between px-8 py-6 border-b border-maycast-border">
         <div className="flex items-center gap-3">
           <Cog6ToothIcon className="w-7 h-7 text-maycast-primary" />
-          <h1 className="text-2xl font-bold text-maycast-text">設定</h1>
+          <h1 className="text-2xl font-bold text-maycast-text">Settings</h1>
         </div>
       </div>
 
@@ -33,7 +33,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
           {/* Quality Settings Card */}
           <div className="bg-maycast-panel/30 backdrop-blur-md p-6 rounded-2xl border border-maycast-border/40 shadow-xl">
             <h2 className="text-lg font-bold text-maycast-text mb-4 flex items-center gap-2">
-              品質設定
+              Quality Settings
             </h2>
 
             <QualityPresetSelector
@@ -46,7 +46,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
           {showServerSettings && (
             <div className="bg-maycast-panel/30 backdrop-blur-md p-6 rounded-2xl border border-maycast-border/40 shadow-xl">
               <h2 className="text-lg font-bold text-maycast-text mb-4 flex items-center gap-2">
-                サーバー設定
+                Server Settings
               </h2>
 
               <ServerUrlSettings />
@@ -59,7 +59,7 @@ export const SettingsPage: React.FC<SettingsPageProps> = ({
             className="w-full py-4 px-6 bg-maycast-safe hover:bg-maycast-safe/80 rounded-2xl font-bold text-lg transition-all shadow-2xl transform hover:scale-[1.02] flex items-center justify-center gap-3 text-white cursor-pointer"
           >
             <CheckIcon className="w-6 h-6" />
-            設定を保存
+            Save Settings
           </button>
         </div>
       </div>

@@ -45,7 +45,7 @@ export const GuestListItem: React.FC<GuestListItemProps> = ({ guest, waveformDat
                     ? 'bg-maycast-safe/20 text-maycast-safe'
                     : 'bg-gray-500/20 text-gray-400'
                 }`}
-                title={mediaStatus.isCameraActive ? 'カメラON' : 'カメラOFF'}
+                title={mediaStatus.isCameraActive ? 'Camera ON' : 'Camera OFF'}
               >
                 {mediaStatus.isCameraActive ? (
                   <VideoCameraIcon className="w-4 h-4" />
@@ -60,7 +60,7 @@ export const GuestListItem: React.FC<GuestListItemProps> = ({ guest, waveformDat
                     ? 'bg-maycast-rec/20 text-maycast-rec'
                     : 'bg-maycast-safe/20 text-maycast-safe'
                 }`}
-                title={mediaStatus.isMicMuted ? 'ミュート' : 'マイクON'}
+                title={mediaStatus.isMicMuted ? 'Muted' : 'Mic ON'}
               >
                 <MicrophoneIcon className="w-4 h-4" />
                 {mediaStatus.isMicMuted && (

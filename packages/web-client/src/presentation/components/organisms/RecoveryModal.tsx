@@ -31,23 +31,23 @@ export const RecoveryModal = ({
       >
         <div className="flex items-center gap-3 mb-4">
           <InformationCircleIcon className="w-7 h-7 text-maycast-primary" />
-          <h2 className="text-2xl font-bold text-maycast-text">前回の録画について</h2>
+          <h2 className="text-2xl font-bold text-maycast-text">About Previous Recording</h2>
         </div>
         <p className="text-maycast-subtext mb-6">
-          前回の録画が途中で終了しました。Libraryからダウンロードできます。
+          The previous recording was interrupted. You can download it from the Library.
         </p>
 
         <div className="bg-white p-4 rounded-xl mb-6 border-2 border-maycast-border">
-          <p className="text-sm text-gray-600 font-semibold mb-2">録画情報</p>
+          <p className="text-sm text-gray-600 font-semibold mb-2">Recording Info</p>
           <p className="text-lg text-gray-900 font-bold mt-2">
-            {new Date(recording.startTime).toLocaleString('ja-JP')}
+            {new Date(recording.startTime).toLocaleString('en-US')}
           </p>
           <p className="text-sm text-gray-700 mt-2">
-            チャンク数: {recording.chunkCount} / サイズ: {(recording.totalSize / 1024 / 1024).toFixed(2)} MB
+            Chunks: {recording.chunkCount} / Size: {(recording.totalSize / 1024 / 1024).toFixed(2)} MB
           </p>
           {recording.endTime && (
             <p className="text-sm text-gray-700 mt-1">
-              録画時間: {formatElapsedTime(Math.floor((recording.endTime - recording.startTime) / 1000))}
+              Duration: {formatElapsedTime(Math.floor((recording.endTime - recording.startTime) / 1000))}
             </p>
           )}
         </div>
@@ -58,14 +58,14 @@ export const RecoveryModal = ({
             className="flex-1 py-3 px-6 bg-maycast-primary hover:bg-maycast-primary/80 rounded-xl font-bold transition-all shadow-lg flex items-center justify-center gap-2 text-white cursor-pointer"
           >
             <FolderOpenIcon className="w-5 h-5" />
-            Libraryを見る
+            View Library
           </button>
           <button
             onClick={onClose}
             className="flex-1 py-3 px-6 bg-white hover:bg-gray-100 rounded-xl font-bold transition-all border-2 border-maycast-border flex items-center justify-center gap-2 text-gray-900 cursor-pointer"
           >
             <XMarkIcon className="w-5 h-5" />
-            閉じる
+            Close
           </button>
         </div>
       </div>
@@ -130,7 +130,7 @@ export const ResumeUploadModal = ({
           <div className="flex items-center gap-3">
             <CloudArrowUpIcon className="w-7 h-7 text-maycast-primary" />
             <h2 className="text-2xl font-bold text-maycast-text">
-              {isUploading ? 'アップロード中...' : '未送信の録画を検出'}
+              {isUploading ? 'Uploading...' : 'Unsent recordings detected'}
             </h2>
           </div>
           {!isUploading && (
@@ -145,8 +145,8 @@ export const ResumeUploadModal = ({
 
         <p className="text-maycast-subtext mb-6">
           {isUploading
-            ? 'サーバーへのアップロードを実行しています。完了するまでお待ちください。'
-            : `${unfinishedRecordings.length}件の録画データがサーバーに同期されていません。再アップロードしますか？`}
+            ? 'Uploading to server. Please wait until complete.'
+            : `${unfinishedRecordings.length} recording(s) not synced to server. Re-upload?`}
         </p>
 
         {/* 録画リスト */}
@@ -169,11 +169,11 @@ export const ResumeUploadModal = ({
                 <div className="flex justify-between items-start mb-2">
                   <div>
                     <p className="text-sm text-gray-600 font-semibold">
-                      {new Date(recording.startTime).toLocaleString('ja-JP')}
+                      {new Date(recording.startTime).toLocaleString('en-US')}
                     </p>
                     {recording.endTime && (
                       <p className="text-xs text-gray-500 mt-1">
-                        録画時間: {formatElapsedTime(Math.floor((recording.endTime - recording.startTime) / 1000))}
+                        Duration: {formatElapsedTime(Math.floor((recording.endTime - recording.startTime) / 1000))}
                       </p>
                     )}
                   </div>
@@ -186,9 +186,9 @@ export const ResumeUploadModal = ({
 
                 {/* 未送信情報 */}
                 <div className="text-xs text-orange-600 mt-2">
-                  {!initSegmentUploaded && <span className="mr-2">Init未送信</span>}
+                  {!initSegmentUploaded && <span className="mr-2">Init not sent</span>}
                   {pendingChunkCount > 0 && (
-                    <span>{pendingChunkCount} チャンク未送信</span>
+                    <span>{pendingChunkCount} chunks unsent</span>
                   )}
                 </div>
 
@@ -196,7 +196,7 @@ export const ResumeUploadModal = ({
                 {isUploading && progress && (
                   <div className="mt-3">
                     <div className="flex justify-between text-xs text-gray-600 mb-1">
-                      <span>アップロード中</span>
+                      <span>Uploading</span>
                       <span>{progress.uploaded} / {progress.total}</span>
                     </div>
                     <div className="w-full bg-gray-200 rounded-full h-2">
@@ -207,7 +207,7 @@ export const ResumeUploadModal = ({
                     </div>
                     {progress.failed > 0 && (
                       <p className="text-xs text-red-500 mt-1">
-                        {progress.failed} チャンク失敗
+                        {progress.failed} chunks failed
                       </p>
                     )}
                   </div>
@@ -221,7 +221,7 @@ export const ResumeUploadModal = ({
         {isUploading && totalProgress.total > 0 && unfinishedRecordings.length > 1 && (
           <div className="mb-6 p-4 bg-gray-50 rounded-xl">
             <div className="flex justify-between text-sm text-gray-700 mb-2">
-              <span>全体の進捗</span>
+              <span>Overall Progress</span>
               <span>{progressPercent}%</span>
             </div>
             <div className="w-full bg-gray-200 rounded-full h-3">
@@ -231,10 +231,10 @@ export const ResumeUploadModal = ({
               />
             </div>
             <div className="flex justify-between text-xs text-gray-500 mt-2">
-              <span>完了: {totalProgress.uploaded}</span>
-              <span>残り: {totalProgress.pending + totalProgress.uploading}</span>
+              <span>Done: {totalProgress.uploaded}</span>
+              <span>Remaining: {totalProgress.pending + totalProgress.uploading}</span>
               {totalProgress.failed > 0 && (
-                <span className="text-red-500">失敗: {totalProgress.failed}</span>
+                <span className="text-red-500">Failed: {totalProgress.failed}</span>
               )}
             </div>
           </div>
@@ -245,7 +245,7 @@ export const ResumeUploadModal = ({
           {isUploading ? (
             <div className="flex-1 py-3 px-6 bg-gray-300 rounded-xl font-bold flex items-center justify-center gap-2 text-gray-600 cursor-not-allowed">
               <ArrowPathIcon className="w-5 h-5 animate-spin" />
-              アップロード中...
+              Uploading...
             </div>
           ) : (
             <>
@@ -254,14 +254,14 @@ export const ResumeUploadModal = ({
                 className="flex-1 py-3 px-6 bg-maycast-primary hover:bg-maycast-primary/80 rounded-xl font-bold transition-all shadow-lg flex items-center justify-center gap-2 text-white cursor-pointer"
               >
                 <CloudArrowUpIcon className="w-5 h-5" />
-                再開する
+                Resume
               </button>
               <button
                 onClick={onSkip}
                 className="flex-1 py-3 px-6 bg-white hover:bg-gray-100 rounded-xl font-bold transition-all border-2 border-gray-300 flex items-center justify-center gap-2 text-gray-700 cursor-pointer"
               >
                 <XMarkIcon className="w-5 h-5" />
-                スキップ
+                Skip
               </button>
             </>
           )}

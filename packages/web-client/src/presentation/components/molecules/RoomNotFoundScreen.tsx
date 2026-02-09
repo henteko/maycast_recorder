@@ -18,14 +18,14 @@ export const RoomNotFoundScreen: React.FC<RoomNotFoundScreenProps> = ({
       <div className="bg-maycast-panel/30 backdrop-blur-md p-12 rounded-2xl border border-maycast-border/40 shadow-xl">
         <div className="flex flex-col items-center">
           <div className="text-6xl mb-4">😕</div>
-          <h1 className="text-2xl font-bold mb-2">Roomが見つかりません</h1>
+          <h1 className="text-2xl font-bold mb-2">Room Not Found</h1>
           <p className="text-maycast-text-secondary mb-4 text-center">
             {isRoomNotFound
-              ? `Room "${roomId}" は存在しません。`
-              : errorMessage || 'エラーが発生しました。'}
+              ? `Room "${roomId}" does not exist.`
+              : errorMessage || 'An error occurred.'}
           </p>
           <p className="text-maycast-text-secondary text-sm">
-            URLを確認して再度お試しください。
+            Please check the URL and try again.
           </p>
         </div>
       </div>

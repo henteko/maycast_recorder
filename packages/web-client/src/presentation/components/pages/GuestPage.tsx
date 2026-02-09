@@ -86,7 +86,7 @@ export const GuestPage: React.FC<GuestPageProps> = ({ roomId }) => {
   const prevSyncStateRef = useRef(guestSyncState);
   useEffect(() => {
     if (prevSyncStateRef.current !== 'synced' && guestSyncState === 'synced') {
-      showToast('録画データのアップロードが完了しました');
+      showToast('Recording data upload completed');
     }
     prevSyncStateRef.current = guestSyncState;
   }, [guestSyncState, showToast]);
@@ -116,7 +116,7 @@ export const GuestPage: React.FC<GuestPageProps> = ({ roomId }) => {
 
   // Loading画面
   if (isRoomLoading) {
-    return <LoadingScreen message="Room情報を取得中..." />;
+    return <LoadingScreen message="Loading room info..." />;
   }
 
   // Error画面

@@ -113,7 +113,7 @@ export const useSessionManager = () => {
   }, [isResuming, resumeUploadManager]);
 
   const deleteRecording = async (recordingId: RecordingId) => {
-    if (!confirm('この録画を削除しますか？')) {
+    if (!confirm('Delete this recording?')) {
       return;
     }
 
@@ -128,7 +128,7 @@ export const useSessionManager = () => {
   };
 
   const clearAllRecordings = async () => {
-    if (!confirm(`すべての録画 (${savedRecordings.length}件) を削除しますか？この操作は取り消せません。`)) {
+    if (!confirm(`Delete all recordings (${savedRecordings.length})? This action cannot be undone.`)) {
       return;
     }
 
@@ -154,9 +154,9 @@ export const useSessionManager = () => {
 
     if (errors.length > 0) {
       console.error('削除エラーの詳細:', errors);
-      alert(`削除完了: 成功 ${successCount}件, 失敗 ${failCount}件\n\nエラー詳細はコンソールを確認してください`);
+      alert(`Deletion complete: ${successCount} succeeded, ${failCount} failed\n\nCheck the console for error details`);
     } else {
-      alert(`削除完了: 成功 ${successCount}件`);
+      alert(`Deletion complete: ${successCount} succeeded`);
     }
   };
 
@@ -187,11 +187,11 @@ export const useSessionManager = () => {
       await loadRecordings();
 
       if (failCount > 0) {
-        alert(`再アップロード完了: 成功 ${successCount}件, 失敗 ${failCount}件`);
+        alert(`Re-upload complete: ${successCount} succeeded, ${failCount} failed`);
       }
     } catch (err) {
       console.error('❌ [useSessionManager] Resume failed:', err);
-      alert('再アップロードに失敗しました');
+      alert('Re-upload failed');
     } finally {
       setIsResuming(false);
     }

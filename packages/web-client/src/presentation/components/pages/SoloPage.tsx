@@ -76,7 +76,7 @@ export const SoloPage: React.FC = () => {
           onNavigateToLibrary={() => setCurrentPage('library')}
           onSettingsChange={handleSettingsChange}
           autoResetToStandby={true}
-          onRecordingComplete={() => showToast('録画の保存が完了しました')}
+          onRecordingComplete={() => showToast('Recording saved successfully')}
         />
       )}
       {currentPage === 'library' && (

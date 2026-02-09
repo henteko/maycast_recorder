@@ -82,7 +82,7 @@ export const DirectorPage: React.FC = () => {
           <div className="animate-spin rounded-full h-12 w-12 border-4 border-maycast-primary border-t-transparent" />
           <div className="absolute inset-0 animate-ping rounded-full h-12 w-12 border-4 border-maycast-primary/30" />
         </div>
-        <p className="text-maycast-text-secondary mt-4 font-medium">読み込み中...</p>
+        <p className="text-maycast-text-secondary mt-4 font-medium">Loading...</p>
       </div>
     );
   }
@@ -130,7 +130,7 @@ export const DirectorPage: React.FC = () => {
       {/* Footer */}
       <footer className="px-8 py-4 border-t border-maycast-border/50 text-center">
         <p className="text-maycast-text-secondary text-sm">
-          ゲスト招待URLを参加者に共有してください。「録画を開始」を押すと、全員の録画が同時に開始されます。
+          Share the guest invitation URL with participants. Press 'Start Recording' to begin recording for everyone simultaneously.
         </p>
       </footer>
     </div>

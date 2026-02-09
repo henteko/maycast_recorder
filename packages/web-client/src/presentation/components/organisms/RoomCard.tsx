@@ -89,7 +89,7 @@ export const RoomCard: React.FC<RoomCardProps> = ({
   }, [room.recording_ids, room.id, getGuestNameForRecording]);
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString('ja-JP', {
+    return new Date(dateString).toLocaleString('en-US', {
       month: 'short',
       day: 'numeric',
       hour: '2-digit',
@@ -109,7 +109,7 @@ export const RoomCard: React.FC<RoomCardProps> = ({
             <RoomStateBadge state={room.state} />
           </div>
           <p className="text-sm text-maycast-text-secondary">
-            作成: {formatDate(room.created_at)}
+            Created: {formatDate(room.created_at)}
           </p>
         </div>
         <div className="flex items-center gap-2 px-3 py-1.5 bg-maycast-primary/10 rounded-full border border-maycast-primary/20">
@@ -129,7 +129,7 @@ export const RoomCard: React.FC<RoomCardProps> = ({
       {guests.length > 0 && (
         <div className="mb-5">
           <label className="text-xs text-maycast-text-secondary mb-2 block font-medium">
-            参加者 ({guests.length}名)
+            Participants ({guests.length})
           </label>
           <div className="space-y-2">
             {guests.map((guest) => {
@@ -170,7 +170,7 @@ export const RoomCard: React.FC<RoomCardProps> = ({
             className="flex-1"
           >
             <PlayIcon className="w-5 h-5" />
-            録画を開始
+            Start Recording
           </Button>
         )}
         {room.state === 'recording' && (
@@ -182,7 +182,7 @@ export const RoomCard: React.FC<RoomCardProps> = ({
             className="flex-1 !bg-maycast-rec hover:!bg-maycast-rec/80 !border-none"
           >
             <StopIcon className="w-5 h-5" />
-            録画を停止
+            Stop Recording
           </Button>
         )}
         {room.state === 'finalizing' && (
@@ -193,7 +193,7 @@ export const RoomCard: React.FC<RoomCardProps> = ({
                   <div className="w-4 h-4 bg-yellow-400 rounded-full animate-pulse" />
                   <div className="absolute inset-0 w-4 h-4 bg-yellow-400 rounded-full animate-ping opacity-75" />
                 </div>
-                <span className="font-semibold">ゲストの同期を待機中...</span>
+                <span className="font-semibold">Waiting for guest sync...</span>
               </div>
               <Button
                 onClick={() => onFinalize(room.id)}
@@ -202,14 +202,14 @@ export const RoomCard: React.FC<RoomCardProps> = ({
                 size="sm"
                 className="!py-2 !px-4"
               >
-                強制完了
+                Force Complete
               </Button>
             </div>
           </div>
         )}
         {room.state === 'finished' && room.recording_ids.length === 0 && (
           <div className="flex-1 text-center text-maycast-text-secondary text-sm py-3 bg-maycast-bg/50 rounded-xl">
-            録画データがありません
+            No recording data
           </div>
         )}
         <Button

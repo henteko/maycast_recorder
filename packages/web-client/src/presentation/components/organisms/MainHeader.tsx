@@ -35,12 +35,12 @@ export const MainHeader: React.FC<MainHeaderProps> = ({
           {isRecording ? (
             <>
               <StopIcon className="w-5 h-5" />
-              録画を停止
+              Stop Recording
             </>
           ) : (
             <>
               <PlayIcon className="w-5 h-5" />
-              録画を開始
+              Start Recording
             </>
           )}
         </button>

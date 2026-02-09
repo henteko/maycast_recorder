@@ -36,7 +36,7 @@ export const ControlPanel = ({
                 <CheckIcon className="w-6 h-6 text-maycast-safe" />
               </div>
               <p className="text-center text-white font-semibold text-lg">
-                録画が完了しました！{savedChunks}個のチャンクがOPFSに保存されています。
+                Recording complete! {savedChunks} chunks saved to OPFS.
               </p>
             </div>
           </div>
@@ -53,12 +53,12 @@ export const ControlPanel = ({
             {downloadProgress.isDownloading ? (
               <>
                 <ArrowPathIcon className="w-6 h-6 animate-spin" />
-                ダウンロード中... {downloadProgress.current}/{downloadProgress.total}
+                Downloading... {downloadProgress.current}/{downloadProgress.total}
               </>
             ) : (
               <>
                 <ArrowDownTrayIcon className="w-6 h-6" />
-                MP4をダウンロード
+                Download MP4
               </>
             )}
           </button>
@@ -70,11 +70,11 @@ export const ControlPanel = ({
           <div className="grid grid-cols-2 gap-4">
             <Button onClick={onNewRecording} variant="primary" size="md">
               <PlayIcon className="w-5 h-5" />
-              新しい録画
+              New Recording
             </Button>
             <Button onClick={onDiscard} variant="danger" size="md">
               <TrashIcon className="w-5 h-5" />
-              破棄
+              Discard
             </Button>
           </div>
         </div>

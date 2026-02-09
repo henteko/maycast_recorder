@@ -38,7 +38,7 @@ export const GuestNameInput: React.FC<GuestNameInputProps> = ({ roomId, onJoin }
               <UserIcon className="w-8 h-8 text-maycast-primary" />
             </div>
             <h1 className="text-2xl font-bold text-maycast-text mb-2">
-              Roomに参加
+              Join Room
             </h1>
             <p className="text-sm text-maycast-text-secondary">
               Room ID: <span className="font-mono text-maycast-primary">{roomId}</span>
@@ -51,20 +51,20 @@ export const GuestNameInput: React.FC<GuestNameInputProps> = ({ roomId, onJoin }
                 htmlFor="guestName"
                 className="block text-sm font-semibold text-maycast-text mb-2"
               >
-                表示名
+                Display Name
               </label>
               <input
                 type="text"
                 id="guestName"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="名前を入力してください"
+                placeholder="Enter your name"
                 className="w-full px-4 py-3 bg-maycast-bg/50 border border-maycast-border/40 rounded-xl text-maycast-text placeholder-maycast-text/40 focus:outline-none focus:border-maycast-primary transition-colors"
                 autoFocus
                 maxLength={50}
               />
               <p className="mt-2 text-xs text-maycast-text/50">
-                この名前はDirectorに表示されます
+                This name will be shown to the Director
               </p>
             </div>
 
@@ -80,7 +80,7 @@ export const GuestNameInput: React.FC<GuestNameInputProps> = ({ roomId, onJoin }
               size="md"
               className="w-full"
             >
-              参加する
+              Join
             </Button>
           </form>
         </div>

@@ -11,7 +11,7 @@ export const StatusBadge = ({ state }: StatusBadgeProps) => {
     return (
       <div className="flex items-center gap-2 px-4 py-2 bg-maycast-primary/20 backdrop-blur-sm rounded-full border border-maycast-primary/30">
         <div className="w-2 h-2 bg-maycast-primary rounded-full" />
-        <span className="text-maycast-primary/80 font-semibold">待機中</span>
+        <span className="text-maycast-primary/80 font-semibold">Standby</span>
       </div>
     )
   }
@@ -31,7 +31,7 @@ export const StatusBadge = ({ state }: StatusBadgeProps) => {
   return (
     <div className="flex items-center gap-2 px-4 py-2 bg-maycast-safe/20 backdrop-blur-sm rounded-full border border-maycast-safe/30">
       <CheckIcon className="w-4 h-4 text-maycast-safe" />
-      <span className="text-maycast-safe/80 font-semibold">録画完了</span>
+      <span className="text-maycast-safe/80 font-semibold">Recording Complete</span>
     </div>
   )
 }
