@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "description": "Maycast Recorder Server",
+  "license": "Apache-2.0",
   "main": "dist/server.js",
   "scripts": {
     "dev": "nodemon --exec tsx src/server.ts",

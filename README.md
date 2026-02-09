@@ -113,8 +113,8 @@ docker compose version
 #### 1. リポジトリをクローン
 
 ```bash
-git clone https://github.com/your-org/maycast-recorder.git
-cd maycast-recorder
+git clone https://github.com/henteko/maycast_recorder.git
+cd maycast_recorder
 ```
 
 #### 2. 起動
@@ -553,7 +553,7 @@ docker compose -f docker-compose.yml -f docker-compose.prod.yml exec server find
 
 ## ライセンス
 
-MIT OR Apache-2.0
+Apache-2.0
 
 ## コントリビューション
 
@@ -562,7 +562,7 @@ Issues、Pull Requestsは歓迎します！
 開発に参加する場合は、まずDocker開発環境をセットアップしてください：
 
 ```bash
-git clone https://github.com/your-org/maycast-recorder.git
-cd maycast-recorder
+git clone https://github.com/henteko/maycast_recorder.git
+cd maycast_recorder
 task docker:dev:up
 ```
