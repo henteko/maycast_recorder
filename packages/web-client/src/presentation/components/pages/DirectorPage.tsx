@@ -75,13 +75,8 @@ export const DirectorPage: React.FC = () => {
     return (
       <div className="flex flex-col items-center justify-center h-full bg-maycast-bg text-maycast-text">
         {/* Maycast Branding */}
-        <div className="flex items-center justify-center gap-3 mb-8">
-          <div className="text-3xl font-bold text-maycast-primary">
-            MAYCAST
-          </div>
-          <span className="px-2 py-0.5 text-xs font-semibold text-maycast-primary bg-maycast-primary/10 border border-maycast-primary/30 rounded">
-            BETA
-          </span>
+        <div className="text-3xl font-bold text-maycast-primary text-center mb-8">
+          Maycast Recorder
         </div>
         <div className="relative">
           <div className="animate-spin rounded-full h-12 w-12 border-4 border-maycast-primary border-t-transparent" />

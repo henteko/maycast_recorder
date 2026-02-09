@@ -25,13 +25,8 @@ export const DirectorHeader: React.FC<DirectorHeaderProps> = ({
     <div className="flex items-center justify-between px-8 py-6 border-b border-maycast-border">
       <div className="flex items-center gap-4">
         {/* Maycast Branding */}
-        <div className="flex items-center gap-3">
-          <div className="text-2xl font-bold text-maycast-primary">
-            MAYCAST
-          </div>
-          <span className="px-2 py-0.5 text-xs font-semibold text-maycast-primary bg-maycast-primary/10 border border-maycast-primary/30 rounded">
-            BETA
-          </span>
+        <div className="text-2xl font-bold text-maycast-primary">
+          Maycast Recorder
         </div>
         <div className="w-px h-6 bg-maycast-border/50" />
         <div className="flex items-center gap-2 px-4 py-2 bg-maycast-primary/20 backdrop-blur-sm rounded-full border border-maycast-primary/30">
