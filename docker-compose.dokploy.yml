@@ -14,6 +14,7 @@ services:
       - web-client
     restart: unless-stopped
     networks:
+      - dokploy-network
       - maycast-network
 
   # Expressサーバー
@@ -51,6 +52,8 @@ services:
       - maycast-network
 
 networks:
+  dokploy-network:
+    external: true
   maycast-network:
     driver: bridge
 
