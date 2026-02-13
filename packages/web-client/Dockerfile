@@ -103,6 +103,7 @@ ENV NODE_ENV=production
 # ビルド成果物をコピー
 COPY --from=builder /app/packages/web-client/dist ./packages/web-client/dist
 COPY --from=builder /app/packages/web-client/package.json ./packages/web-client/
+COPY --from=builder /app/packages/web-client/vite.config.ts ./packages/web-client/
 COPY --from=deps /app/node_modules ./node_modules
 COPY package.json ./
 
