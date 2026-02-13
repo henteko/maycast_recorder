@@ -12,7 +12,6 @@ COPY packages/common-types/package.json ./packages/common-types/
 COPY packages/web-client/package.json ./packages/web-client/
 
 # 依存関係をインストール（ルートのnode_modulesに集約）
-# ビルドにdevDependenciesが必要なため、NODE_ENVに関わらず全依存をインストール
 RUN npm ci --include=dev
 
 # Rustツールチェーンのインストール（WASM用）- nightly for edition2024 support
