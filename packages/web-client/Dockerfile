@@ -108,6 +108,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY package.json ./
 
 # viteのpreviewサーバーを使用
+RUN chown -R node:node /app/packages/web-client
 USER node
 
 EXPOSE 5173
