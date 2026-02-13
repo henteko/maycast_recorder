@@ -23,6 +23,9 @@ export default defineConfig({
   optimizeDeps: {
     exclude: ['maycast-wasm-core'],
   },
+  preview: {
+    allowedHosts: true,
+  },
   server: {
     fs: {
       // Allow serving files from the workspace root
