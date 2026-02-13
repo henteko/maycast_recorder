@@ -1,7 +1,7 @@
 import type { RoomId, RoomState } from '@maycast/common-types';
 import { RoomNotFoundError } from '@maycast/common-types';
-import type { IRoomRepository } from '../repositories/IRoomRepository';
-import type { IRoomEventPublisher } from '../events/IRoomEventPublisher';
+import type { IRoomRepository } from '../repositories/IRoomRepository.js';
+import type { IRoomEventPublisher } from '../events/IRoomEventPublisher.js';
 
 /**
  * Room状態更新リクエスト

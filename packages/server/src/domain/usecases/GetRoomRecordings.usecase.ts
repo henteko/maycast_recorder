@@ -1,7 +1,7 @@
 import type { RoomId, Recording } from '@maycast/common-types';
 import { RoomNotFoundError } from '@maycast/common-types';
-import type { IRoomRepository } from '../repositories/IRoomRepository';
-import type { IRecordingRepository } from '../repositories/IRecordingRepository';
+import type { IRoomRepository } from '../repositories/IRoomRepository.js';
+import type { IRecordingRepository } from '../repositories/IRecordingRepository.js';
 
 /**
  * Room内Recording一覧取得リクエスト

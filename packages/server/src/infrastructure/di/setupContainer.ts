@@ -1,36 +1,36 @@
-import { DIContainer } from './DIContainer';
-import { InMemoryRecordingRepository } from '../repositories/InMemoryRecordingRepository';
-import { InMemoryRoomRepository } from '../repositories/InMemoryRoomRepository';
-import { LocalFileSystemChunkRepository } from '../repositories/LocalFileSystemChunkRepository';
-import { WebSocketRoomEventPublisher } from '../events/WebSocketRoomEventPublisher';
-import { getWebSocketManager } from '../websocket/WebSocketManager';
+import { DIContainer } from './DIContainer.js';
+import { InMemoryRecordingRepository } from '../repositories/InMemoryRecordingRepository.js';
+import { InMemoryRoomRepository } from '../repositories/InMemoryRoomRepository.js';
+import { LocalFileSystemChunkRepository } from '../repositories/LocalFileSystemChunkRepository.js';
+import { WebSocketRoomEventPublisher } from '../events/WebSocketRoomEventPublisher.js';
+import { getWebSocketManager } from '../websocket/WebSocketManager.js';
 
 // Use Cases - Recording
-import { CreateRecordingUseCase } from '../../domain/usecases/CreateRecording.usecase';
-import { GetRecordingUseCase } from '../../domain/usecases/GetRecording.usecase';
-import { UpdateRecordingStateUseCase } from '../../domain/usecases/UpdateRecordingState.usecase';
-import { UpdateRecordingMetadataUseCase } from '../../domain/usecases/UpdateRecordingMetadata.usecase';
-import { UploadInitSegmentUseCase } from '../../domain/usecases/UploadInitSegment.usecase';
-import { UploadChunkUseCase } from '../../domain/usecases/UploadChunk.usecase';
-import { DownloadRecordingUseCase } from '../../domain/usecases/DownloadRecording.usecase';
+import { CreateRecordingUseCase } from '../../domain/usecases/CreateRecording.usecase.js';
+import { GetRecordingUseCase } from '../../domain/usecases/GetRecording.usecase.js';
+import { UpdateRecordingStateUseCase } from '../../domain/usecases/UpdateRecordingState.usecase.js';
+import { UpdateRecordingMetadataUseCase } from '../../domain/usecases/UpdateRecordingMetadata.usecase.js';
+import { UploadInitSegmentUseCase } from '../../domain/usecases/UploadInitSegment.usecase.js';
+import { UploadChunkUseCase } from '../../domain/usecases/UploadChunk.usecase.js';
+import { DownloadRecordingUseCase } from '../../domain/usecases/DownloadRecording.usecase.js';
 
 // Use Cases - Room
-import { CreateRoomUseCase } from '../../domain/usecases/CreateRoom.usecase';
-import { GetRoomUseCase } from '../../domain/usecases/GetRoom.usecase';
-import { GetAllRoomsUseCase } from '../../domain/usecases/GetAllRooms.usecase';
-import { UpdateRoomStateUseCase } from '../../domain/usecases/UpdateRoomState.usecase';
-import { GetRoomRecordingsUseCase } from '../../domain/usecases/GetRoomRecordings.usecase';
-import { DeleteRoomUseCase } from '../../domain/usecases/DeleteRoom.usecase';
+import { CreateRoomUseCase } from '../../domain/usecases/CreateRoom.usecase.js';
+import { GetRoomUseCase } from '../../domain/usecases/GetRoom.usecase.js';
+import { GetAllRoomsUseCase } from '../../domain/usecases/GetAllRooms.usecase.js';
+import { UpdateRoomStateUseCase } from '../../domain/usecases/UpdateRoomState.usecase.js';
+import { GetRoomRecordingsUseCase } from '../../domain/usecases/GetRoomRecordings.usecase.js';
+import { DeleteRoomUseCase } from '../../domain/usecases/DeleteRoom.usecase.js';
 
 // Controllers
-import { RecordingController } from '../../presentation/controllers/RecordingController';
-import { ChunkController } from '../../presentation/controllers/ChunkController';
-import { RoomController } from '../../presentation/controllers/RoomController';
+import { RecordingController } from '../../presentation/controllers/RecordingController.js';
+import { ChunkController } from '../../presentation/controllers/ChunkController.js';
+import { RoomController } from '../../presentation/controllers/RoomController.js';
 
-import type { IRecordingRepository } from '../../domain/repositories/IRecordingRepository';
-import type { IChunkRepository } from '../../domain/repositories/IChunkRepository';
-import type { IRoomRepository } from '../../domain/repositories/IRoomRepository';
-import type { IRoomEventPublisher } from '../../domain/events/IRoomEventPublisher';
+import type { IRecordingRepository } from '../../domain/repositories/IRecordingRepository.js';
+import type { IChunkRepository } from '../../domain/repositories/IChunkRepository.js';
+import type { IRoomRepository } from '../../domain/repositories/IRoomRepository.js';
+import type { IRoomEventPublisher } from '../../domain/events/IRoomEventPublisher.js';
 
 /**
  * DIコンテナのセットアップ (Server-side)

@@ -1,6 +1,6 @@
 import express from 'express';
-import type { RecordingController } from '../controllers/RecordingController';
-import { asyncHandler } from '../middleware/errorHandler';
+import type { RecordingController } from '../controllers/RecordingController.js';
+import { asyncHandler } from '../middleware/errorHandler.js';
 
 /**
  * Recordings Router (Refactored)

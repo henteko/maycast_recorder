@@ -1,6 +1,6 @@
 import type { RoomId, RoomState, RecordingId, Room } from '@maycast/common-types';
 import { RoomEntity, RoomNotFoundError } from '@maycast/common-types';
-import type { IRoomRepository } from '../../domain/repositories/IRoomRepository';
+import type { IRoomRepository } from '../../domain/repositories/IRoomRepository.js';
 
 /**
  * In-memory Room Repository の実装

@@ -1,10 +1,10 @@
 import type { Request, Response } from 'express';
 import { RecordingNotFoundError } from '@maycast/common-types';
-import type { CreateRecordingUseCase } from '../../domain/usecases/CreateRecording.usecase';
-import type { GetRecordingUseCase } from '../../domain/usecases/GetRecording.usecase';
-import type { UpdateRecordingStateUseCase } from '../../domain/usecases/UpdateRecordingState.usecase';
-import type { UpdateRecordingMetadataUseCase } from '../../domain/usecases/UpdateRecordingMetadata.usecase';
-import type { DownloadRecordingUseCase } from '../../domain/usecases/DownloadRecording.usecase';
+import type { CreateRecordingUseCase } from '../../domain/usecases/CreateRecording.usecase.js';
+import type { GetRecordingUseCase } from '../../domain/usecases/GetRecording.usecase.js';
+import type { UpdateRecordingStateUseCase } from '../../domain/usecases/UpdateRecordingState.usecase.js';
+import type { UpdateRecordingMetadataUseCase } from '../../domain/usecases/UpdateRecordingMetadata.usecase.js';
+import type { DownloadRecordingUseCase } from '../../domain/usecases/DownloadRecording.usecase.js';
 
 /**
  * Recording Controller

@@ -1,6 +1,6 @@
 import type { RoomId } from '@maycast/common-types';
 import { RoomNotFoundError } from '@maycast/common-types';
-import type { IRoomRepository } from '../repositories/IRoomRepository';
+import type { IRoomRepository } from '../repositories/IRoomRepository.js';
 
 /**
  * Room削除リクエスト

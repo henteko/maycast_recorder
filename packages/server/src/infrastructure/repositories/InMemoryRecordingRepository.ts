@@ -1,6 +1,6 @@
 import type { RecordingId, RecordingState, RecordingMetadata, Recording } from '@maycast/common-types';
 import { RecordingEntity, RecordingNotFoundError } from '@maycast/common-types';
-import type { IRecordingRepository } from '../../domain/repositories/IRecordingRepository';
+import type { IRecordingRepository } from '../../domain/repositories/IRecordingRepository.js';
 
 /**
  * In-memory Recording Repository の実装

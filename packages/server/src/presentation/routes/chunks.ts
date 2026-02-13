@@ -1,6 +1,6 @@
 import express from 'express';
-import type { ChunkController } from '../controllers/ChunkController';
-import { asyncHandler } from '../middleware/errorHandler';
+import type { ChunkController } from '../controllers/ChunkController.js';
+import { asyncHandler } from '../middleware/errorHandler.js';
 
 /**
  * Chunks Router (Refactored)

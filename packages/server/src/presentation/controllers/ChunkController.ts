@@ -1,6 +1,6 @@
 import type { Request, Response } from 'express';
-import type { UploadInitSegmentUseCase } from '../../domain/usecases/UploadInitSegment.usecase';
-import type { UploadChunkUseCase } from '../../domain/usecases/UploadChunk.usecase';
+import type { UploadInitSegmentUseCase } from '../../domain/usecases/UploadInitSegment.usecase.js';
+import type { UploadChunkUseCase } from '../../domain/usecases/UploadChunk.usecase.js';
 
 /**
  * Chunk Controller

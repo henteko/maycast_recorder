@@ -1,6 +1,6 @@
 import type { RecordingId, RecordingState } from '@maycast/common-types';
 import { RecordingNotFoundError } from '@maycast/common-types';
-import type { IRecordingRepository } from '../repositories/IRecordingRepository';
+import type { IRecordingRepository } from '../repositories/IRecordingRepository.js';
 
 /**
  * 録画状態更新リクエスト

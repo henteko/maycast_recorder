@@ -1,7 +1,7 @@
 import type { RecordingId } from '@maycast/common-types';
 import { RecordingNotFoundError } from '@maycast/common-types';
-import type { IRecordingRepository } from '../repositories/IRecordingRepository';
-import type { IChunkRepository } from '../repositories/IChunkRepository';
+import type { IRecordingRepository } from '../repositories/IRecordingRepository.js';
+import type { IChunkRepository } from '../repositories/IChunkRepository.js';
 import { Readable } from 'stream';
 
 /**

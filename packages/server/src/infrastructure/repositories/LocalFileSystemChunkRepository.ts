@@ -1,5 +1,5 @@
 import type { RecordingId, ChunkId, RoomId } from '@maycast/common-types';
-import type { IChunkRepository } from '../../domain/repositories/IChunkRepository';
+import type { IChunkRepository } from '../../domain/repositories/IChunkRepository.js';
 import fs from 'fs/promises';
 import path from 'path';
 

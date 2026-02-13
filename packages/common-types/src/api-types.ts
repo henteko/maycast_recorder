@@ -3,7 +3,7 @@
  * サーバーAPIとの通信で使用する型定義
  */
 
-import type { RecordingState } from './recording';
+import type { RecordingState } from './recording.js';
 
 /**
  * POST /api/recordings - Response

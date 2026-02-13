@@ -1,6 +1,6 @@
 import express from 'express';
-import type { RoomController } from '../controllers/RoomController';
-import { asyncHandler } from '../middleware/errorHandler';
+import type { RoomController } from '../controllers/RoomController.js';
+import { asyncHandler } from '../middleware/errorHandler.js';
 
 /**
  * Rooms Router

@@ -1,5 +1,5 @@
 import type { Room } from '@maycast/common-types';
-import type { IRoomRepository } from '../repositories/IRoomRepository';
+import type { IRoomRepository } from '../repositories/IRoomRepository.js';
 
 /**
  * 全Room取得 Use Case (Server-side)

@@ -1,11 +1,11 @@
 import type { Request, Response } from 'express';
 import { RoomNotFoundError } from '@maycast/common-types';
-import type { CreateRoomUseCase } from '../../domain/usecases/CreateRoom.usecase';
-import type { GetRoomUseCase } from '../../domain/usecases/GetRoom.usecase';
-import type { GetAllRoomsUseCase } from '../../domain/usecases/GetAllRooms.usecase';
-import type { UpdateRoomStateUseCase } from '../../domain/usecases/UpdateRoomState.usecase';
-import type { GetRoomRecordingsUseCase } from '../../domain/usecases/GetRoomRecordings.usecase';
-import type { DeleteRoomUseCase } from '../../domain/usecases/DeleteRoom.usecase';
+import type { CreateRoomUseCase } from '../../domain/usecases/CreateRoom.usecase.js';
+import type { GetRoomUseCase } from '../../domain/usecases/GetRoom.usecase.js';
+import type { GetAllRoomsUseCase } from '../../domain/usecases/GetAllRooms.usecase.js';
+import type { UpdateRoomStateUseCase } from '../../domain/usecases/UpdateRoomState.usecase.js';
+import type { GetRoomRecordingsUseCase } from '../../domain/usecases/GetRoomRecordings.usecase.js';
+import type { DeleteRoomUseCase } from '../../domain/usecases/DeleteRoom.usecase.js';
 
 /**
  * Room Controller

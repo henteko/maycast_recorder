@@ -1,6 +1,6 @@
 import type { RecordingId, RecordingMetadata } from '@maycast/common-types';
 import { RecordingNotFoundError } from '@maycast/common-types';
-import type { IRecordingRepository } from '../repositories/IRecordingRepository';
+import type { IRecordingRepository } from '../repositories/IRecordingRepository.js';
 
 /**
  * 録画メタデータ更新リクエスト

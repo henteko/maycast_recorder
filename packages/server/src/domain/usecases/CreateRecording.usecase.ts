@@ -1,8 +1,8 @@
 import { RecordingEntity, RoomNotFoundError } from '@maycast/common-types';
 import type { RecordingId, Recording, RoomId } from '@maycast/common-types';
-import type { IRecordingRepository } from '../repositories/IRecordingRepository';
-import type { IRoomRepository } from '../repositories/IRoomRepository';
-import type { IRoomEventPublisher } from '../events/IRoomEventPublisher';
+import type { IRecordingRepository } from '../repositories/IRecordingRepository.js';
+import type { IRoomRepository } from '../repositories/IRoomRepository.js';
+import type { IRoomEventPublisher } from '../events/IRoomEventPublisher.js';
 import { v4 as uuidv4 } from 'uuid';
 
 /**
