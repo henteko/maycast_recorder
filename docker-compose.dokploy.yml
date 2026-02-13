@@ -1,0 +1,58 @@
+services:
+  # nginx リバースプロキシ（HTTP-only、Dokploy/Traefikがssl終端を担当）
+  nginx:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/conf.d/dokploy.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./nginx/logs:/var/log/nginx
+    depends_on:
+      - server
+      - web-client
+    restart: unless-stopped
+    networks:
+      - maycast-network
+
+  # Expressサーバー
+  server:
+    build:
+      context: .
+      dockerfile: ./packages/server/Dockerfile
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - STORAGE_PATH=/app/recordings-data
+      - CORS_ORIGIN=${CORS_ORIGIN:-https://localhost}
+      - LOG_LEVEL=info
+    volumes:
+      - recordings-data:/app/recordings-data
+    expose:
+      - "3000"
+    restart: unless-stopped
+    networks:
+      - maycast-network
+
+  # Webクライアント（本番ビルド）
+  web-client:
+    build:
+      context: .
+      dockerfile: ./packages/web-client/Dockerfile
+      target: production
+    environment:
+      - NODE_ENV=production
+      - VITE_SERVER_URL=${VITE_SERVER_URL:-https://localhost}
+    expose:
+      - "5173"
+    restart: unless-stopped
+    networks:
+      - maycast-network
+
+networks:
+  maycast-network:
+    driver: bridge
+
+volumes:
+  recordings-data:
