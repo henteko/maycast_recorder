@@ -4,7 +4,7 @@
  */
 
 const SERVER_URL_KEY = 'maycast_server_url';
-const DEFAULT_SERVER_URL = 'http://localhost:3000';
+const DEFAULT_SERVER_URL = import.meta.env.VITE_SERVER_URL || '';
 
 export function getServerUrl(): string {
   return localStorage.getItem(SERVER_URL_KEY) ?? DEFAULT_SERVER_URL;
