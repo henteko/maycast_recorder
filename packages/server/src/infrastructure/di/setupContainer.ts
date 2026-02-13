@@ -1,9 +1,10 @@
 import { DIContainer } from './DIContainer.js';
-import { InMemoryRecordingRepository } from '../repositories/InMemoryRecordingRepository.js';
-import { InMemoryRoomRepository } from '../repositories/InMemoryRoomRepository.js';
+import { PostgresRecordingRepository } from '../repositories/PostgresRecordingRepository.js';
+import { PostgresRoomRepository } from '../repositories/PostgresRoomRepository.js';
 import { LocalFileSystemChunkRepository } from '../repositories/LocalFileSystemChunkRepository.js';
 import { WebSocketRoomEventPublisher } from '../events/WebSocketRoomEventPublisher.js';
 import { getWebSocketManager } from '../websocket/WebSocketManager.js';
+import { getPool } from '../database/PostgresClient.js';
 
 // Use Cases - Recording
 import { CreateRecordingUseCase } from '../../domain/usecases/CreateRecording.usecase.js';
@@ -46,8 +47,9 @@ export function setupContainer(storagePath: string = './recordings-data'): DICon
   }
 
   // Repositories
-  const recordingRepository = new InMemoryRecordingRepository();
-  const roomRepository = new InMemoryRoomRepository();
+  const pool = getPool();
+  const recordingRepository = new PostgresRecordingRepository(pool);
+  const roomRepository = new PostgresRoomRepository(pool);
   const chunkRepository = new LocalFileSystemChunkRepository(storagePath);
 
   container.register<IRecordingRepository>('RecordingRepository', recordingRepository);

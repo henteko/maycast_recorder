@@ -1,4 +1,23 @@
 services:
+  # PostgreSQL データベース
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-maycast}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-maycast_prod}
+      - POSTGRES_DB=${POSTGRES_DB:-maycast}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./packages/server/sql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    restart: unless-stopped
+    networks:
+      - maycast-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-maycast}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   # nginx リバースプロキシ（HTTP-only、Dokploy/Traefikがssl終端を担当）
   nginx:
     build:
@@ -30,12 +49,16 @@ services:
       dockerfile: ./packages/server/Dockerfile
     ports:
       - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
     environment:
       - NODE_ENV=production
       - PORT=3000
       - STORAGE_PATH=/app/recordings-data
       - CORS_ORIGIN=${CORS_ORIGIN:-https://localhost}
       - LOG_LEVEL=info
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-maycast}:${POSTGRES_PASSWORD:-maycast_prod}@postgres:5432/${POSTGRES_DB:-maycast}
     volumes:
       - recordings-data:/app/recordings-data
     restart: unless-stopped
@@ -65,3 +88,4 @@ networks:
 
 volumes:
   recordings-data:
+  postgres-data:

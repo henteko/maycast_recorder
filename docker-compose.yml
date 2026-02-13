@@ -1,4 +1,25 @@
 services:
+  # PostgreSQL データベース
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-maycast}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-maycast_dev}
+      - POSTGRES_DB=${POSTGRES_DB:-maycast}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./packages/server/sql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    expose:
+      - "5432"
+    restart: unless-stopped
+    networks:
+      - maycast-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-maycast}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   # nginx リバースプロキシ（HTTP/2対応）
   nginx:
     build:
@@ -24,11 +45,15 @@ services:
     build:
       context: .
       dockerfile: ./packages/server/Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
     environment:
       - NODE_ENV=${NODE_ENV:-development}
       - PORT=3000
       - STORAGE_PATH=/app/recordings-data
       - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-maycast}:${POSTGRES_PASSWORD:-maycast_dev}@postgres:5432/${POSTGRES_DB:-maycast}
     volumes:
       - ./packages/server/src:/app/packages/server/src:ro
       - recordings-data:/app/recordings-data
@@ -74,4 +99,5 @@ networks:
 
 volumes:
   recordings-data:
+  postgres-data:
   certbot-webroot:

@@ -300,6 +300,20 @@ tasks:
       - ./scripts/init-letsencrypt.sh
       - echo "✅ Production certificates initialized"
 
+  docker:db:psql:
+    desc: Open psql shell to PostgreSQL
+    cmds:
+      - docker-compose -f docker-compose.yml -f docker-compose.dev.yml exec postgres psql -U ${POSTGRES_USER:-maycast} -d ${POSTGRES_DB:-maycast}
+
+  docker:db:reset:
+    desc: Reset PostgreSQL database (drop and recreate)
+    cmds:
+      - docker-compose -f docker-compose.yml -f docker-compose.dev.yml stop postgres
+      - docker-compose -f docker-compose.yml -f docker-compose.dev.yml rm -f postgres
+      - docker volume rm maycast_recorder_postgres-data || true
+      - docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d postgres
+      - echo "✅ PostgreSQL database reset"
+
   docker:clean:
     desc: Remove all Docker containers, volumes, and images
     cmds:
