@@ -177,4 +177,4 @@ jobs:
         working-directory: packages/server
         env:
           TEST_DATABASE_URL: postgresql://maycast_test:maycast_test@localhost:5433/maycast_test
-        run: npx vitest run --testPathPattern='__tests__.*\.test\.ts$'
+        run: npx vitest run --config vitest.config.db.ts
