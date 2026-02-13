@@ -13,7 +13,7 @@ COPY packages/web-client/package.json ./packages/web-client/
 
 # 依存関係をインストール（ルートのnode_modulesに集約）
 # ビルドにdevDependenciesが必要なため、NODE_ENVに関わらず全依存をインストール
-RUN NODE_ENV=development npm ci
+RUN npm ci --include=dev
 
 # Rustツールチェーンのインストール（WASM用）- nightly for edition2024 support
 FROM rustlang/rust:nightly-alpine AS wasm-builder
