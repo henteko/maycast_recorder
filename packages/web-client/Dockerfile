@@ -19,9 +19,17 @@ FROM rustlang/rust:nightly-alpine AS wasm-builder
 
 RUN apk add --no-cache curl build-base
 
-# wasm-packとwasm-bindgen-cliのプリビルドバイナリをダウンロード
-RUN curl -L https://github.com/rustwasm/wasm-pack/releases/download/v0.13.0/wasm-pack-v0.13.0-aarch64-unknown-linux-musl.tar.gz | tar -xz -C /tmp && \
-    mv /tmp/wasm-pack-v0.13.0-aarch64-unknown-linux-musl/wasm-pack /usr/local/bin/ && \
+# wasm-packとwasm-bindgen-cliのプリビルドバイナリをダウンロード（マルチアーキテクチャ対応）
+RUN ARCH=$(uname -m) && \
+    if [ "$ARCH" = "aarch64" ]; then \
+      WASM_PACK_TARGET="aarch64-unknown-linux-musl"; \
+    elif [ "$ARCH" = "x86_64" ]; then \
+      WASM_PACK_TARGET="x86_64-unknown-linux-musl"; \
+    else \
+      echo "Unsupported architecture: $ARCH" && exit 1; \
+    fi && \
+    curl -L "https://github.com/rustwasm/wasm-pack/releases/download/v0.13.0/wasm-pack-v0.13.0-${WASM_PACK_TARGET}.tar.gz" | tar -xz -C /tmp && \
+    mv "/tmp/wasm-pack-v0.13.0-${WASM_PACK_TARGET}/wasm-pack" /usr/local/bin/ && \
     chmod +x /usr/local/bin/wasm-pack && \
     rm -rf /tmp/wasm-pack-* && \
     cargo install wasm-bindgen-cli --version 0.2.108
