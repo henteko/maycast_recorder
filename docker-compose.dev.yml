@@ -1,8 +1,4 @@
 services:
-  nginx:
-    volumes:
-      - ./nginx/certs-dev:/etc/nginx/certs:ro
-
   server:
     command: npm run dev --workspace=@maycast/server
     environment:

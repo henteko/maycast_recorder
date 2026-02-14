@@ -1,4 +1,4 @@
-version: '3'
+version: "3"
 
 vars:
   WASM_PKG_DIR: packages/wasm-core/pkg
@@ -11,13 +11,13 @@ tasks:
   dev:
     desc: Start development server with WASM auto-rebuild
     deps: [build:common-types, build:wasm]
-    dir: '{{.CLIENT_DIR}}'
+    dir: "{{.CLIENT_DIR}}"
     cmds:
       - npm run dev
 
   dev:client:
     desc: Start client development server only (without WASM rebuild)
-    dir: '{{.CLIENT_DIR}}'
+    dir: "{{.CLIENT_DIR}}"
     cmds:
       - npm run dev
 
@@ -29,14 +29,14 @@ tasks:
 
   dev:server:
     desc: Start server development mode with auto-reload
-    dir: '{{.SERVER_DIR}}'
+    dir: "{{.SERVER_DIR}}"
     cmds:
       - npm run dev
 
   dev:solo:
     desc: Start Solo-only development server
     deps: [build:common-types, build:wasm]
-    dir: '{{.CLIENT_DIR}}'
+    dir: "{{.CLIENT_DIR}}"
     cmds:
       - npm run dev:solo
 
@@ -51,7 +51,7 @@ tasks:
 
   build:common-types:
     desc: Build common TypeScript type definitions
-    dir: '{{.COMMON_TYPES_DIR}}'
+    dir: "{{.COMMON_TYPES_DIR}}"
     cmds:
       - npm run build
     sources:
@@ -76,21 +76,21 @@ tasks:
 
   build:client:
     desc: Build client for production
-    dir: '{{.CLIENT_DIR}}'
+    dir: "{{.CLIENT_DIR}}"
     deps: [build:common-types, build:wasm]
     cmds:
       - npm run build
 
   build:solo:
     desc: Build Solo-only client for production
-    dir: '{{.CLIENT_DIR}}'
+    dir: "{{.CLIENT_DIR}}"
     deps: [build:common-types, build:wasm]
     cmds:
       - npm run build:solo
 
   build:server:
     desc: Build server for production
-    dir: '{{.SERVER_DIR}}'
+    dir: "{{.SERVER_DIR}}"
     cmds:
       - npm run build
     sources:
@@ -121,7 +121,7 @@ tasks:
 
   test:server:
     desc: Run server unit tests
-    dir: '{{.SERVER_DIR}}'
+    dir: "{{.SERVER_DIR}}"
     cmds:
       - npm run test
 
@@ -146,7 +146,7 @@ tasks:
 
   test:db:run:
     desc: Run database tests (assumes test PostgreSQL is running)
-    dir: '{{.SERVER_DIR}}'
+    dir: "{{.SERVER_DIR}}"
     env:
       TEST_DATABASE_URL: postgresql://maycast_test:maycast_test@localhost:5433/maycast_test
     cmds:
@@ -172,13 +172,13 @@ tasks:
 
   lint:ts:
     desc: Run ESLint on TypeScript files
-    dir: '{{.CLIENT_DIR}}'
+    dir: "{{.CLIENT_DIR}}"
     cmds:
       - npm run lint
 
   lint:server:
     desc: Run ESLint on server TypeScript files
-    dir: '{{.SERVER_DIR}}'
+    dir: "{{.SERVER_DIR}}"
     cmds:
       - npm run lint
 
@@ -219,7 +219,7 @@ tasks:
 
   clean:common-types:
     desc: Clean common-types build artifacts
-    dir: '{{.COMMON_TYPES_DIR}}'
+    dir: "{{.COMMON_TYPES_DIR}}"
     cmds:
       - npm run clean || rm -rf dist
 
@@ -231,7 +231,7 @@ tasks:
 
   clean:client:
     desc: Clean client build artifacts
-    dir: '{{.CLIENT_DIR}}'
+    dir: "{{.CLIENT_DIR}}"
     cmds:
       - rm -rf dist
       - rm -rf dist-solo
@@ -239,7 +239,7 @@ tasks:
 
   clean:server:
     desc: Clean server build artifacts
-    dir: '{{.SERVER_DIR}}'
+    dir: "{{.SERVER_DIR}}"
     cmds:
       - npm run clean || rm -rf dist
       - rm -rf node_modules
@@ -291,41 +291,6 @@ tasks:
     cmds:
       - task: docker:dev:down
       - task: docker:dev:up
-
-  docker:prod:up:
-    desc: Start production environment with Docker Compose
-    cmds:
-      - docker-compose -f docker-compose.yml -f docker-compose.prod.yml --profile production up -d
-      - echo "✅ Production environment started"
-      - echo "📍 Access at https://{{.DOMAIN_NAME}}"
-
-  docker:prod:down:
-    desc: Stop production environment
-    cmds:
-      - docker-compose -f docker-compose.yml -f docker-compose.prod.yml down
-      - echo "✅ Production environment stopped"
-
-  docker:prod:logs:
-    desc: Show production logs
-    cmds:
-      - docker-compose -f docker-compose.yml -f docker-compose.prod.yml logs -f
-
-  docker:prod:build:
-    desc: Build production Docker images
-    cmds:
-      - docker-compose -f docker-compose.yml -f docker-compose.prod.yml build
-
-  docker:certs:dev:
-    desc: Generate self-signed certificates for development
-    cmds:
-      - ./scripts/generate-dev-certs.sh
-      - echo "✅ Development certificates generated"
-
-  docker:certs:prod:
-    desc: Initialize Let's Encrypt certificates for production
-    cmds:
-      - ./scripts/init-letsencrypt.sh
-      - echo "✅ Production certificates initialized"
 
   docker:db:psql:
     desc: Open psql shell to PostgreSQL

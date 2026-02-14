@@ -27,12 +27,9 @@ services:
       dockerfile: Dockerfile
     ports:
       - "80:80"
-      - "443:443"
     volumes:
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
-      - ./nginx/certs:/etc/nginx/certs:ro
       - ./nginx/logs:/var/log/nginx
-      - certbot-webroot:/var/www/certbot:ro
     depends_on:
       - server
       - web-client
@@ -81,17 +78,6 @@ services:
     networks:
       - maycast-network
 
-  # Certbot（本番環境のみ）
-  certbot:
-    image: certbot/certbot:latest
-    volumes:
-      - ./nginx/certs:/etc/letsencrypt
-      - certbot-webroot:/var/www/certbot
-    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
-    networks:
-      - maycast-network
-    profiles:
-      - production
 
 networks:
   maycast-network:
@@ -100,4 +86,3 @@ networks:
 volumes:
   recordings-data:
   postgres-data:
-  certbot-webroot:

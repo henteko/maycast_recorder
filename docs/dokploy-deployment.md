@@ -38,6 +38,7 @@ In the Dokploy UI, set the following environment variables:
 
 | Variable | Description | Example |
 |---|---|---|
+| `DOMAIN_NAME` | Domain for Traefik routing (used in Traefik Host rule) | `maycast.example.com` |
 | `CORS_ORIGIN` | Frontend URL (used by the server for CORS) | `https://maycast.example.com` |
 | `VITE_SERVER_URL` | API server URL (used by the web client) | `https://maycast.example.com` |
 
