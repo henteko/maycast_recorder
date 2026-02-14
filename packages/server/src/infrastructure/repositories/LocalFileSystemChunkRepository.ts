@@ -112,6 +112,11 @@ export class LocalFileSystemChunkRepository implements IChunkRepository {
     }
   }
 
+  async generateDownloadUrls(): Promise<null> {
+    // ローカルストレージは直接ダウンロードURL非対応
+    return null;
+  }
+
   async deleteAllChunks(recordingId: RecordingId, roomId?: RoomId): Promise<void> {
     const recordingPath = this.getRecordingPath(recordingId, roomId);
 

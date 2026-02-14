@@ -5,6 +5,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { ArrowDownTrayIcon, CheckIcon } from '@heroicons/react/24/solid';
 import { RecordingAPIClient, type RecordingInfo } from '../../../infrastructure/api/recording-api';
+import { streamingDownloadRecording, triggerBrowserDownload } from '../../../infrastructure/api/streaming-download';
+import type { DownloadProgress } from '../../../infrastructure/api/streaming-download';
 import { getServerUrl } from '../../../infrastructure/config/serverConfig';
 import { Button } from '../atoms/Button';
 import { RecordingDownloadItem } from '../molecules/RecordingDownloadItem';
@@ -31,6 +33,7 @@ export const RecordingsDownloadSection: React.FC<RecordingsDownloadSectionProps>
   const [recordings, setRecordings] = useState<Map<string, RecordingInfo>>(new Map());
   const [loadingIds, setLoadingIds] = useState<Set<string>>(new Set());
   const [downloadingIds, setDownloadingIds] = useState<Set<string>>(new Set());
+  const [downloadProgress, setDownloadProgress] = useState<Map<string, DownloadProgress>>(new Map());
   const fetchedIdsRef = useRef<Set<string>>(new Set());
 
   // Recording情報を取得
@@ -65,23 +68,31 @@ export const RecordingsDownloadSection: React.FC<RecordingsDownloadSectionProps>
     fetchRecordings();
   }, [recordingIds]);
 
-  // 個別ダウンロード
+  // 個別ダウンロード（クラウドストレージから直接ストリーミング）
   const handleDownload = useCallback(async (recordingId: string) => {
     setDownloadingIds((prev) => new Set(prev).add(recordingId));
+    setDownloadProgress((prev) => {
+      const next = new Map(prev);
+      next.delete(recordingId);
+      return next;
+    });
     try {
       const serverUrl = getServerUrl();
       const apiClient = new RecordingAPIClient(serverUrl);
-      const blob = await apiClient.downloadRecording(recordingId);
 
-      // ダウンロードリンクを作成
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `recording-${recordingId.substring(0, 8)}.mp4`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      const blob = await streamingDownloadRecording(
+        apiClient,
+        recordingId,
+        (progress) => {
+          setDownloadProgress((prev) => new Map(prev).set(recordingId, progress));
+        }
+      );
+
+      const guestName = getGuestNameForRecording(recordingId);
+      const filename = guestName
+        ? `${guestName}-${recordingId.substring(0, 8)}.mp4`
+        : `recording-${recordingId.substring(0, 8)}.mp4`;
+      triggerBrowserDownload(blob, filename);
     } catch (err) {
       console.error(`Failed to download recording ${recordingId}:`, err);
       alert(`Failed to download recording: ${err instanceof Error ? err.message : 'Unknown error'}`);
@@ -91,8 +102,13 @@ export const RecordingsDownloadSection: React.FC<RecordingsDownloadSectionProps>
         next.delete(recordingId);
         return next;
       });
+      setDownloadProgress((prev) => {
+        const next = new Map(prev);
+        next.delete(recordingId);
+        return next;
+      });
     }
-  }, []);
+  }, [getGuestNameForRecording]);
 
   if (recordingIds.length === 0) {
     return (
@@ -143,6 +159,7 @@ export const RecordingsDownloadSection: React.FC<RecordingsDownloadSectionProps>
             onDownload={handleDownload}
             isDownloading={downloadingIds.has(recordingId)}
             guestName={getGuestNameForRecording(recordingId)}
+            progress={downloadProgress.get(recordingId)}
           />
         ))}
       </div>

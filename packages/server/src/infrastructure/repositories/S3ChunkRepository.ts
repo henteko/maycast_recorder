@@ -1,5 +1,5 @@
 import type { RecordingId, ChunkId, RoomId } from '@maycast/common-types';
-import type { IChunkRepository } from '../../domain/repositories/IChunkRepository.js';
+import type { IChunkRepository, ChunkDownloadUrl } from '../../domain/repositories/IChunkRepository.js';
 import {
   S3Client,
   PutObjectCommand,
@@ -7,6 +7,7 @@ import {
   ListObjectsV2Command,
   DeleteObjectsCommand,
 } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import type { S3StorageConfig } from '../config/storageConfig.js';
 
 /**
@@ -158,6 +159,37 @@ export class S3ChunkRepository implements IChunkRepository {
         ? listResponse.NextContinuationToken
         : undefined;
     } while (continuationToken);
+  }
+
+  async generateDownloadUrls(
+    recordingId: RecordingId,
+    roomId?: RoomId,
+    expiresInSeconds: number = 3600
+  ): Promise<ChunkDownloadUrl[]> {
+    const urls: ChunkDownloadUrl[] = [];
+
+    // Init Segment の署名付きURL
+    const initKey = this.getInitSegmentKey(recordingId, roomId);
+    const initUrl = await getSignedUrl(
+      this.client,
+      new GetObjectCommand({ Bucket: this.bucket, Key: initKey }),
+      { expiresIn: expiresInSeconds }
+    );
+    urls.push({ type: 'init', url: initUrl });
+
+    // 全チャンクIDを取得して署名付きURLを生成
+    const chunkIds = await this.listChunkIds(recordingId, roomId);
+    for (const chunkId of chunkIds) {
+      const chunkKey = this.getChunkKey(recordingId, chunkId, roomId);
+      const chunkUrl = await getSignedUrl(
+        this.client,
+        new GetObjectCommand({ Bucket: this.bucket, Key: chunkKey }),
+        { expiresIn: expiresInSeconds }
+      );
+      urls.push({ type: 'chunk', chunkId, url: chunkUrl });
+    }
+
+    return urls;
   }
 
   private async getObject(key: string): Promise<Buffer | null> {

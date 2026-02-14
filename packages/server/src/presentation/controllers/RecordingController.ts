@@ -5,6 +5,7 @@ import type { GetRecordingUseCase } from '../../domain/usecases/GetRecording.use
 import type { UpdateRecordingStateUseCase } from '../../domain/usecases/UpdateRecordingState.usecase.js';
 import type { UpdateRecordingMetadataUseCase } from '../../domain/usecases/UpdateRecordingMetadata.usecase.js';
 import type { DownloadRecordingUseCase } from '../../domain/usecases/DownloadRecording.usecase.js';
+import type { GetDownloadUrlsUseCase } from '../../domain/usecases/GetDownloadUrls.usecase.js';
 
 /**
  * Recording Controller
@@ -18,19 +19,22 @@ export class RecordingController {
   private updateRecordingStateUseCase: UpdateRecordingStateUseCase;
   private updateRecordingMetadataUseCase: UpdateRecordingMetadataUseCase;
   private downloadRecordingUseCase: DownloadRecordingUseCase;
+  private getDownloadUrlsUseCase: GetDownloadUrlsUseCase;
 
   constructor(
     createRecordingUseCase: CreateRecordingUseCase,
     getRecordingUseCase: GetRecordingUseCase,
     updateRecordingStateUseCase: UpdateRecordingStateUseCase,
     updateRecordingMetadataUseCase: UpdateRecordingMetadataUseCase,
-    downloadRecordingUseCase: DownloadRecordingUseCase
+    downloadRecordingUseCase: DownloadRecordingUseCase,
+    getDownloadUrlsUseCase: GetDownloadUrlsUseCase
   ) {
     this.createRecordingUseCase = createRecordingUseCase;
     this.getRecordingUseCase = getRecordingUseCase;
     this.updateRecordingStateUseCase = updateRecordingStateUseCase;
     this.updateRecordingMetadataUseCase = updateRecordingMetadataUseCase;
     this.downloadRecordingUseCase = downloadRecordingUseCase;
+    this.getDownloadUrlsUseCase = getDownloadUrlsUseCase;
   }
 
   async create(req: Request, res: Response): Promise<void> {
@@ -107,5 +111,31 @@ export class RecordingController {
     res.setHeader('Content-Disposition', `attachment; filename="${result.filename}"`);
 
     result.stream.pipe(res);
+  }
+
+  async getDownloadUrls(req: Request, res: Response): Promise<void> {
+    const { id } = req.params;
+
+    const result = await this.getDownloadUrlsUseCase.execute({ recordingId: id });
+
+    if (!result) {
+      // ローカルストレージの場合は直接ダウンロード非対応
+      res.status(200).json({
+        mode: 'proxy',
+        message: 'Direct download not available. Use /api/recordings/:id/download instead.',
+      });
+      return;
+    }
+
+    res.json({
+      mode: 'direct',
+      recording_id: result.recordingId,
+      filename: result.filename,
+      chunks: result.chunks.map((chunk) => ({
+        type: chunk.type,
+        chunk_id: chunk.chunkId,
+        url: chunk.url,
+      })),
+    });
   }
 }

@@ -7,6 +7,7 @@ import { PlayIcon, StopIcon, TrashIcon, UsersIcon } from '@heroicons/react/24/so
 import JSZip from 'jszip';
 import type { RoomInfo } from '../../../infrastructure/api/room-api';
 import { RecordingAPIClient } from '../../../infrastructure/api/recording-api';
+import { streamingDownloadRecording } from '../../../infrastructure/api/streaming-download';
 import type { GuestInfo } from '@maycast/common-types';
 import { getServerUrl } from '../../../infrastructure/config/serverConfig';
 import { RoomStateBadge } from '../atoms/RoomStateBadge';
@@ -46,7 +47,7 @@ export const RoomCard: React.FC<RoomCardProps> = ({
     return guest?.name;
   }, [guests]);
 
-  // 全録画を一括ダウンロード (ZIP形式)
+  // 全録画を一括ダウンロード (ZIP形式、クラウドから直接ストリーミング)
   const handleDownloadAll = useCallback(async () => {
     if (room.recording_ids.length === 0) return;
 
@@ -56,10 +57,10 @@ export const RoomCard: React.FC<RoomCardProps> = ({
       const apiClient = new RecordingAPIClient(serverUrl);
       const zip = new JSZip();
 
-      // 各録画をダウンロードしてZIPに追加
+      // 各録画をクラウドから直接ダウンロードしてZIPに追加
       for (const recordingId of room.recording_ids) {
         try {
-          const blob = await apiClient.downloadRecording(recordingId);
+          const blob = await streamingDownloadRecording(apiClient, recordingId);
           const guestName = getGuestNameForRecording(recordingId);
           const fileName = guestName
             ? `${guestName}-${recordingId.substring(0, 8)}.mp4`

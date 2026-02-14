@@ -50,8 +50,17 @@ export function createRecordingsRouter(
   }));
 
   /**
+   * GET /api/recordings/:id/download-urls
+   * クラウドストレージの署名付きダウンロードURLを取得
+   * クライアントが直接クラウドからストリーミングダウンロードするために使用
+   */
+  router.get('/recordings/:id/download-urls', asyncHandler(async (req, res) => {
+    await recordingController.getDownloadUrls(req, res);
+  }));
+
+  /**
    * GET /api/recordings/:id/download
-   * Recording（MP4ファイル）をダウンロード
+   * Recording（MP4ファイル）をダウンロード（サーバープロキシ方式）
    */
   router.get('/recordings/:id/download', asyncHandler(async (req, res) => {
     await recordingController.download(req, res);

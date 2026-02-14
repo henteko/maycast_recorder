@@ -24,6 +24,35 @@ export interface RecordingInfo {
   room_id?: string;
 }
 
+/**
+ * チャンクダウンロードURL情報
+ */
+export interface ChunkDownloadUrlInfo {
+  type: 'init' | 'chunk';
+  chunk_id?: number;
+  url: string;
+}
+
+/**
+ * ダウンロードURL取得レスポンス（直接ダウンロードモード）
+ */
+export interface DirectDownloadUrlsResponse {
+  mode: 'direct';
+  recording_id: string;
+  filename: string;
+  chunks: ChunkDownloadUrlInfo[];
+}
+
+/**
+ * ダウンロードURL取得レスポンス（プロキシモード）
+ */
+export interface ProxyDownloadResponse {
+  mode: 'proxy';
+  message: string;
+}
+
+export type DownloadUrlsResponse = DirectDownloadUrlsResponse | ProxyDownloadResponse;
+
 export class RecordingAPIClient {
   private baseUrl: string;
 
@@ -216,7 +245,24 @@ export class RecordingAPIClient {
   }
 
   /**
-   * Recordingをダウンロード
+   * クラウドストレージの署名付きダウンロードURLを取得
+   * クライアントが直接クラウドからストリーミングダウンロードするために使用
+   */
+  async getDownloadUrls(recordingId: string): Promise<DownloadUrlsResponse> {
+    const response = await fetch(
+      `${this.baseUrl}/api/recordings/${recordingId}/download-urls`
+    );
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to get download URLs: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Recordingをダウンロード（サーバープロキシ方式）
    */
   async downloadRecording(recordingId: string): Promise<Blob> {
     const response = await fetch(`${this.baseUrl}/api/recordings/${recordingId}/download`);

@@ -1,6 +1,15 @@
 import type { RecordingId, ChunkId, RoomId } from '@maycast/common-types';
 
 /**
+ * チャンクダウンロードURL情報
+ */
+export interface ChunkDownloadUrl {
+  type: 'init' | 'chunk';
+  chunkId?: ChunkId;
+  url: string;
+}
+
+/**
  * Chunk Repository Interface (Server-side)
  *
  * Chunk データの永続化を抽象化
@@ -56,4 +65,20 @@ export interface IChunkRepository {
    * @param roomId Optional Room ID for Room-based storage path
    */
   deleteAllChunks(recordingId: RecordingId, roomId?: RoomId): Promise<void>;
+
+  /**
+   * チャンクの直接ダウンロードURLを生成
+   * クラウドストレージの場合は署名付きURLを返す
+   * ローカルストレージの場合はnullを返す（直接ダウンロード非対応）
+   *
+   * @param recordingId Recording ID
+   * @param roomId Optional Room ID for Room-based storage path
+   * @param expiresInSeconds URL有効期限（秒）デフォルト: 3600
+   * @returns 署名付きURLの配列、または直接ダウンロード非対応の場合null
+   */
+  generateDownloadUrls(
+    recordingId: RecordingId,
+    roomId?: RoomId,
+    expiresInSeconds?: number
+  ): Promise<ChunkDownloadUrl[] | null>;
 }

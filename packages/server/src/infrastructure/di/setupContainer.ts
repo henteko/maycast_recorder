@@ -16,6 +16,7 @@ import { UpdateRecordingMetadataUseCase } from '../../domain/usecases/UpdateReco
 import { UploadInitSegmentUseCase } from '../../domain/usecases/UploadInitSegment.usecase.js';
 import { UploadChunkUseCase } from '../../domain/usecases/UploadChunk.usecase.js';
 import { DownloadRecordingUseCase } from '../../domain/usecases/DownloadRecording.usecase.js';
+import { GetDownloadUrlsUseCase } from '../../domain/usecases/GetDownloadUrls.usecase.js';
 
 // Use Cases - Room
 import { CreateRoomUseCase } from '../../domain/usecases/CreateRoom.usecase.js';
@@ -109,13 +110,20 @@ export function setupContainer(): DIContainer {
   );
   container.register('DownloadRecordingUseCase', downloadRecordingUseCase);
 
+  const getDownloadUrlsUseCase = new GetDownloadUrlsUseCase(
+    recordingRepository,
+    chunkRepository
+  );
+  container.register('GetDownloadUrlsUseCase', getDownloadUrlsUseCase);
+
   // Controllers
   const recordingController = new RecordingController(
     createRecordingUseCase,
     getRecordingUseCase,
     updateRecordingStateUseCase,
     updateRecordingMetadataUseCase,
-    downloadRecordingUseCase
+    downloadRecordingUseCase,
+    getDownloadUrlsUseCase
   );
   container.register('RecordingController', recordingController);
 
