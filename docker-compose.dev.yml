@@ -6,7 +6,6 @@ services:
     volumes:
       # 開発環境ではnode_modulesボリュームを使用しない（イメージのものを使用）
       - ./packages/server/src:/app/packages/server/src:ro
-      - recordings-data:/app/recordings-data
 
   web-client:
     command: ["npm", "run", "dev", "--workspace=web-client", "--", "--host", "0.0.0.0"]

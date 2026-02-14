@@ -152,6 +152,33 @@ tasks:
     cmds:
       - npx vitest run --config vitest.config.db.ts
 
+  test:s3:
+    desc: Run S3 integration tests (requires test LocalStack)
+    cmds:
+      - task: test:s3:up
+      - defer: { task: test:s3:down }
+      - task: test:s3:run
+
+  test:s3:up:
+    desc: Start test LocalStack container
+    cmds:
+      - docker-compose -f docker-compose.test.yml up -d localstack-test --wait
+      - echo "✅ Test LocalStack started on port 4577"
+
+  test:s3:down:
+    desc: Stop test LocalStack container
+    cmds:
+      - docker-compose -f docker-compose.test.yml down -v localstack-test
+      - echo "✅ Test LocalStack stopped"
+
+  test:s3:run:
+    desc: Run S3 tests (assumes test LocalStack is running)
+    dir: "{{.SERVER_DIR}}"
+    env:
+      TEST_S3_ENDPOINT: http://localhost:4577
+    cmds:
+      - npx vitest run --config vitest.config.s3.ts
+
   test:e2e:
     desc: Run E2E tests (Phase 1A-6+)
     cmds:

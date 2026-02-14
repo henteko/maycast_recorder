@@ -21,11 +21,10 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 const LOG_LEVEL = process.env.LOG_LEVEL || 'info';
-const STORAGE_PATH = process.env.STORAGE_PATH || './recordings-data';
 const CORS_ORIGIN = process.env.CORS_ORIGIN || 'http://localhost:5173';
 
 // Initialize DI Container
-const container = setupContainer(STORAGE_PATH);
+const container = setupContainer();
 const recordingController = container.resolve<RecordingController>('RecordingController');
 const chunkController = container.resolve<ChunkController>('ChunkController');
 const roomController = container.resolve<RoomController>('RoomController');
