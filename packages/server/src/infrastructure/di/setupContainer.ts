@@ -2,9 +2,11 @@ import { DIContainer } from './DIContainer.js';
 import { PostgresRecordingRepository } from '../repositories/PostgresRecordingRepository.js';
 import { PostgresRoomRepository } from '../repositories/PostgresRoomRepository.js';
 import { LocalFileSystemChunkRepository } from '../repositories/LocalFileSystemChunkRepository.js';
+import { S3ChunkRepository } from '../repositories/S3ChunkRepository.js';
 import { WebSocketRoomEventPublisher } from '../events/WebSocketRoomEventPublisher.js';
 import { getWebSocketManager } from '../websocket/WebSocketManager.js';
 import { getPool } from '../database/PostgresClient.js';
+import { getStorageConfig } from '../config/storageConfig.js';
 
 // Use Cases - Recording
 import { CreateRecordingUseCase } from '../../domain/usecases/CreateRecording.usecase.js';
@@ -36,9 +38,11 @@ import type { IRoomEventPublisher } from '../../domain/events/IRoomEventPublishe
 /**
  * DIコンテナのセットアップ (Server-side)
  *
- * @param storagePath ストレージのベースパス
+ * ストレージバックエンドは環境変数 STORAGE_BACKEND で切り替え:
+ * - 'local' (default): LocalFileSystemChunkRepository
+ * - 's3': S3ChunkRepository (Cloudflare R2, LocalStack, AWS S3)
  */
-export function setupContainer(storagePath: string = './recordings-data'): DIContainer {
+export function setupContainer(): DIContainer {
   const container = DIContainer.getInstance();
 
   // すでにセットアップ済みの場合はスキップ
@@ -46,11 +50,23 @@ export function setupContainer(storagePath: string = './recordings-data'): DICon
     return container;
   }
 
+  // Storage Config
+  const storageConfig = getStorageConfig();
+
+  // Chunk Repository（バックエンド選択）
+  let chunkRepository: IChunkRepository;
+  if (storageConfig.backend === 's3') {
+    chunkRepository = new S3ChunkRepository(storageConfig);
+    console.log(`📦 Storage backend: S3 (endpoint: ${storageConfig.endpoint}, bucket: ${storageConfig.bucket})`);
+  } else {
+    chunkRepository = new LocalFileSystemChunkRepository(storageConfig.storagePath);
+    console.log(`📦 Storage backend: Local filesystem (${storageConfig.storagePath})`);
+  }
+
   // Repositories
   const pool = getPool();
   const recordingRepository = new PostgresRecordingRepository(pool);
   const roomRepository = new PostgresRoomRepository(pool);
-  const chunkRepository = new LocalFileSystemChunkRepository(storagePath);
 
   container.register<IRecordingRepository>('RecordingRepository', recordingRepository);
   container.register<IRoomRepository>('RoomRepository', roomRepository);

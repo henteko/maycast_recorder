@@ -1,4 +1,4 @@
-# テスト用 Docker Compose（PostgreSQLのみ）
+# テスト用 Docker Compose（PostgreSQL + LocalStack）
 services:
   postgres-test:
     image: postgres:16-alpine
@@ -12,6 +12,21 @@ services:
       - ./packages/server/sql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U maycast_test"]
+      interval: 2s
+      timeout: 5s
+      retries: 10
+
+  localstack-test:
+    image: localstack/localstack:latest
+    environment:
+      - SERVICES=s3
+      - DEFAULT_REGION=us-east-1
+    ports:
+      - "4577:4566"
+    volumes:
+      - ./localstack/init-s3.sh:/etc/localstack/init/ready.d/init-s3.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:4566/_localstack/health || exit 1"]
       interval: 2s
       timeout: 5s
       retries: 10

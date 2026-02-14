@@ -9,5 +9,6 @@ export default defineConfig({
       'dist/**',
       'src/**/__tests__/**',
     ],
+    passWithNoTests: true,
   },
 });
