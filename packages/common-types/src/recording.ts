@@ -20,6 +20,9 @@ export interface RecordingMetadata {
   /** User-defined display name for the recording */
   displayName?: string;
 
+  /** Participant name (set from guest name when recording is linked in a room) */
+  participantName?: string;
+
   /** Device information */
   deviceInfo?: {
     browser: string;

@@ -23,15 +23,19 @@ export const RecordingsDownloadSection: React.FC<RecordingsDownloadSectionProps>
   isDownloadingAll,
   guests = [],
 }) => {
-  // recordingId -> guestName のマッピングを作成
-  const getGuestNameForRecording = useCallback((recordingId: string): string | undefined => {
-    const guest = guests.find((g) => g.recordingId === recordingId);
-    return guest?.name;
-  }, [guests]);
   const [recordings, setRecordings] = useState<Map<string, RecordingInfo>>(new Map());
   const [loadingIds, setLoadingIds] = useState<Set<string>>(new Set());
   const [downloadingIds, setDownloadingIds] = useState<Set<string>>(new Set());
   const fetchedIdsRef = useRef<Set<string>>(new Set());
+
+  // recordingId -> guestName のマッピングを作成（WebSocket上のguest情報優先、fallbackとしてrecordingメタデータを使用）
+  const getGuestNameForRecording = useCallback((recordingId: string): string | undefined => {
+    const guest = guests.find((g) => g.recordingId === recordingId);
+    if (guest?.name) return guest.name;
+    // Guest切断後はrecordingメタデータから取得
+    const recording = recordings.get(recordingId);
+    return recording?.metadata?.participantName;
+  }, [guests, recordings]);
 
   // Recording情報を取得
   useEffect(() => {
@@ -77,7 +81,10 @@ export const RecordingsDownloadSection: React.FC<RecordingsDownloadSectionProps>
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `recording-${recordingId.substring(0, 8)}.mp4`;
+      const guestName = getGuestNameForRecording(recordingId);
+      a.download = guestName
+        ? `${guestName}-${recordingId.substring(0, 8)}.mp4`
+        : `recording-${recordingId.substring(0, 8)}.mp4`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -92,7 +99,7 @@ export const RecordingsDownloadSection: React.FC<RecordingsDownloadSectionProps>
         return next;
       });
     }
-  }, []);
+  }, [getGuestNameForRecording]);
 
   if (recordingIds.length === 0) {
     return (
