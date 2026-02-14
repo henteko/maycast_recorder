@@ -36,6 +36,8 @@ Internet → Traefik (SSL termination) → nginx (HTTP reverse proxy, port 80)
 
 In the Dokploy UI, set the following environment variables:
 
+#### General
+
 | Variable | Description | Example |
 |---|---|---|
 | `DOMAIN_NAME` | Domain for Traefik routing (used in Traefik Host rule) | `maycast.example.com` |
@@ -43,6 +45,32 @@ In the Dokploy UI, set the following environment variables:
 | `VITE_SERVER_URL` | API server URL (used by the web client) | `https://maycast.example.com` |
 
 > **Note:** `VITE_SERVER_URL` is a build-time variable. If you change it, you need to redeploy (rebuild) the web-client container.
+
+#### Storage (Cloudflare R2)
+
+Recording chunks are stored in Cloudflare R2. You need to create an R2 bucket and generate an API token beforehand.
+
+| Variable | Description | Example |
+|---|---|---|
+| `S3_ENDPOINT` | R2 S3-compatible endpoint URL | `https://<account-id>.r2.cloudflarestorage.com` |
+| `S3_BUCKET` | Bucket name | `maycast-recordings` |
+| `S3_ACCESS_KEY_ID` | R2 API token access key | - |
+| `S3_SECRET_ACCESS_KEY` | R2 API token secret key | - |
+| `S3_REGION` | Region (always `auto` for R2) | `auto` |
+
+**R2 setup steps:**
+
+1. Create an R2 bucket in the Cloudflare dashboard (e.g. `maycast-recordings`)
+2. Create an R2 **API token** with read/write permissions for the bucket
+3. Set the issued Access Key ID / Secret Access Key as environment variables in Dokploy
+
+```
+S3_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com
+S3_BUCKET=maycast-recordings
+S3_ACCESS_KEY_ID=<your-r2-access-key>
+S3_SECRET_ACCESS_KEY=<your-r2-secret-key>
+S3_REGION=auto
+```
 
 ### 3. Configure Domain Routing
 
