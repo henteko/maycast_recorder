@@ -139,7 +139,7 @@ export const useRecorder = ({
           const frame = result.value
           if (videoEncoderRef.current && videoEncoderRef.current.state === 'configured') {
             frameCount++
-            const needsKeyframe = frameCount % qualityConfig.keyframeInterval === 0
+            const needsKeyframe = frameCount === 1 || frameCount % qualityConfig.keyframeInterval === 0
 
             videoEncoderRef.current.encode(frame, { keyFrame: needsKeyframe })
           }

@@ -46,6 +46,56 @@ export const useEncoders = ({ wasmInitialized, settings, storageStrategy, onStat
   const baseTimestampRef = useRef<number | null>(null)
   const recordingIdRef = useRef<RecordingId | null>(null)
 
+  // Muxer初期化完了前のチャンクをバッファリングする
+  // Muxerはasyncで初期化されるため、その間に到着するエンコード済みチャンクを保持
+  const pendingVideoChunksRef = useRef<Array<{ buffer: Uint8Array; relativeTimestamp: number; isKeyframe: boolean }>>([])
+  const pendingAudioChunksRef = useRef<Array<{ buffer: Uint8Array; relativeTimestamp: number; duration: number }>>([])
+
+  // Muxer初期化完了後にバッファリングされたチャンクをフラッシュする
+  const flushPendingChunksToMuxer = useCallback(() => {
+    if (!muxerRef.current || !recordingIdRef.current) return
+
+    const pendingVideo = pendingVideoChunksRef.current
+    const pendingAudio = pendingAudioChunksRef.current
+
+    if (pendingVideo.length > 0 || pendingAudio.length > 0) {
+      console.log(`🔄 Flushing ${pendingVideo.length} video + ${pendingAudio.length} audio buffered chunks to muxer`)
+    }
+
+    for (const { buffer, relativeTimestamp, isKeyframe } of pendingVideo) {
+      try {
+        muxerRef.current.push_video(buffer, relativeTimestamp, isKeyframe)
+      } catch (err) {
+        console.error('❌ MuxideMuxer push_video error (buffered):', err)
+      }
+    }
+    pendingVideoChunksRef.current = []
+
+    if (muxerRef.current.has_audio && muxerRef.current.has_audio()) {
+      for (const { buffer, relativeTimestamp, duration } of pendingAudio) {
+        try {
+          muxerRef.current.push_audio(buffer, relativeTimestamp, duration)
+        } catch (err) {
+          console.error('❌ MuxideMuxer push_audio error (buffered):', err)
+        }
+      }
+    }
+    pendingAudioChunksRef.current = []
+
+    // フラッシュ後に保留セグメントがあれば保存
+    if (muxerRef.current.has_pending_segments()) {
+      const segments = muxerRef.current.get_pending_segments()
+      if (segments.length > 0) {
+        storageStrategy.saveChunk(recordingIdRef.current, segments, 0).then((chunkId) => {
+          onChunkSaved()
+          console.log(`📦 fMP4 segment saved (from buffer flush): #${chunkId}, ${segments.length} bytes`)
+        }).catch((err: unknown) => {
+          console.error('❌ Failed to save chunk:', err)
+        })
+      }
+    }
+  }, [storageStrategy, onChunkSaved])
+
   const initializeMuxerWithConfigs = useCallback(async () => {
     // 既にMuxerが初期化されている場合はスキップ
     if (muxerRef.current) {
@@ -113,10 +163,13 @@ export const useEncoders = ({ wasmInitialized, settings, storageStrategy, onStat
       } else {
         console.warn('⚠️ [useEncoders] Recording ID not set, cannot save init segment')
       }
+
+      // Muxer初期化完了 → バッファリングされたチャンクをフラッシュ
+      flushPendingChunksToMuxer()
     } catch (err) {
       console.error('❌ Failed to initialize MuxideMuxer:', err)
     }
-  }, [wasmInitialized, settings.qualityPreset, storageStrategy])
+  }, [wasmInitialized, settings.qualityPreset, storageStrategy, flushPendingChunksToMuxer])
 
   const initializeEncoders = useCallback((activeStream: MediaStream) => {
     if (!activeStream || !wasmInitialized) return
@@ -181,8 +234,6 @@ export const useEncoders = ({ wasmInitialized, settings, storageStrategy, onStat
 
         if (muxerRef.current && recordingIdRef.current) {
           try {
-            // MuxideMuxerはpush_videoで直接フラグメントを返さない
-            // 代わりにget_pending_segmentsで取得する
             muxerRef.current.push_video(buffer, relativeTimestamp, isKeyframe)
 
             // 保留中のセグメントがあれば保存
@@ -200,6 +251,9 @@ export const useEncoders = ({ wasmInitialized, settings, storageStrategy, onStat
           } catch (err) {
             console.error('❌ MuxideMuxer push_video error:', err)
           }
+        } else {
+          // Muxer初期化前のチャンクをバッファリング
+          pendingVideoChunksRef.current.push({ buffer, relativeTimestamp, isKeyframe })
         }
 
         onStatsUpdate(prev => ({
@@ -243,17 +297,21 @@ export const useEncoders = ({ wasmInitialized, settings, storageStrategy, onStat
         }
 
         // Muxerにオーディオを送信
+        const relativeTimestamp = Math.max(0, chunk.timestamp - baseTimestampRef.current)
+        const buffer = new Uint8Array(chunk.byteLength)
+        chunk.copyTo(buffer)
+        // duration is in microseconds from WebCodecs
+        const duration = chunk.duration || 21333 // デフォルト: 1024 samples @ 48kHz ≈ 21.33ms
+
         if (muxerRef.current && muxerRef.current.has_audio && muxerRef.current.has_audio()) {
           try {
-            const relativeTimestamp = Math.max(0, chunk.timestamp - baseTimestampRef.current)
-            const buffer = new Uint8Array(chunk.byteLength)
-            chunk.copyTo(buffer)
-            // duration is in microseconds from WebCodecs
-            const duration = chunk.duration || 21333 // デフォルト: 1024 samples @ 48kHz ≈ 21.33ms
             muxerRef.current.push_audio(buffer, relativeTimestamp, duration)
           } catch (err) {
             console.error('❌ MuxideMuxer push_audio error:', err)
           }
+        } else {
+          // Muxer初期化前のオーディオチャンクをバッファリング
+          pendingAudioChunksRef.current.push({ buffer, relativeTimestamp, duration })
         }
 
         onStatsUpdate(prev => ({
@@ -311,6 +369,8 @@ export const useEncoders = ({ wasmInitialized, settings, storageStrategy, onStat
     activeStreamRef.current = null
     baseTimestampRef.current = null
     recordingIdRef.current = null
+    pendingVideoChunksRef.current = []
+    pendingAudioChunksRef.current = []
   }, [])
 
   const setRecordingId = useCallback((recordingId: RecordingId) => {
