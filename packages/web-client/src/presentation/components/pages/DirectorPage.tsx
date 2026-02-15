@@ -25,12 +25,7 @@ export const DirectorPage: React.FC = () => {
   const navigate = useNavigate();
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [history, setHistory] = useState<RoomHistoryEntry[]>([]);
-
-  // 履歴を読み込み
-  useEffect(() => {
-    setHistory(loadRoomHistory());
-  }, []);
+  const [history, setHistory] = useState<RoomHistoryEntry[]>(() => loadRoomHistory());
 
   // 履歴のルーム状態をバックグラウンドで更新
   useEffect(() => {
