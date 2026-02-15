@@ -5,10 +5,11 @@
  * ルーム作成 → 詳細ページに遷移
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PlusIcon, TrashIcon, ArrowTopRightOnSquareIcon, UsersIcon } from '@heroicons/react/24/solid';
 import { RoomAPIClient } from '../../../infrastructure/api/room-api';
+import type { RoomState } from '@maycast/common-types';
 import { getServerUrl } from '../../../infrastructure/config/serverConfig';
 import {
   getRoomHistory,
@@ -17,16 +18,45 @@ import {
   type RoomHistoryEntry,
 } from '../../../infrastructure/storage/roomHistory';
 import { Button } from '../atoms/Button';
+import { RoomStateBadge } from '../atoms/RoomStateBadge';
 
 export const DirectorPage: React.FC = () => {
   const navigate = useNavigate();
   const [history, setHistory] = useState<RoomHistoryEntry[]>(getRoomHistory);
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [roomStates, setRoomStates] = useState<Map<string, RoomState>>(new Map());
 
   const refreshHistory = useCallback(() => {
     setHistory(getRoomHistory());
   }, []);
+
+  // 各ルームのステータスを取得
+  const fetchRoomStates = useCallback(async (entries: RoomHistoryEntry[]) => {
+    if (entries.length === 0) return;
+
+    const serverUrl = getServerUrl();
+    const apiClient = new RoomAPIClient(serverUrl);
+
+    const results = await Promise.allSettled(
+      entries.map((entry) => apiClient.getRoomStatus(entry.roomId))
+    );
+
+    setRoomStates((prev) => {
+      const next = new Map(prev);
+      results.forEach((result, i) => {
+        if (result.status === 'fulfilled') {
+          next.set(entries[i].roomId, result.value.state);
+        }
+      });
+      return next;
+    });
+  }, []);
+
+  // 初回 & 履歴変更時にステータスを取得
+  useEffect(() => {
+    fetchRoomStates(history);
+  }, [history, fetchRoomStates]);
 
   const handleCreateRoom = async () => {
     setIsCreating(true);
@@ -55,6 +85,9 @@ export const DirectorPage: React.FC = () => {
   };
 
   const handleRemoveFromHistory = (roomId: string) => {
+    if (!confirm('Remove this room from history? This only removes it from your local history.')) {
+      return;
+    }
     removeRoomFromHistory(roomId);
     refreshHistory();
   };
@@ -128,47 +161,65 @@ export const DirectorPage: React.FC = () => {
           </div>
         ) : (
           <div className="max-w-3xl mx-auto space-y-3">
-            {history.map((entry) => (
-              <div
-                key={entry.roomId}
-                className="bg-maycast-panel/30 backdrop-blur-md rounded-2xl border border-maycast-border/40 p-5 shadow-xl flex items-center justify-between hover:border-maycast-primary/30 transition-colors cursor-pointer"
-                onClick={() => handleOpenRoom(entry)}
-              >
-                <div className="flex items-center gap-4">
-                  <div className="p-3 bg-maycast-primary/10 rounded-xl">
-                    <UsersIcon className="w-6 h-6 text-maycast-primary/60" />
+            <div className="flex items-start gap-3 px-4 py-3 bg-maycast-primary/5 border border-maycast-primary/15 rounded-xl">
+              <svg className="w-4 h-4 text-maycast-primary/60 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <p className="text-xs text-maycast-text-secondary leading-relaxed">
+                This history is stored locally in this browser only. It is not synced or shared across other devices or browsers. If you clear your browser data, this history will be lost.
+              </p>
+            </div>
+            {history.map((entry) => {
+              const state = roomStates.get(entry.roomId);
+              return (
+                <div
+                  key={entry.roomId}
+                  className="bg-maycast-panel/30 backdrop-blur-md rounded-2xl border border-maycast-border/40 p-5 shadow-xl flex items-center justify-between hover:border-maycast-primary/30 transition-colors cursor-pointer"
+                  onClick={() => handleOpenRoom(entry)}
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="p-3 bg-maycast-primary/10 rounded-xl">
+                      <UsersIcon className="w-6 h-6 text-maycast-primary/60" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-3 mb-1">
+                        <h3 className="text-base font-bold text-maycast-text font-mono">
+                          Room {entry.roomId.substring(0, 8)}
+                        </h3>
+                        {state && <RoomStateBadge state={state} />}
+                      </div>
+                      <p className="text-sm text-maycast-text-secondary">
+                        Created: {formatDate(entry.createdAt)}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <h3 className="text-base font-bold text-maycast-text font-mono">
-                      Room {entry.roomId.substring(0, 8)}
-                    </h3>
-                    <p className="text-sm text-maycast-text-secondary">
-                      Created: {formatDate(entry.createdAt)}
-                    </p>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenRoom(entry);
+                      }}
+                      variant="ghost"
+                      size="sm"
+                      className="!p-3 !border-maycast-border/30"
+                    >
+                      <ArrowTopRightOnSquareIcon className="w-5 h-5 text-maycast-primary" />
+                    </Button>
+                    <Button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRemoveFromHistory(entry.roomId);
+                      }}
+                      variant="ghost"
+                      size="sm"
+                      className="!p-3 !border-maycast-border/30"
+                    >
+                      <TrashIcon className="w-5 h-5 text-maycast-text-secondary" />
+                    </Button>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleOpenRoom(entry);
-                    }}
-                    className="p-3 rounded-xl border border-maycast-border/30 bg-transparent hover:bg-maycast-panel/50 transition-colors"
-                  >
-                    <ArrowTopRightOnSquareIcon className="w-5 h-5 text-maycast-primary" />
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleRemoveFromHistory(entry.roomId);
-                    }}
-                    className="p-3 rounded-xl border border-maycast-border/30 bg-transparent hover:bg-maycast-panel/50 transition-colors"
-                  >
-                    <TrashIcon className="w-5 h-5 text-maycast-text-secondary" />
-                  </button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
@@ -176,7 +227,7 @@ export const DirectorPage: React.FC = () => {
       {/* Footer */}
       <footer className="px-8 py-4 border-t border-maycast-border/50 text-center">
         <p className="text-maycast-text-secondary text-sm">
-          This history is saved only in this browser. It is not shared with other devices or browsers.
+          Create a room and share the guest invitation URL with participants.
         </p>
       </footer>
     </div>
