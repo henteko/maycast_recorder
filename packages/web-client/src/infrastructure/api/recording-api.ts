@@ -7,6 +7,7 @@ import type {
   RecordingState,
   RecordingMetadata,
   CreateRecordingResponse,
+  DownloadUrlsResponse,
 } from '@maycast/common-types';
 
 /**
@@ -227,6 +228,19 @@ export class RecordingAPIClient {
     }
 
     return response.blob();
+  }
+
+  /**
+   * ダウンロードURLs取得（Presigned URL対応）
+   */
+  async getDownloadUrls(recordingId: string): Promise<DownloadUrlsResponse> {
+    const response = await fetch(`${this.baseUrl}/api/recordings/${recordingId}/download-urls`);
+
+    if (!response.ok) {
+      throw new Error(`Failed to get download URLs: ${response.statusText}`);
+    }
+
+    return response.json();
   }
 
   /**

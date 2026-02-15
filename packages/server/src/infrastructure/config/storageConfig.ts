@@ -8,6 +8,8 @@ export interface LocalStorageConfig {
 export interface S3StorageConfig {
   backend: 's3';
   endpoint: string;
+  /** Presigned URL生成用の公開エンドポイント（ブラウザからアクセス可能なURL） */
+  publicEndpoint?: string;
   bucket: string;
   accessKeyId: string;
   secretAccessKey: string;
@@ -41,6 +43,7 @@ export function getStorageConfig(): StorageConfig {
     return {
       backend: 's3',
       endpoint,
+      publicEndpoint: process.env.S3_PUBLIC_ENDPOINT || undefined,
       bucket,
       accessKeyId,
       secretAccessKey,

@@ -74,6 +74,7 @@ services:
       - DATABASE_URL=postgresql://${POSTGRES_USER:-maycast}:${POSTGRES_PASSWORD:-maycast_dev}@postgres:5432/${POSTGRES_DB:-maycast}
       - STORAGE_BACKEND=s3
       - S3_ENDPOINT=http://localstack:4566
+      - S3_PUBLIC_ENDPOINT=http://localhost/s3
       - S3_BUCKET=maycast-recordings
       - S3_ACCESS_KEY_ID=test
       - S3_SECRET_ACCESS_KEY=test

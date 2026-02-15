@@ -34,6 +34,9 @@ export type {
 export type {
   CreateRecordingResponse,
   UpdateStateRequest,
+  DownloadUrlsDirectResponse,
+  DownloadUrlsFallbackResponse,
+  DownloadUrlsResponse,
 } from './api-types.js';
 
 // Room types
