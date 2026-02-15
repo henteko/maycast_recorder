@@ -3,6 +3,8 @@ import { RoomEntity, RoomNotFoundError } from '@maycast/common-types';
 import { PostgresRoomRepository } from '../PostgresRoomRepository.js';
 import { getTestPool, cleanDatabase, closeTestPool } from './db-test-helper.js';
 
+const TEST_ACCESS_KEY = 'test-access-key';
+
 describe('PostgresRoomRepository', () => {
   const pool = getTestPool();
   const repository = new PostgresRoomRepository(pool);
@@ -17,7 +19,7 @@ describe('PostgresRoomRepository', () => {
 
   describe('save / findById', () => {
     it('Roomを保存して取得できる', async () => {
-      const room = RoomEntity.create('room-001');
+      const room = RoomEntity.create('room-001', TEST_ACCESS_KEY);
       await repository.save(room);
 
       const found = await repository.findById('room-001');
@@ -28,7 +30,7 @@ describe('PostgresRoomRepository', () => {
     });
 
     it('recordingIds付きのRoomを保存して取得できる', async () => {
-      const room = RoomEntity.create('room-002');
+      const room = RoomEntity.create('room-002', TEST_ACCESS_KEY);
       room.addRecording('rec-a');
       room.addRecording('rec-b');
       await repository.save(room);
@@ -39,7 +41,7 @@ describe('PostgresRoomRepository', () => {
     });
 
     it('同じIDで保存すると上書きされる（UPSERT）', async () => {
-      const room = RoomEntity.create('room-003');
+      const room = RoomEntity.create('room-003', TEST_ACCESS_KEY);
       await repository.save(room);
 
       room.addRecording('rec-x');
@@ -59,8 +61,8 @@ describe('PostgresRoomRepository', () => {
 
   describe('findAll', () => {
     it('すべてのRoomを取得できる', async () => {
-      await repository.save(RoomEntity.create('room-a'));
-      await repository.save(RoomEntity.create('room-b'));
+      await repository.save(RoomEntity.create('room-a', TEST_ACCESS_KEY));
+      await repository.save(RoomEntity.create('room-b', TEST_ACCESS_KEY));
 
       const all = await repository.findAll();
       expect(all).toHaveLength(2);
@@ -72,11 +74,11 @@ describe('PostgresRoomRepository', () => {
     });
 
     it('各RoomのrecordingIdsも取得できる', async () => {
-      const room1 = RoomEntity.create('room-r1');
+      const room1 = RoomEntity.create('room-r1', TEST_ACCESS_KEY);
       room1.addRecording('rec-1');
       await repository.save(room1);
 
-      const room2 = RoomEntity.create('room-r2');
+      const room2 = RoomEntity.create('room-r2', TEST_ACCESS_KEY);
       room2.addRecording('rec-2');
       room2.addRecording('rec-3');
       await repository.save(room2);
@@ -91,7 +93,7 @@ describe('PostgresRoomRepository', () => {
 
   describe('delete', () => {
     it('Roomを削除できる', async () => {
-      await repository.save(RoomEntity.create('room-del'));
+      await repository.save(RoomEntity.create('room-del', TEST_ACCESS_KEY));
 
       await repository.delete('room-del');
 
@@ -100,7 +102,7 @@ describe('PostgresRoomRepository', () => {
     });
 
     it('削除時にroom_recordingsもCASCADE削除される', async () => {
-      const room = RoomEntity.create('room-cascade');
+      const room = RoomEntity.create('room-cascade', TEST_ACCESS_KEY);
       room.addRecording('rec-cas');
       await repository.save(room);
 
@@ -120,7 +122,7 @@ describe('PostgresRoomRepository', () => {
 
   describe('updateState', () => {
     it('Room状態を更新できる', async () => {
-      await repository.save(RoomEntity.create('room-state'));
+      await repository.save(RoomEntity.create('room-state', TEST_ACCESS_KEY));
 
       await repository.updateState('room-state', 'recording');
 
@@ -137,7 +139,7 @@ describe('PostgresRoomRepository', () => {
 
   describe('addRecording', () => {
     it('RoomにRecordingを追加できる', async () => {
-      await repository.save(RoomEntity.create('room-add'));
+      await repository.save(RoomEntity.create('room-add', TEST_ACCESS_KEY));
 
       await repository.addRecording('room-add', 'rec-new');
 
@@ -146,7 +148,7 @@ describe('PostgresRoomRepository', () => {
     });
 
     it('同じRecordingを重複追加してもエラーにならない', async () => {
-      await repository.save(RoomEntity.create('room-dup'));
+      await repository.save(RoomEntity.create('room-dup', TEST_ACCESS_KEY));
 
       await repository.addRecording('room-dup', 'rec-dup');
       await repository.addRecording('room-dup', 'rec-dup');
@@ -164,7 +166,7 @@ describe('PostgresRoomRepository', () => {
 
   describe('removeRecording', () => {
     it('RoomからRecordingを削除できる', async () => {
-      const room = RoomEntity.create('room-rem');
+      const room = RoomEntity.create('room-rem', TEST_ACCESS_KEY);
       room.addRecording('rec-keep');
       room.addRecording('rec-remove');
       await repository.save(room);
@@ -176,7 +178,7 @@ describe('PostgresRoomRepository', () => {
     });
 
     it('存在しないRecordingを削除してもエラーにならない', async () => {
-      await repository.save(RoomEntity.create('room-rem2'));
+      await repository.save(RoomEntity.create('room-rem2', TEST_ACCESS_KEY));
       await expect(
         repository.removeRecording('room-rem2', 'non-existent')
       ).resolves.not.toThrow();
@@ -186,6 +188,19 @@ describe('PostgresRoomRepository', () => {
       await expect(
         repository.removeRecording('non-existent', 'rec-x')
       ).rejects.toThrow(RoomNotFoundError);
+    });
+  });
+
+  describe('accessKey', () => {
+    it('保存したaccessKeyが正しく復元される', async () => {
+      const room = RoomEntity.create('room-key', 'my-secret-key');
+      await repository.save(room);
+
+      const found = await repository.findById('room-key');
+      expect(found).not.toBeNull();
+      expect(found!.getAccessKey()).toBe('my-secret-key');
+      expect(found!.validateAccessKey('my-secret-key')).toBe(true);
+      expect(found!.validateAccessKey('wrong-key')).toBe(false);
     });
   });
 });

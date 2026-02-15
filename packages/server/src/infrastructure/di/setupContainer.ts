@@ -23,10 +23,9 @@ import { GetDownloadUrlsUseCase } from '../../domain/usecases/GetDownloadUrls.us
 // Use Cases - Room
 import { CreateRoomUseCase } from '../../domain/usecases/CreateRoom.usecase.js';
 import { GetRoomUseCase } from '../../domain/usecases/GetRoom.usecase.js';
-import { GetAllRoomsUseCase } from '../../domain/usecases/GetAllRooms.usecase.js';
 import { UpdateRoomStateUseCase } from '../../domain/usecases/UpdateRoomState.usecase.js';
-import { GetRoomRecordingsUseCase } from '../../domain/usecases/GetRoomRecordings.usecase.js';
 import { DeleteRoomUseCase } from '../../domain/usecases/DeleteRoom.usecase.js';
+import { ValidateRoomAccessUseCase } from '../../domain/usecases/ValidateRoomAccess.usecase.js';
 
 // Controllers
 import { RecordingController } from '../../presentation/controllers/RecordingController.js';
@@ -150,31 +149,23 @@ export function setupContainer(): DIContainer {
   const getRoomUseCase = new GetRoomUseCase(roomRepository);
   container.register('GetRoomUseCase', getRoomUseCase);
 
-  const getAllRoomsUseCase = new GetAllRoomsUseCase(roomRepository);
-  container.register('GetAllRoomsUseCase', getAllRoomsUseCase);
-
   const updateRoomStateUseCase = new UpdateRoomStateUseCase(
     roomRepository,
     roomEventPublisher
   );
   container.register('UpdateRoomStateUseCase', updateRoomStateUseCase);
 
-  const getRoomRecordingsUseCase = new GetRoomRecordingsUseCase(
-    roomRepository,
-    recordingRepository
-  );
-  container.register('GetRoomRecordingsUseCase', getRoomRecordingsUseCase);
-
   const deleteRoomUseCase = new DeleteRoomUseCase(roomRepository);
   container.register('DeleteRoomUseCase', deleteRoomUseCase);
+
+  const validateRoomAccessUseCase = new ValidateRoomAccessUseCase(roomRepository);
+  container.register('ValidateRoomAccessUseCase', validateRoomAccessUseCase);
 
   // Room Controller
   const roomController = new RoomController(
     createRoomUseCase,
     getRoomUseCase,
-    getAllRoomsUseCase,
     updateRoomStateUseCase,
-    getRoomRecordingsUseCase,
     deleteRoomUseCase
   );
   container.register('RoomController', roomController);

@@ -11,10 +11,12 @@ import { InvalidRoomStateTransitionError } from '../errors/DomainErrors.js';
  * - Recording の追加/削除は idle または recording 状態でのみ可能
  * - 状態遷移時に適切なタイムスタンプを記録
  * - finished から idle へのリセットが可能（Room再利用）
+ * - accessKey によるURL認証をサポート
  */
 export class RoomEntity {
   private constructor(
     private readonly id: RoomId,
+    private readonly accessKey: string,
     private state: RoomState,
     private readonly createdAt: Date,
     private updatedAt: Date,
@@ -24,9 +26,9 @@ export class RoomEntity {
   /**
    * 新しいRoomを作成
    */
-  static create(id: RoomId): RoomEntity {
+  static create(id: RoomId, accessKey: string): RoomEntity {
     const now = new Date();
-    return new RoomEntity(id, 'idle', now, now, []);
+    return new RoomEntity(id, accessKey, 'idle', now, now, []);
   }
 
   /**
@@ -35,6 +37,7 @@ export class RoomEntity {
   static reconstitute(data: Room): RoomEntity {
     return new RoomEntity(
       data.id,
+      data.accessKey,
       data.state,
       new Date(data.createdAt),
       new Date(data.updatedAt),
@@ -122,6 +125,13 @@ export class RoomEntity {
   }
 
   /**
+   * アクセスキーを検証
+   */
+  validateAccessKey(key: string): boolean {
+    return this.accessKey === key;
+  }
+
+  /**
    * アイドル状態かどうか
    */
   isIdle(): boolean {
@@ -154,6 +164,10 @@ export class RoomEntity {
     return this.id;
   }
 
+  getAccessKey(): string {
+    return this.accessKey;
+  }
+
   getState(): RoomState {
     return this.state;
   }
@@ -177,6 +191,7 @@ export class RoomEntity {
   toDTO(): Room {
     return {
       id: this.id,
+      accessKey: this.accessKey,
       state: this.state,
       createdAt: this.createdAt.toISOString(),
       updatedAt: this.updatedAt.toISOString(),

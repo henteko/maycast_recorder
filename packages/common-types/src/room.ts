@@ -83,6 +83,9 @@ export interface Room {
   /** Unique room identifier */
   id: RoomId;
 
+  /** Access key for URL-based authentication */
+  accessKey: string;
+
   /** Current room state */
   state: RoomState;
 

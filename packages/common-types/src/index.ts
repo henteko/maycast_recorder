@@ -17,6 +17,7 @@ export {
   StorageAccessError,
   RoomNotFoundError,
   InvalidRoomStateTransitionError,
+  RoomAccessDeniedError,
 } from './errors/DomainErrors.js';
 
 // Chunk types

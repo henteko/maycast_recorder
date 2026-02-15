@@ -18,12 +18,12 @@ export class PostgresRoomRepository implements IRoomRepository {
       await client.query('BEGIN');
 
       await client.query(
-        `INSERT INTO rooms (id, state, created_at, updated_at)
-         VALUES ($1, $2, $3, $4)
+        `INSERT INTO rooms (id, access_key, state, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5)
          ON CONFLICT (id) DO UPDATE SET
            state = EXCLUDED.state,
            updated_at = EXCLUDED.updated_at`,
-        [dto.id, dto.state, dto.createdAt, dto.updatedAt]
+        [dto.id, dto.accessKey, dto.state, dto.createdAt, dto.updatedAt]
       );
 
       // room_recordingsを再構築
@@ -144,6 +144,7 @@ export class PostgresRoomRepository implements IRoomRepository {
   private rowToDTO(row: Record<string, unknown>, recordingIds: string[]): Room {
     return {
       id: row.id as string,
+      accessKey: row.access_key as string,
       state: row.state as RoomState,
       createdAt: (row.created_at as Date).toISOString(),
       updatedAt: (row.updated_at as Date).toISOString(),

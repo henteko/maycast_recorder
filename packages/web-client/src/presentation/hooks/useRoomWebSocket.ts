@@ -47,7 +47,7 @@ export function useRoomWebSocket(
   const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const wsClientRef = useRef<ReturnType<typeof getWebSocketRoomClient> | null>(null);
 
-  // HTTP経由でRoom情報を取得
+  // HTTP経由でRoom状態を取得（認証不要）
   const fetchRoom = useCallback(async () => {
     if (!roomId) {
       setError('Room ID is required');
@@ -58,9 +58,22 @@ export function useRoomWebSocket(
     try {
       const serverUrl = getServerUrl();
       const apiClient = new RoomAPIClient(serverUrl);
-      const roomInfo = await apiClient.getRoom(roomId);
+      const statusInfo = await apiClient.getRoomStatus(roomId);
 
-      setRoom(roomInfo);
+      // RoomInfoとして構築（statusのみの情報から）
+      setRoom((prev) => {
+        if (prev) {
+          return { ...prev, state: statusInfo.state };
+        }
+        // 初回は最小限の情報で構築
+        return {
+          id: statusInfo.id,
+          state: statusInfo.state,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+          recording_ids: [],
+        };
+      });
       setError(null);
       setIsRoomNotFound(false);
     } catch (err) {
