@@ -23,10 +23,11 @@ CREATE TABLE IF NOT EXISTS recordings (
 
 -- Roomsテーブル
 CREATE TABLE IF NOT EXISTS rooms (
-    id          TEXT PRIMARY KEY,
-    state       room_state NOT NULL DEFAULT 'idle',
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    id           TEXT PRIMARY KEY,
+    access_token TEXT NOT NULL UNIQUE,
+    state        room_state NOT NULL DEFAULT 'idle',
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- Room-Recording関連テーブル
@@ -41,6 +42,7 @@ CREATE TABLE IF NOT EXISTS room_recordings (
 CREATE INDEX IF NOT EXISTS idx_recordings_room_id ON recordings(room_id);
 CREATE INDEX IF NOT EXISTS idx_recordings_state ON recordings(state);
 CREATE INDEX IF NOT EXISTS idx_rooms_state ON rooms(state);
+CREATE INDEX IF NOT EXISTS idx_rooms_access_token ON rooms(access_token);
 CREATE INDEX IF NOT EXISTS idx_room_recordings_room_id ON room_recordings(room_id);
 
 -- updated_atを自動更新するトリガー関数

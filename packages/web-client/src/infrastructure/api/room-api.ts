@@ -21,6 +21,7 @@ export interface RoomInfo {
  */
 export interface CreateRoomResponse {
   room_id: string;
+  access_token: string;
   created_at: string;
   state: RoomState;
 }
@@ -135,6 +136,25 @@ export class RoomAPIClient {
     }
 
     console.log(`✅ [RoomAPIClient] Room deleted: ${roomId}`);
+  }
+
+  /**
+   * アクセストークンでRoom情報を取得
+   */
+  async getRoomByToken(accessToken: string): Promise<RoomInfo> {
+    console.log(`[RoomAPIClient] GET ${this.baseUrl}/api/rooms/by-token/${accessToken}`);
+    const response = await fetch(`${this.baseUrl}/api/rooms/by-token/${accessToken}`);
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        throw new RoomNotFoundError(`Room not found for token`);
+      }
+      throw new Error(`Failed to get room by token: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    console.log(`[RoomAPIClient] Room fetched by token:`, data);
+    return data;
   }
 
   /**

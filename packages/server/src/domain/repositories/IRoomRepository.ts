@@ -19,6 +19,11 @@ export interface IRoomRepository {
   findById(id: RoomId): Promise<RoomEntity | null>;
 
   /**
+   * アクセストークンでRoomを取得
+   */
+  findByAccessToken(accessToken: string): Promise<RoomEntity | null>;
+
+  /**
    * すべてのRoomを取得
    */
   findAll(): Promise<RoomEntity[]>;

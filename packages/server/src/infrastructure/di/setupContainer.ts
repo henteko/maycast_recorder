@@ -24,6 +24,7 @@ import { GetAllRoomsUseCase } from '../../domain/usecases/GetAllRooms.usecase.js
 import { UpdateRoomStateUseCase } from '../../domain/usecases/UpdateRoomState.usecase.js';
 import { GetRoomRecordingsUseCase } from '../../domain/usecases/GetRoomRecordings.usecase.js';
 import { DeleteRoomUseCase } from '../../domain/usecases/DeleteRoom.usecase.js';
+import { GetRoomByTokenUseCase } from '../../domain/usecases/GetRoomByToken.usecase.js';
 
 // Controllers
 import { RecordingController } from '../../presentation/controllers/RecordingController.js';
@@ -147,6 +148,9 @@ export function setupContainer(): DIContainer {
   const deleteRoomUseCase = new DeleteRoomUseCase(roomRepository);
   container.register('DeleteRoomUseCase', deleteRoomUseCase);
 
+  const getRoomByTokenUseCase = new GetRoomByTokenUseCase(roomRepository);
+  container.register('GetRoomByTokenUseCase', getRoomByTokenUseCase);
+
   // Room Controller
   const roomController = new RoomController(
     createRoomUseCase,
@@ -154,7 +158,8 @@ export function setupContainer(): DIContainer {
     getAllRoomsUseCase,
     updateRoomStateUseCase,
     getRoomRecordingsUseCase,
-    deleteRoomUseCase
+    deleteRoomUseCase,
+    getRoomByTokenUseCase
   );
   container.register('RoomController', roomController);
 

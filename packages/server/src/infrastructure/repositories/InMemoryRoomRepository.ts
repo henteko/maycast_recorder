@@ -23,6 +23,15 @@ export class InMemoryRoomRepository implements IRoomRepository {
     return RoomEntity.reconstitute(data);
   }
 
+  async findByAccessToken(accessToken: string): Promise<RoomEntity | null> {
+    for (const data of this.rooms.values()) {
+      if (data.accessToken === accessToken) {
+        return RoomEntity.reconstitute(data);
+      }
+    }
+    return null;
+  }
+
   async findAll(): Promise<RoomEntity[]> {
     const rooms: RoomEntity[] = [];
     for (const data of this.rooms.values()) {

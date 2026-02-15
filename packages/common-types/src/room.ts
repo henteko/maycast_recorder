@@ -94,4 +94,7 @@ export interface Room {
 
   /** List of recording IDs in this room */
   recordingIds: string[];
+
+  /** Access token for director room detail page (unguessable URL key) */
+  accessToken?: string;
 }

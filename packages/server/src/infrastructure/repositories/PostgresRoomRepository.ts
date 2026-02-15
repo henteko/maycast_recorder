@@ -18,12 +18,12 @@ export class PostgresRoomRepository implements IRoomRepository {
       await client.query('BEGIN');
 
       await client.query(
-        `INSERT INTO rooms (id, state, created_at, updated_at)
-         VALUES ($1, $2, $3, $4)
+        `INSERT INTO rooms (id, access_token, state, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5)
          ON CONFLICT (id) DO UPDATE SET
            state = EXCLUDED.state,
            updated_at = EXCLUDED.updated_at`,
-        [dto.id, dto.state, dto.createdAt, dto.updatedAt]
+        [dto.id, dto.accessToken ?? dto.id, dto.state, dto.createdAt, dto.updatedAt]
       );
 
       // room_recordingsを再構築
@@ -58,6 +58,29 @@ export class PostgresRoomRepository implements IRoomRepository {
     const recordingIdsResult = await this.pool.query(
       'SELECT recording_id FROM room_recordings WHERE room_id = $1 ORDER BY created_at',
       [id]
+    );
+
+    const recordingIds = recordingIdsResult.rows.map(
+      (row) => row.recording_id as string
+    );
+
+    return RoomEntity.reconstitute(this.rowToDTO(roomResult.rows[0], recordingIds));
+  }
+
+  async findByAccessToken(accessToken: string): Promise<RoomEntity | null> {
+    const roomResult = await this.pool.query(
+      'SELECT * FROM rooms WHERE access_token = $1',
+      [accessToken]
+    );
+
+    if (roomResult.rows.length === 0) {
+      return null;
+    }
+
+    const roomId = roomResult.rows[0].id as string;
+    const recordingIdsResult = await this.pool.query(
+      'SELECT recording_id FROM room_recordings WHERE room_id = $1 ORDER BY created_at',
+      [roomId]
     );
 
     const recordingIds = recordingIdsResult.rows.map(
@@ -148,6 +171,7 @@ export class PostgresRoomRepository implements IRoomRepository {
       createdAt: (row.created_at as Date).toISOString(),
       updatedAt: (row.updated_at as Date).toISOString(),
       recordingIds,
+      accessToken: row.access_token as string,
     };
   }
 }

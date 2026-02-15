@@ -18,15 +18,16 @@ export class RoomEntity {
     private state: RoomState,
     private readonly createdAt: Date,
     private updatedAt: Date,
-    private recordingIds: RecordingId[]
+    private recordingIds: RecordingId[],
+    private readonly accessToken?: string
   ) {}
 
   /**
    * 新しいRoomを作成
    */
-  static create(id: RoomId): RoomEntity {
+  static create(id: RoomId, accessToken?: string): RoomEntity {
     const now = new Date();
-    return new RoomEntity(id, 'idle', now, now, []);
+    return new RoomEntity(id, 'idle', now, now, [], accessToken);
   }
 
   /**
@@ -38,7 +39,8 @@ export class RoomEntity {
       data.state,
       new Date(data.createdAt),
       new Date(data.updatedAt),
-      [...data.recordingIds]
+      [...data.recordingIds],
+      data.accessToken
     );
   }
 
@@ -170,6 +172,10 @@ export class RoomEntity {
     return [...this.recordingIds];
   }
 
+  getAccessToken(): string | undefined {
+    return this.accessToken;
+  }
+
   /**
    * DTOへの変換
    * 永続化やAPI通信用のプレーンなオブジェクトに変換
@@ -181,6 +187,7 @@ export class RoomEntity {
       createdAt: this.createdAt.toISOString(),
       updatedAt: this.updatedAt.toISOString(),
       recordingIds: [...this.recordingIds],
+      ...(this.accessToken && { accessToken: this.accessToken }),
     };
   }
 }

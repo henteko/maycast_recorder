@@ -39,6 +39,17 @@ export function createRoomsRouter(roomController: RoomController): express.Route
   );
 
   /**
+   * GET /api/rooms/by-token/:accessToken
+   * アクセストークンでRoom情報を取得（ルーム詳細ページ用）
+   */
+  router.get(
+    '/rooms/by-token/:accessToken',
+    asyncHandler(async (req, res) => {
+      await roomController.getByToken(req, res);
+    })
+  );
+
+  /**
    * GET /api/rooms/:id
    * Room情報を取得
    */

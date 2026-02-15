@@ -4,6 +4,7 @@ import { DIProvider, setupContainer } from './infrastructure/di';
 import { SoloPage } from './presentation/components/pages/SoloPage';
 import { GuestPage } from './presentation/components/pages/GuestPage';
 import { DirectorPage } from './presentation/components/pages/DirectorPage';
+import { RoomDetailPage } from './presentation/components/pages/RoomDetailPage';
 import { TopPage } from './presentation/components/pages/TopPage';
 
 // Standalone Mode用のルーター
@@ -55,6 +56,29 @@ function DirectorModeRouter() {
   );
 }
 
+// Room Detail用のルーター（アクセストークンによるURL）
+function RoomDetailRouter() {
+  const { accessToken } = useParams<{ accessToken: string }>();
+
+  const diContainer = useMemo(() => {
+    return setupContainer('remote');
+  }, []);
+
+  if (!accessToken) {
+    return (
+      <div className="flex items-center justify-center h-screen bg-maycast-bg text-maycast-text">
+        <p>Access token is required</p>
+      </div>
+    );
+  }
+
+  return (
+    <DIProvider container={diContainer}>
+      <RoomDetailPage accessToken={accessToken} />
+    </DIProvider>
+  );
+}
+
 function App() {
   return (
     <BrowserRouter>
@@ -64,6 +88,9 @@ function App() {
 
         {/* Director Mode - /director */}
         <Route path="/director" element={<DirectorModeRouter />} />
+
+        {/* Room Detail - /director/rooms/:accessToken */}
+        <Route path="/director/rooms/:accessToken" element={<RoomDetailRouter />} />
 
         {/* Guest Mode - /guest/:roomId */}
         <Route path="/guest/:roomId" element={<GuestModeRouter />} />

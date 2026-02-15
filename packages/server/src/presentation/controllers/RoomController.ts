@@ -6,6 +6,7 @@ import type { GetAllRoomsUseCase } from '../../domain/usecases/GetAllRooms.useca
 import type { UpdateRoomStateUseCase } from '../../domain/usecases/UpdateRoomState.usecase.js';
 import type { GetRoomRecordingsUseCase } from '../../domain/usecases/GetRoomRecordings.usecase.js';
 import type { DeleteRoomUseCase } from '../../domain/usecases/DeleteRoom.usecase.js';
+import type { GetRoomByTokenUseCase } from '../../domain/usecases/GetRoomByToken.usecase.js';
 
 /**
  * Room Controller
@@ -20,6 +21,7 @@ export class RoomController {
   private updateRoomStateUseCase: UpdateRoomStateUseCase;
   private getRoomRecordingsUseCase: GetRoomRecordingsUseCase;
   private deleteRoomUseCase: DeleteRoomUseCase;
+  private getRoomByTokenUseCase: GetRoomByTokenUseCase;
 
   constructor(
     createRoomUseCase: CreateRoomUseCase,
@@ -27,7 +29,8 @@ export class RoomController {
     getAllRoomsUseCase: GetAllRoomsUseCase,
     updateRoomStateUseCase: UpdateRoomStateUseCase,
     getRoomRecordingsUseCase: GetRoomRecordingsUseCase,
-    deleteRoomUseCase: DeleteRoomUseCase
+    deleteRoomUseCase: DeleteRoomUseCase,
+    getRoomByTokenUseCase: GetRoomByTokenUseCase
   ) {
     this.createRoomUseCase = createRoomUseCase;
     this.getRoomUseCase = getRoomUseCase;
@@ -35,6 +38,7 @@ export class RoomController {
     this.updateRoomStateUseCase = updateRoomStateUseCase;
     this.getRoomRecordingsUseCase = getRoomRecordingsUseCase;
     this.deleteRoomUseCase = deleteRoomUseCase;
+    this.getRoomByTokenUseCase = getRoomByTokenUseCase;
   }
 
   async create(_req: Request, res: Response): Promise<void> {
@@ -42,6 +46,7 @@ export class RoomController {
 
     res.status(201).json({
       room_id: result.roomId,
+      access_token: result.accessToken,
       created_at: result.room.createdAt,
       state: result.room.state,
     });
@@ -68,6 +73,24 @@ export class RoomController {
 
     if (!room) {
       throw new RoomNotFoundError(`Room not found: ${id}`);
+    }
+
+    res.json({
+      id: room.id,
+      state: room.state,
+      created_at: room.createdAt,
+      updated_at: room.updatedAt,
+      recording_ids: room.recordingIds,
+    });
+  }
+
+  async getByToken(req: Request, res: Response): Promise<void> {
+    const { accessToken } = req.params;
+
+    const room = await this.getRoomByTokenUseCase.execute({ accessToken });
+
+    if (!room) {
+      throw new RoomNotFoundError(`Room not found for token`);
     }
 
     res.json({
