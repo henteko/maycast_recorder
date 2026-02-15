@@ -19,6 +19,7 @@ import JSZip from 'jszip';
 import { useRoomDetailWebSocket } from '../../hooks/useRoomDetailWebSocket';
 import { RecordingAPIClient } from '../../../infrastructure/api/recording-api';
 import { getServerUrl } from '../../../infrastructure/config/serverConfig';
+import { removeRoomFromHistory } from '../../../infrastructure/storage/room-history';
 import { RoomStateBadge } from '../atoms/RoomStateBadge';
 import { ConnectionBadge } from '../atoms/ConnectionBadge';
 import { Button } from '../atoms/Button';
@@ -74,6 +75,7 @@ export const RoomDetailPage: React.FC<RoomDetailPageProps> = ({ accessToken }) =
     const success = await deleteRoom();
     setIsUpdating(false);
     if (success) {
+      removeRoomFromHistory(accessToken);
       navigate('/director');
     }
   };
