@@ -239,12 +239,32 @@ export const RoomDetailPage: React.FC = () => {
       {/* Content */}
       <div className="flex-1 overflow-y-auto px-8 py-6">
         <div className="max-w-3xl mx-auto space-y-6">
-          {/* Guest URL */}
+          {/* Guest Invitation */}
           <div className="bg-maycast-panel/30 backdrop-blur-md rounded-2xl border border-maycast-border/40 p-6 shadow-xl">
-            <label className="text-xs text-maycast-text-secondary mb-3 block font-medium">
-              Guest Invitation URL
-            </label>
-            <GuestUrlInput url={guestUrl} />
+            {room.state === 'idle' ? (
+              <>
+                <GuestUrlInput url={guestUrl} />
+                <p className="text-xs text-maycast-text-secondary mt-3">
+                  Share this URL with participants before starting the recording. Guests can join and set up their camera/microphone while waiting.
+                </p>
+              </>
+            ) : room.state === 'recording' ? (
+              <div className="flex items-center gap-3 text-yellow-400">
+                <div className="relative flex-shrink-0">
+                  <div className="w-3 h-3 bg-maycast-rec rounded-full animate-pulse" />
+                </div>
+                <p className="text-sm text-maycast-text-secondary">
+                  Recording in progress. New guests cannot join at this time.
+                </p>
+              </div>
+            ) : (
+              <div className="flex items-center gap-3">
+                <div className="flex-shrink-0 w-3 h-3 bg-maycast-text-secondary/40 rounded-full" />
+                <p className="text-sm text-maycast-text-secondary">
+                  This room is no longer accepting new guests.
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Participants */}
@@ -330,21 +350,30 @@ export const RoomDetailPage: React.FC = () => {
                   </div>
                 </div>
               )}
-              {room.state === 'finished' && room.recording_ids.length === 0 && (
-                <div className="flex-1 text-center text-maycast-text-secondary text-sm py-3 bg-maycast-bg/50 rounded-xl">
-                  No recording data
-                </div>
+              {(room.state === 'idle' || room.state === 'recording') && (
+                <Button
+                  onClick={handleDeleteRoom}
+                  disabled={isUpdating || room.state === 'recording'}
+                  variant="danger"
+                  size="sm"
+                  className="!p-3"
+                >
+                  <TrashIcon className="w-5 h-5 text-maycast-rec" />
+                </Button>
               )}
+            </div>
+            {room.state === 'finished' && (
               <Button
                 onClick={handleDeleteRoom}
-                disabled={isUpdating || room.state === 'recording' || room.state === 'finalizing'}
+                disabled={isUpdating}
                 variant="danger"
                 size="sm"
-                className="!p-3"
+                className="w-full mt-3"
               >
-                <TrashIcon className="w-5 h-5 text-maycast-rec" />
+                <TrashIcon className="w-5 h-5" />
+                Delete Room
               </Button>
-            </div>
+            )}
           </div>
         </div>
       </div>
