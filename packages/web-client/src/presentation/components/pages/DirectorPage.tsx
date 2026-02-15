@@ -172,9 +172,14 @@ export const DirectorPage: React.FC = () => {
         ) : (
           /* Room History */
           <div className="max-w-3xl mx-auto">
-            <h2 className="text-sm font-semibold text-maycast-text-secondary mb-4">
-              Room History ({history.length})
-            </h2>
+            <div className="mb-4">
+              <h2 className="text-sm font-semibold text-maycast-text-secondary">
+                Room History ({history.length})
+              </h2>
+              <p className="text-xs text-maycast-text-secondary/60 mt-1">
+                This history is saved only on this device and is not shared with other devices or users.
+              </p>
+            </div>
             <div className="space-y-3">
               {history.map((entry) => (
                 <div
