@@ -63,6 +63,7 @@ Recording chunks are stored in Cloudflare R2. You need to create an R2 bucket an
 1. Create an R2 bucket in the Cloudflare dashboard (e.g. `maycast-recordings`)
 2. Create an R2 **API token** with read/write permissions for the bucket
 3. Set the issued Access Key ID / Secret Access Key as environment variables in Dokploy
+4. **Configure CORS on the R2 bucket** (see below)
 
 ```
 S3_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com
@@ -71,6 +72,30 @@ S3_ACCESS_KEY_ID=<your-r2-access-key>
 S3_SECRET_ACCESS_KEY=<your-r2-secret-key>
 S3_REGION=auto
 ```
+
+#### R2 CORS Configuration
+
+The client downloads recording data directly from R2 using presigned URLs. Since the browser makes cross-origin requests from your app domain to the R2 endpoint, CORS must be configured on the R2 bucket.
+
+**Steps to configure in Cloudflare Dashboard:**
+
+1. Go to Cloudflare Dashboard → R2 → select your bucket
+2. **Settings** tab → **CORS Policy** section → **Edit CORS policy**
+3. Set the following JSON and save:
+
+```json
+[
+  {
+    "AllowedOrigins": ["https://maycast.example.com"],
+    "AllowedMethods": ["GET", "HEAD"],
+    "AllowedHeaders": ["*"],
+    "ExposeHeaders": ["Content-Length", "Content-Type", "ETag"],
+    "MaxAgeSeconds": 3600
+  }
+]
+```
+
+> **Note:** Set `AllowedOrigins` to your deployment domain (same value as `CORS_ORIGIN`). To allow multiple origins (e.g. during development), add them to the array.
 
 ### 3. Configure Domain Routing
 
