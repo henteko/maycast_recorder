@@ -7,6 +7,8 @@ import { WebSocketRoomEventPublisher } from '../events/WebSocketRoomEventPublish
 import { getWebSocketManager } from '../websocket/WebSocketManager.js';
 import { getPool } from '../database/PostgresClient.js';
 import { getStorageConfig } from '../config/storageConfig.js';
+import { S3PresignedUrlService } from '../services/S3PresignedUrlService.js';
+import { NoOpPresignedUrlService } from '../services/NoOpPresignedUrlService.js';
 
 // Use Cases - Recording
 import { CreateRecordingUseCase } from '../../domain/usecases/CreateRecording.usecase.js';
@@ -16,6 +18,7 @@ import { UpdateRecordingMetadataUseCase } from '../../domain/usecases/UpdateReco
 import { UploadInitSegmentUseCase } from '../../domain/usecases/UploadInitSegment.usecase.js';
 import { UploadChunkUseCase } from '../../domain/usecases/UploadChunk.usecase.js';
 import { DownloadRecordingUseCase } from '../../domain/usecases/DownloadRecording.usecase.js';
+import { GetDownloadUrlsUseCase } from '../../domain/usecases/GetDownloadUrls.usecase.js';
 
 // Use Cases - Room
 import { CreateRoomUseCase } from '../../domain/usecases/CreateRoom.usecase.js';
@@ -34,6 +37,7 @@ import type { IRecordingRepository } from '../../domain/repositories/IRecordingR
 import type { IChunkRepository } from '../../domain/repositories/IChunkRepository.js';
 import type { IRoomRepository } from '../../domain/repositories/IRoomRepository.js';
 import type { IRoomEventPublisher } from '../../domain/events/IRoomEventPublisher.js';
+import type { IPresignedUrlService } from '../../domain/services/IPresignedUrlService.js';
 
 /**
  * DIコンテナのセットアップ (Server-side)
@@ -62,6 +66,15 @@ export function setupContainer(): DIContainer {
     chunkRepository = new LocalFileSystemChunkRepository(storageConfig.storagePath);
     console.log(`📦 Storage backend: Local filesystem (${storageConfig.storagePath})`);
   }
+
+  // Presigned URL Service（バックエンド選択）
+  let presignedUrlService: IPresignedUrlService;
+  if (storageConfig.backend === 's3') {
+    presignedUrlService = new S3PresignedUrlService(storageConfig);
+  } else {
+    presignedUrlService = new NoOpPresignedUrlService();
+  }
+  container.register<IPresignedUrlService>('PresignedUrlService', presignedUrlService);
 
   // Repositories
   const pool = getPool();
@@ -109,13 +122,21 @@ export function setupContainer(): DIContainer {
   );
   container.register('DownloadRecordingUseCase', downloadRecordingUseCase);
 
+  const getDownloadUrlsUseCase = new GetDownloadUrlsUseCase(
+    recordingRepository,
+    chunkRepository,
+    presignedUrlService
+  );
+  container.register('GetDownloadUrlsUseCase', getDownloadUrlsUseCase);
+
   // Controllers
   const recordingController = new RecordingController(
     createRecordingUseCase,
     getRecordingUseCase,
     updateRecordingStateUseCase,
     updateRecordingMetadataUseCase,
-    downloadRecordingUseCase
+    downloadRecordingUseCase,
+    getDownloadUrlsUseCase
   );
   container.register('RecordingController', recordingController);
 

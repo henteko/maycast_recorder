@@ -22,3 +22,24 @@ export interface CreateRecordingResponse {
 export interface UpdateStateRequest {
   state: RecordingState;
 }
+
+/**
+ * GET /api/recordings/:id/download-urls - Response
+ * クラウドストレージからの直接ダウンロード用URL
+ */
+export interface DownloadUrlsDirectResponse {
+  directDownload: true;
+  filename: string;
+  initSegment: { url: string };
+  chunks: { url: string; chunkId: number }[];
+  totalChunks: number;
+  expiresIn: number;
+}
+
+export interface DownloadUrlsFallbackResponse {
+  directDownload: false;
+  filename: string;
+  downloadUrl: string;
+}
+
+export type DownloadUrlsResponse = DownloadUrlsDirectResponse | DownloadUrlsFallbackResponse;

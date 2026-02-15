@@ -5,6 +5,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { ArrowDownTrayIcon, CheckIcon } from '@heroicons/react/24/solid';
 import { RecordingAPIClient, type RecordingInfo } from '../../../infrastructure/api/recording-api';
+import { CloudDownloadService } from '../../../infrastructure/download/CloudDownloadService';
 import { getServerUrl } from '../../../infrastructure/config/serverConfig';
 import { Button } from '../atoms/Button';
 import { RecordingDownloadItem } from '../molecules/RecordingDownloadItem';
@@ -75,16 +76,36 @@ export const RecordingsDownloadSection: React.FC<RecordingsDownloadSectionProps>
     try {
       const serverUrl = getServerUrl();
       const apiClient = new RecordingAPIClient(serverUrl);
-      const blob = await apiClient.downloadRecording(recordingId);
+
+      // Presigned URL対応: まずdownload-urlsを試行
+      let blob: Blob;
+      let filename: string | undefined;
+      try {
+        const downloadUrls = await apiClient.getDownloadUrls(recordingId);
+        if (downloadUrls.directDownload) {
+          const cloudService = new CloudDownloadService();
+          blob = await cloudService.download(downloadUrls);
+          filename = downloadUrls.filename;
+        } else {
+          blob = await apiClient.downloadRecording(recordingId);
+          filename = downloadUrls.filename;
+        }
+      } catch {
+        // download-urls APIが利用できない場合は既存のダウンロードにフォールバック
+        blob = await apiClient.downloadRecording(recordingId);
+      }
 
       // ダウンロードリンクを作成
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      const guestName = getGuestNameForRecording(recordingId);
-      a.download = guestName
-        ? `${guestName}-${recordingId.substring(0, 8)}.mp4`
-        : `recording-${recordingId.substring(0, 8)}.mp4`;
+      if (!filename) {
+        const guestName = getGuestNameForRecording(recordingId);
+        filename = guestName
+          ? `${guestName}-${recordingId.substring(0, 8)}.mp4`
+          : `recording-${recordingId.substring(0, 8)}.mp4`;
+      }
+      a.download = filename;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);

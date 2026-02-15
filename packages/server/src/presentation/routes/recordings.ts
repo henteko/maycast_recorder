@@ -57,5 +57,13 @@ export function createRecordingsRouter(
     await recordingController.download(req, res);
   }));
 
+  /**
+   * GET /api/recordings/:id/download-urls
+   * ダウンロード用URLを取得（S3の場合はPresigned URL、ローカルの場合はサーバー経由URL）
+   */
+  router.get('/recordings/:id/download-urls', asyncHandler(async (req, res) => {
+    await recordingController.getDownloadUrls(req, res);
+  }));
+
   return router;
 }

@@ -7,6 +7,7 @@ import { PlayIcon, StopIcon, TrashIcon, UsersIcon } from '@heroicons/react/24/so
 import JSZip from 'jszip';
 import type { RoomInfo } from '../../../infrastructure/api/room-api';
 import { RecordingAPIClient } from '../../../infrastructure/api/recording-api';
+import { CloudDownloadService } from '../../../infrastructure/download/CloudDownloadService';
 import type { GuestInfo } from '@maycast/common-types';
 import { getServerUrl } from '../../../infrastructure/config/serverConfig';
 import { RoomStateBadge } from '../atoms/RoomStateBadge';
@@ -59,18 +60,36 @@ export const RoomCard: React.FC<RoomCardProps> = ({
       // 各録画をダウンロードしてZIPに追加
       for (const recordingId of room.recording_ids) {
         try {
-          const blob = await apiClient.downloadRecording(recordingId);
-          // ゲスト名: WebSocket上の情報優先、fallbackとしてrecordingメタデータを使用
-          let guestName = getGuestNameForRecording(recordingId);
-          if (!guestName) {
-            try {
-              const info = await apiClient.getRecording(recordingId);
-              guestName = info.metadata?.participantName;
-            } catch { /* ignore */ }
+          // Presigned URL対応
+          let blob: Blob;
+          let fileName: string | undefined;
+          try {
+            const downloadUrls = await apiClient.getDownloadUrls(recordingId);
+            if (downloadUrls.directDownload) {
+              const cloudService = new CloudDownloadService();
+              blob = await cloudService.download(downloadUrls);
+              fileName = downloadUrls.filename;
+            } else {
+              blob = await apiClient.downloadRecording(recordingId);
+              fileName = downloadUrls.filename;
+            }
+          } catch {
+            blob = await apiClient.downloadRecording(recordingId);
           }
-          const fileName = guestName
-            ? `${guestName}-${recordingId.substring(0, 8)}.mp4`
-            : `recording-${recordingId.substring(0, 8)}.mp4`;
+
+          if (!fileName) {
+            // ゲスト名: WebSocket上の情報優先、fallbackとしてrecordingメタデータを使用
+            let guestName = getGuestNameForRecording(recordingId);
+            if (!guestName) {
+              try {
+                const info = await apiClient.getRecording(recordingId);
+                guestName = info.metadata?.participantName;
+              } catch { /* ignore */ }
+            }
+            fileName = guestName
+              ? `${guestName}-${recordingId.substring(0, 8)}.mp4`
+              : `recording-${recordingId.substring(0, 8)}.mp4`;
+          }
           zip.file(fileName, blob);
         } catch (err) {
           console.error(`Failed to download recording ${recordingId}:`, err);
