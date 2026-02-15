@@ -1,10 +1,11 @@
 import type { RecordingId, RoomId } from '@maycast/common-types';
-import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import type { IPresignedUrlService } from '../../domain/services/IPresignedUrlService.js';
 import type { S3StorageConfig } from '../config/storageConfig.js';
 
 const DEFAULT_EXPIRES_IN = 3600; // 1時間
+const DEFAULT_UPLOAD_EXPIRES_IN = 900; // 15分
 
 /**
  * S3 Presigned URL Service
@@ -64,10 +65,42 @@ export class S3PresignedUrlService implements IPresignedUrlService {
     return this.generatePresignedUrl(key, expiresIn);
   }
 
+  isUploadSupported(): boolean {
+    return true;
+  }
+
+  async getInitSegmentUploadUrl(
+    recordingId: RecordingId,
+    roomId?: RoomId,
+    expiresIn: number = DEFAULT_UPLOAD_EXPIRES_IN
+  ): Promise<string> {
+    const key = `${this.getPrefix(recordingId, roomId)}/init.fmp4`;
+    return this.generateUploadPresignedUrl(key, expiresIn);
+  }
+
+  async getChunkUploadUrl(
+    recordingId: RecordingId,
+    chunkId: number,
+    roomId?: RoomId,
+    expiresIn: number = DEFAULT_UPLOAD_EXPIRES_IN
+  ): Promise<string> {
+    const key = `${this.getPrefix(recordingId, roomId)}/${chunkId}.fmp4`;
+    return this.generateUploadPresignedUrl(key, expiresIn);
+  }
+
   private async generatePresignedUrl(key: string, expiresIn: number): Promise<string> {
     const command = new GetObjectCommand({
       Bucket: this.bucket,
       Key: key,
+    });
+    return getSignedUrl(this.client, command, { expiresIn });
+  }
+
+  private async generateUploadPresignedUrl(key: string, expiresIn: number): Promise<string> {
+    const command = new PutObjectCommand({
+      Bucket: this.bucket,
+      Key: key,
+      ContentType: 'application/octet-stream',
     });
     return getSignedUrl(this.client, command, { expiresIn });
   }

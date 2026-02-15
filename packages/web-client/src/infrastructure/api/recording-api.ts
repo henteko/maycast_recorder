@@ -8,6 +8,7 @@ import type {
   RecordingMetadata,
   CreateRecordingResponse,
   DownloadUrlsResponse,
+  UploadUrlResponse,
 } from '@maycast/common-types';
 
 /**
@@ -211,6 +212,95 @@ export class RecordingAPIClient {
       clearTimeout(timeoutId);
       if (error instanceof Error && error.name === 'AbortError') {
         throw new Error(`Upload timeout: chunk ${chunkId} took longer than 30 seconds`);
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Init Segmentアップロード用のPresigned URLを取得
+   */
+  async getInitSegmentUploadUrl(recordingId: string): Promise<UploadUrlResponse> {
+    const response = await fetch(
+      `${this.baseUrl}/api/recordings/${recordingId}/upload-url/init-segment`
+    );
+
+    if (!response.ok) {
+      throw new Error(`Failed to get init segment upload URL: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  /**
+   * チャンクアップロード用のPresigned URLを取得
+   */
+  async getChunkUploadUrl(recordingId: string, chunkId: string): Promise<UploadUrlResponse> {
+    const response = await fetch(
+      `${this.baseUrl}/api/recordings/${recordingId}/upload-url/chunk?chunk_id=${chunkId}`
+    );
+
+    if (!response.ok) {
+      throw new Error(`Failed to get chunk upload URL: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Init Segmentの直接アップロード完了をサーバーに通知
+   */
+  async confirmInitSegmentUpload(recordingId: string): Promise<void> {
+    const response = await fetch(
+      `${this.baseUrl}/api/recordings/${recordingId}/confirm-upload/init-segment`,
+      { method: 'POST' }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Failed to confirm init segment upload: ${response.statusText}`);
+    }
+  }
+
+  /**
+   * チャンクの直接アップロード完了をサーバーに通知
+   */
+  async confirmChunkUpload(recordingId: string, chunkId: string): Promise<void> {
+    const response = await fetch(
+      `${this.baseUrl}/api/recordings/${recordingId}/confirm-upload/chunk?chunk_id=${chunkId}`,
+      { method: 'POST' }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Failed to confirm chunk upload: ${response.statusText}`);
+    }
+  }
+
+  /**
+   * Presigned URLを使ってS3に直接アップロード
+   */
+  async uploadToPresignedUrl(url: string, data: Uint8Array): Promise<void> {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000); // 60秒
+
+    try {
+      const response = await fetch(url, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/octet-stream',
+        },
+        body: data as BodyInit,
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        throw new Error(`Direct upload failed: ${response.status} ${response.statusText}`);
+      }
+    } catch (error) {
+      clearTimeout(timeoutId);
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error('Direct upload timeout: took longer than 60 seconds');
       }
       throw error;
     }

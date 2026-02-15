@@ -107,10 +107,27 @@ export class GuestStorageStrategy implements IStorageStrategy {
         console.log(`🔄 [GuestStorageStrategy] Marking as recording (remote=${remoteRecordingId})`);
         await recordingManager.updateState('recording');
 
-        console.log(`📡 [GuestStorageStrategy] Uploading init segment to server... (remote=${remoteRecordingId})`);
         const apiClient = recordingManager.getAPIClient();
-        await apiClient.uploadInitSegment(remoteRecordingId, data);
-        console.log(`✅ [GuestStorageStrategy] Init segment uploaded to server (${data.length} bytes)`);
+
+        // Presigned URLによる直接アップロードを試行
+        try {
+          const uploadUrlResponse = await apiClient.getInitSegmentUploadUrl(remoteRecordingId);
+          if (uploadUrlResponse.directUpload) {
+            console.log(`📡 [GuestStorageStrategy] Uploading init segment directly to S3... (remote=${remoteRecordingId})`);
+            await apiClient.uploadToPresignedUrl(uploadUrlResponse.url, data);
+            await apiClient.confirmInitSegmentUpload(remoteRecordingId);
+            console.log(`✅ [GuestStorageStrategy] Init segment uploaded directly to S3 (${data.length} bytes)`);
+          } else {
+            console.log(`📡 [GuestStorageStrategy] Uploading init segment via proxy... (remote=${remoteRecordingId})`);
+            await apiClient.uploadInitSegment(remoteRecordingId, data);
+            console.log(`✅ [GuestStorageStrategy] Init segment uploaded via proxy (${data.length} bytes)`);
+          }
+        } catch (urlErr) {
+          // Presigned URL取得に失敗した場合、プロキシ方式にフォールバック
+          console.warn('⚠️ [GuestStorageStrategy] Presigned URL failed, falling back to proxy:', urlErr);
+          await apiClient.uploadInitSegment(remoteRecordingId, data);
+          console.log(`✅ [GuestStorageStrategy] Init segment uploaded via proxy fallback (${data.length} bytes)`);
+        }
 
         // IndexedDBのinitSegmentUploadedフラグを更新（非ブロッキング）
         updateInitSegmentUploaded(recordingId, true).catch(err => {

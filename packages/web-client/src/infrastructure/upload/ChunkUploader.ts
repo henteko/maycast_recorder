@@ -28,6 +28,9 @@ export interface ChunkUploaderStats {
 /**
  * ChunkUploader
  * チャンクのアップロードキューを管理し、並行アップロードとリトライ機能を提供
+ *
+ * S3バックエンドの場合: Presigned URLを使ったS3直接アップロード + サーバーへの完了通知
+ * ローカルバックエンドの場合: 従来のサーバー経由プロキシアップロード
  */
 export class ChunkUploader {
   private queue: Map<string, ChunkUploadTask> = new Map();
@@ -38,6 +41,8 @@ export class ChunkUploader {
   private apiClient: RecordingAPIClient;
   private isProcessing = false;
   private processingPromise: Promise<void> | null = null;
+  // null=未チェック, true=直接アップロード対応, false=プロキシ方式
+  private directUploadSupported: boolean | null = null;
 
   constructor(
     recordingId: string,
@@ -147,6 +152,26 @@ export class ChunkUploader {
   }
 
   /**
+   * 直接アップロードがサポートされているかチェック（初回のみ）
+   */
+  private async checkDirectUploadSupport(): Promise<boolean> {
+    if (this.directUploadSupported !== null) {
+      return this.directUploadSupported;
+    }
+
+    try {
+      const response = await this.apiClient.getChunkUploadUrl(this.recordingId, '0');
+      this.directUploadSupported = response.directUpload;
+      console.log(`📋 [ChunkUploader] Direct upload supported: ${this.directUploadSupported}`);
+    } catch (err) {
+      console.warn('⚠️ [ChunkUploader] Failed to check direct upload support, using proxy:', err);
+      this.directUploadSupported = false;
+    }
+
+    return this.directUploadSupported;
+  }
+
+  /**
    * タスクをアップロード
    */
   private async uploadTask(task: ChunkUploadTask): Promise<void> {
@@ -163,9 +188,16 @@ export class ChunkUploader {
     });
 
     try {
-      await this.apiClient.uploadChunk(this.recordingId, task.chunkId, task.data, task.hash);
+      const useDirectUpload = await this.checkDirectUploadSupport();
+
+      if (useDirectUpload) {
+        await this.uploadDirectToS3(task);
+      } else {
+        await this.uploadViaProxy(task);
+      }
+
       task.status = 'completed';
-      console.log(`✅ Chunk uploaded: ${task.chunkId}`);
+      console.log(`✅ Chunk uploaded: ${task.chunkId}${useDirectUpload ? ' (direct)' : ' (proxy)'}`);
 
       // IndexedDBに成功を記録（非ブロッキング）
       updateUploadState(this.recordingId as RecordingId, chunkIdNum, {
@@ -207,6 +239,32 @@ export class ChunkUploader {
     } finally {
       this.activeUploads--;
     }
+  }
+
+  /**
+   * Presigned URLを使ってS3に直接アップロード
+   */
+  private async uploadDirectToS3(task: ChunkUploadTask): Promise<void> {
+    // 1. Presigned URLを取得
+    const urlResponse = await this.apiClient.getChunkUploadUrl(this.recordingId, task.chunkId);
+    if (!urlResponse.directUpload) {
+      // フォールバック: プロキシ方式
+      await this.uploadViaProxy(task);
+      return;
+    }
+
+    // 2. S3に直接PUT
+    await this.apiClient.uploadToPresignedUrl(urlResponse.url, task.data);
+
+    // 3. サーバーに完了を通知（チャンクカウントのインクリメント）
+    await this.apiClient.confirmChunkUpload(this.recordingId, task.chunkId);
+  }
+
+  /**
+   * 従来のプロキシ方式でアップロード
+   */
+  private async uploadViaProxy(task: ChunkUploadTask): Promise<void> {
+    await this.apiClient.uploadChunk(this.recordingId, task.chunkId, task.data, task.hash);
   }
 
   /**
