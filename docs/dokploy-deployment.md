@@ -118,3 +118,37 @@ After deployment, check the health endpoint:
 ```
 https://your-domain.com/health
 ```
+
+## Database Reset
+
+When the database schema changes (e.g. new columns added to `init.sql`), you need to reset the PostgreSQL database. The `init.sql` script only runs automatically on first container startup when the data volume is empty.
+
+### Steps
+
+1. **SSH into the Dokploy server**
+
+2. **Find the PostgreSQL container and volume names**
+
+   ```bash
+   docker ps | grep postgres
+   docker volume ls | grep postgres
+   ```
+
+3. **Stop and remove the PostgreSQL container**
+
+   ```bash
+   docker stop <postgres-container-name>
+   docker rm <postgres-container-name>
+   ```
+
+4. **Delete the data volume**
+
+   ```bash
+   docker volume rm <postgres-volume-name>
+   ```
+
+5. **Redeploy from Dokploy UI**
+
+   Trigger a redeploy from the Dokploy dashboard. When the new PostgreSQL container starts with an empty volume, `init.sql` (mounted at `/docker-entrypoint-initdb.d/`) will be executed automatically, creating all tables with the latest schema.
+
+> **Warning:** This will delete all existing data (rooms, recordings, etc.). Only do this when a schema migration is required and data loss is acceptable.
