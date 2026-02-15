@@ -25,16 +25,20 @@ export const RecordingsDownloadSection: React.FC<RecordingsDownloadSectionProps>
   isDownloadingAll,
   guests = [],
 }) => {
-  // recordingId -> guestName のマッピングを作成
-  const getGuestNameForRecording = useCallback((recordingId: string): string | undefined => {
-    const guest = guests.find((g) => g.recordingId === recordingId);
-    return guest?.name;
-  }, [guests]);
   const [recordings, setRecordings] = useState<Map<string, RecordingInfo>>(new Map());
   const [loadingIds, setLoadingIds] = useState<Set<string>>(new Set());
   const [downloadingIds, setDownloadingIds] = useState<Set<string>>(new Set());
   const [downloadProgress, setDownloadProgress] = useState<Map<string, DownloadProgress>>(new Map());
   const fetchedIdsRef = useRef<Set<string>>(new Set());
+
+  // recordingId -> guestName のマッピングを作成（WebSocket上のguest情報優先、fallbackとしてrecordingメタデータを使用）
+  const getGuestNameForRecording = useCallback((recordingId: string): string | undefined => {
+    const guest = guests.find((g) => g.recordingId === recordingId);
+    if (guest?.name) return guest.name;
+    // Guest切断後はrecordingメタデータから取得
+    const recording = recordings.get(recordingId);
+    return recording?.metadata?.participantName;
+  }, [guests, recordings]);
 
   // Recording情報を取得
   useEffect(() => {
@@ -80,19 +84,18 @@ export const RecordingsDownloadSection: React.FC<RecordingsDownloadSectionProps>
       const serverUrl = getServerUrl();
       const apiClient = new RecordingAPIClient(serverUrl);
 
-      const blob = await streamingDownloadRecording(
-        apiClient,
-        recordingId,
-        (progress) => {
-          setDownloadProgress((prev) => new Map(prev).set(recordingId, progress));
-        }
-      );
-
+      // ダウンロードリンクを作成
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
       const guestName = getGuestNameForRecording(recordingId);
-      const filename = guestName
+      a.download = guestName
         ? `${guestName}-${recordingId.substring(0, 8)}.mp4`
         : `recording-${recordingId.substring(0, 8)}.mp4`;
-      triggerBrowserDownload(blob, filename);
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
     } catch (err) {
       console.error(`Failed to download recording ${recordingId}:`, err);
       alert(`Failed to download recording: ${err instanceof Error ? err.message : 'Unknown error'}`);

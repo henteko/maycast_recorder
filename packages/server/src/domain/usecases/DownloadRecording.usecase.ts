@@ -73,7 +73,10 @@ export class DownloadRecordingUseCase {
 
     // 4. ファイル名を生成
     const timestamp = recording.getCreatedAt().toISOString().replace(/[:.]/g, '-');
-    const filename = `recording-${timestamp}.mp4`;
+    const participantName = recording.getMetadata()?.participantName;
+    const filename = participantName
+      ? `${participantName}-${timestamp}.mp4`
+      : `recording-${timestamp}.mp4`;
 
     return { stream, filename };
   }

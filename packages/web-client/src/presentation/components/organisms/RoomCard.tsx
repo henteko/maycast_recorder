@@ -60,8 +60,15 @@ export const RoomCard: React.FC<RoomCardProps> = ({
       // 各録画をクラウドから直接ダウンロードしてZIPに追加
       for (const recordingId of room.recording_ids) {
         try {
-          const blob = await streamingDownloadRecording(apiClient, recordingId);
-          const guestName = getGuestNameForRecording(recordingId);
+          const blob = await apiClient.downloadRecording(recordingId);
+          // ゲスト名: WebSocket上の情報優先、fallbackとしてrecordingメタデータを使用
+          let guestName = getGuestNameForRecording(recordingId);
+          if (!guestName) {
+            try {
+              const info = await apiClient.getRecording(recordingId);
+              guestName = info.metadata?.participantName;
+            } catch { /* ignore */ }
+          }
           const fileName = guestName
             ? `${guestName}-${recordingId.substring(0, 8)}.mp4`
             : `recording-${recordingId.substring(0, 8)}.mp4`;

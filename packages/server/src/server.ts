@@ -14,6 +14,7 @@ import type { ChunkController } from './presentation/controllers/ChunkController
 import type { RoomController } from './presentation/controllers/RoomController.js';
 import type { UpdateRoomStateUseCase } from './domain/usecases/UpdateRoomState.usecase.js';
 import type { GetRoomUseCase } from './domain/usecases/GetRoom.usecase.js';
+import type { IRecordingRepository } from './domain/repositories/IRecordingRepository.js';
 
 // Load environment variables
 dotenv.config();
@@ -30,6 +31,7 @@ const chunkController = container.resolve<ChunkController>('ChunkController');
 const roomController = container.resolve<RoomController>('RoomController');
 const updateRoomStateUseCase = container.resolve<UpdateRoomStateUseCase>('UpdateRoomStateUseCase');
 const getRoomUseCase = container.resolve<GetRoomUseCase>('GetRoomUseCase');
+const recordingRepository = container.resolve<IRecordingRepository>('RecordingRepository');
 
 // Middleware
 app.use(cors({
@@ -70,6 +72,21 @@ const httpServer = createServer(app);
 // Initialize WebSocket
 const webSocketManager = getWebSocketManager();
 webSocketManager.initialize(httpServer, CORS_ORIGIN);
+
+// Guest録画リンク時にparticipantNameをRecordingメタデータに保存
+webSocketManager.setOnGuestRecordingLinkedCallback(async (recordingId: string, guestName: string) => {
+  try {
+    const recording = await recordingRepository.findById(recordingId);
+    if (recording) {
+      const existingMetadata = recording.getMetadata() || {};
+      const updatedMetadata = { ...existingMetadata, participantName: guestName };
+      recording.setMetadata(updatedMetadata);
+      await recordingRepository.updateMetadata(recordingId, updatedMetadata);
+    }
+  } catch (err) {
+    console.error(`❌ [Server] Failed to save participantName for recording ${recordingId}:`, err);
+  }
+});
 
 // 全Guest同期完了時のコールバックを設定
 webSocketManager.setOnAllGuestsSyncedCallback(async (roomId: string) => {
