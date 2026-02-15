@@ -106,6 +106,11 @@ interface ServerToClientEvents {
 }
 
 /**
+ * Guest録画リンク時のコールバック（participantNameをRecordingに保存するため）
+ */
+export type OnGuestRecordingLinkedCallback = (recordingId: string, guestName: string) => Promise<void>;
+
+/**
  * 全Guest同期完了時のコールバック
  */
 export type OnAllGuestsSyncedCallback = (roomId: string) => Promise<void>;
@@ -121,6 +126,7 @@ export class WebSocketManager {
   // socketId -> { roomId, guestId } のマッピング（切断時の検索用）
   private socketToGuest: Map<string, { roomId: string; guestId: string }> = new Map();
   private onAllGuestsSyncedCallback: OnAllGuestsSyncedCallback | null = null;
+  private onGuestRecordingLinkedCallback: OnGuestRecordingLinkedCallback | null = null;
 
   /**
    * Socket.IOサーバーを初期化
@@ -256,7 +262,7 @@ export class WebSocketManager {
     });
 
     // Recording IDを設定（録画開始後にguestIdとrecordingIdを紐付け）
-    socket.on('set_recording_id', ({ roomId, recordingId }) => {
+    socket.on('set_recording_id', async ({ roomId, recordingId }) => {
       console.log(`🔗 [WebSocket] Set recording ID: room=${roomId}, recording=${recordingId}, socket=${socket.id}`);
 
       // socketIdからguestIdを取得
@@ -274,6 +280,16 @@ export class WebSocketManager {
         guestInfo.recordingId = recordingId;
         guestInfo.lastUpdatedAt = new Date();
         console.log(`✅ [WebSocket] Linked guestId=${guestId} with recordingId=${recordingId}`);
+
+        // participantNameをRecordingメタデータに保存
+        if (guestInfo.name && this.onGuestRecordingLinkedCallback) {
+          try {
+            await this.onGuestRecordingLinkedCallback(recordingId, guestInfo.name);
+            console.log(`✅ [WebSocket] Saved participantName="${guestInfo.name}" to recording=${recordingId}`);
+          } catch (err) {
+            console.error(`❌ [WebSocket] Failed to save participantName:`, err);
+          }
+        }
 
         // Directorに通知
         this.io?.to(`room:${roomId}`).emit('guest_recording_linked', {
@@ -552,6 +568,13 @@ export class WebSocketManager {
       return true;
     }
     return recordingGuests.every((guest) => guest.syncState === 'synced');
+  }
+
+  /**
+   * Guest録画リンク時のコールバックを設定
+   */
+  setOnGuestRecordingLinkedCallback(callback: OnGuestRecordingLinkedCallback): void {
+    this.onGuestRecordingLinkedCallback = callback;
   }
 
   /**
