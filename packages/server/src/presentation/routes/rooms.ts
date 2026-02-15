@@ -75,20 +75,6 @@ export function createRoomsRouter(
   );
 
   /**
-   * GET /api/rooms/:id/recordings
-   * Room内のRecording一覧を取得（accessKey必須）
-   */
-  router.get(
-    '/rooms/:id/recordings',
-    asyncHandler(async (req, res, next) => {
-      await roomAccessMiddleware(req, res, next);
-    }),
-    asyncHandler(async (req, res) => {
-      await roomController.getRecordings(req, res);
-    })
-  );
-
-  /**
    * DELETE /api/rooms/:id
    * Roomを削除（accessKey必須）
    */

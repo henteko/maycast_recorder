@@ -159,31 +159,6 @@ export class RoomAPIClient {
     console.log(`✅ [RoomAPIClient] Room deleted: ${roomId}`);
   }
 
-  /**
-   * Room内のRecording一覧を取得（accessKey必須）
-   */
-  async getRoomRecordings(roomId: string, accessKey: string): Promise<{ room_id: string; recordings: unknown[] }> {
-    console.log(`📡 [RoomAPIClient] GET ${this.baseUrl}/api/rooms/${roomId}/recordings`);
-    const response = await fetch(`${this.baseUrl}/api/rooms/${roomId}/recordings`, {
-      headers: {
-        'x-room-access-key': accessKey,
-      },
-    });
-
-    if (!response.ok) {
-      if (response.status === 404) {
-        throw new RoomNotFoundError(`Room not found: ${roomId}`);
-      }
-      if (response.status === 403) {
-        throw new RoomAccessDeniedError(`Access denied for room: ${roomId}`);
-      }
-      throw new Error(`Failed to get room recordings: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    console.log(`✅ [RoomAPIClient] Room recordings fetched:`, data);
-    return data;
-  }
 }
 
 /**

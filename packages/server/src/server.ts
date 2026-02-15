@@ -9,6 +9,7 @@ import { createChunksRouter } from './presentation/routes/chunks.js';
 import { createRoomsRouter } from './presentation/routes/rooms.js';
 import { errorHandler } from './presentation/middleware/errorHandler.js';
 import { createRoomAccessMiddleware } from './presentation/middleware/roomAccessMiddleware.js';
+
 import { getWebSocketManager } from './infrastructure/websocket/WebSocketManager.js';
 import type { RecordingController } from './presentation/controllers/RecordingController.js';
 import type { ChunkController } from './presentation/controllers/ChunkController.js';

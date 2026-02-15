@@ -3,9 +3,10 @@ import type { RecordingController } from '../controllers/RecordingController.js'
 import { asyncHandler } from '../middleware/errorHandler.js';
 
 /**
- * Recordings Router (Refactored)
+ * Recordings Router
  *
  * Controllerベースのルーティング
+ * Recording IDはUUIDで外部に露出しないため、すべて認証不要
  *
  * NOTE: JSONデータを扱うため、express.json()ミドルウェアを使用
  */

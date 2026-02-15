@@ -24,7 +24,6 @@ import { GetDownloadUrlsUseCase } from '../../domain/usecases/GetDownloadUrls.us
 import { CreateRoomUseCase } from '../../domain/usecases/CreateRoom.usecase.js';
 import { GetRoomUseCase } from '../../domain/usecases/GetRoom.usecase.js';
 import { UpdateRoomStateUseCase } from '../../domain/usecases/UpdateRoomState.usecase.js';
-import { GetRoomRecordingsUseCase } from '../../domain/usecases/GetRoomRecordings.usecase.js';
 import { DeleteRoomUseCase } from '../../domain/usecases/DeleteRoom.usecase.js';
 import { ValidateRoomAccessUseCase } from '../../domain/usecases/ValidateRoomAccess.usecase.js';
 
@@ -156,12 +155,6 @@ export function setupContainer(): DIContainer {
   );
   container.register('UpdateRoomStateUseCase', updateRoomStateUseCase);
 
-  const getRoomRecordingsUseCase = new GetRoomRecordingsUseCase(
-    roomRepository,
-    recordingRepository
-  );
-  container.register('GetRoomRecordingsUseCase', getRoomRecordingsUseCase);
-
   const deleteRoomUseCase = new DeleteRoomUseCase(roomRepository);
   container.register('DeleteRoomUseCase', deleteRoomUseCase);
 
@@ -173,7 +166,6 @@ export function setupContainer(): DIContainer {
     createRoomUseCase,
     getRoomUseCase,
     updateRoomStateUseCase,
-    getRoomRecordingsUseCase,
     deleteRoomUseCase
   );
   container.register('RoomController', roomController);
