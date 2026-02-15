@@ -20,7 +20,6 @@ import { DownloadRecordingUseCase } from '../../domain/usecases/DownloadRecordin
 // Use Cases - Room
 import { CreateRoomUseCase } from '../../domain/usecases/CreateRoom.usecase.js';
 import { GetRoomUseCase } from '../../domain/usecases/GetRoom.usecase.js';
-import { GetAllRoomsUseCase } from '../../domain/usecases/GetAllRooms.usecase.js';
 import { UpdateRoomStateUseCase } from '../../domain/usecases/UpdateRoomState.usecase.js';
 import { GetRoomRecordingsUseCase } from '../../domain/usecases/GetRoomRecordings.usecase.js';
 import { DeleteRoomUseCase } from '../../domain/usecases/DeleteRoom.usecase.js';
@@ -130,9 +129,6 @@ export function setupContainer(): DIContainer {
   const getRoomUseCase = new GetRoomUseCase(roomRepository);
   container.register('GetRoomUseCase', getRoomUseCase);
 
-  const getAllRoomsUseCase = new GetAllRoomsUseCase(roomRepository);
-  container.register('GetAllRoomsUseCase', getAllRoomsUseCase);
-
   const updateRoomStateUseCase = new UpdateRoomStateUseCase(
     roomRepository,
     roomEventPublisher
@@ -155,7 +151,6 @@ export function setupContainer(): DIContainer {
   const roomController = new RoomController(
     createRoomUseCase,
     getRoomUseCase,
-    getAllRoomsUseCase,
     updateRoomStateUseCase,
     getRoomRecordingsUseCase,
     deleteRoomUseCase,

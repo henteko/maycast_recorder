@@ -322,13 +322,10 @@ export function useRoomDetailWebSocket(
   }, [stopPolling]);
 
   const updateRoomState = useCallback(async (state: RoomState): Promise<boolean> => {
-    const roomId = roomIdRef.current;
-    if (!roomId) return false;
-
     try {
       const serverUrl = getServerUrl();
       const apiClient = new RoomAPIClient(serverUrl);
-      await apiClient.updateRoomState(roomId, state);
+      await apiClient.updateRoomStateByToken(accessToken, state);
 
       if (!isWebSocketConnected) {
         await fetchRoom();
@@ -340,30 +337,29 @@ export function useRoomDetailWebSocket(
       setError(err instanceof Error ? err.message : 'Failed to update room state');
       return false;
     }
-  }, [fetchRoom, isWebSocketConnected]);
+  }, [accessToken, fetchRoom, isWebSocketConnected]);
 
   const deleteRoom = useCallback(async (): Promise<boolean> => {
     const roomId = roomIdRef.current;
-    if (!roomId) return false;
 
     try {
       const serverUrl = getServerUrl();
       const apiClient = new RoomAPIClient(serverUrl);
 
       const wsClient = wsClientRef.current;
-      if (wsClient) {
+      if (wsClient && roomId) {
         wsClient.leaveRoom(roomId);
         isSubscribedRef.current = false;
       }
 
-      await apiClient.deleteRoom(roomId);
+      await apiClient.deleteRoomByToken(accessToken);
       return true;
     } catch (err) {
       console.error('[useRoomDetailWebSocket] Failed to delete room:', err);
       setError(err instanceof Error ? err.message : 'Failed to delete room');
       return false;
     }
-  }, []);
+  }, [accessToken]);
 
   const guests = Array.from(guestsMap.values());
 
