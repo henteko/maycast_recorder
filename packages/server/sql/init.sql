@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS recordings (
 -- Roomsテーブル
 CREATE TABLE IF NOT EXISTS rooms (
     id          TEXT PRIMARY KEY,
+    access_key  TEXT NOT NULL,
     state       room_state NOT NULL DEFAULT 'idle',
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()

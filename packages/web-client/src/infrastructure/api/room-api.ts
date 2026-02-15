@@ -17,19 +17,21 @@ export interface RoomInfo {
 }
 
 /**
- * Room作成レスポンス
+ * Room状態のみ（認証不要、Guest用）
  */
-export interface CreateRoomResponse {
-  room_id: string;
-  created_at: string;
+export interface RoomStatusInfo {
+  id: string;
   state: RoomState;
 }
 
 /**
- * 全Room一覧レスポンス
+ * Room作成レスポンス
  */
-export interface GetAllRoomsResponse {
-  rooms: RoomInfo[];
+export interface CreateRoomResponse {
+  room_id: string;
+  access_key: string;
+  created_at: string;
+  state: RoomState;
 }
 
 export class RoomAPIClient {
@@ -61,31 +63,22 @@ export class RoomAPIClient {
   }
 
   /**
-   * 全Room一覧を取得
+   * Room情報を取得（accessKey必須）
    */
-  async getAllRooms(): Promise<RoomInfo[]> {
-    console.log(`📡 [RoomAPIClient] GET ${this.baseUrl}/api/rooms`);
-    const response = await fetch(`${this.baseUrl}/api/rooms`);
-
-    if (!response.ok) {
-      throw new Error(`Failed to get rooms: ${response.statusText}`);
-    }
-
-    const data: GetAllRoomsResponse = await response.json();
-    console.log(`✅ [RoomAPIClient] Rooms fetched:`, data.rooms.length);
-    return data.rooms;
-  }
-
-  /**
-   * Room情報を取得
-   */
-  async getRoom(roomId: string): Promise<RoomInfo> {
+  async getRoom(roomId: string, accessKey: string): Promise<RoomInfo> {
     console.log(`📡 [RoomAPIClient] GET ${this.baseUrl}/api/rooms/${roomId}`);
-    const response = await fetch(`${this.baseUrl}/api/rooms/${roomId}`);
+    const response = await fetch(`${this.baseUrl}/api/rooms/${roomId}`, {
+      headers: {
+        'x-room-access-key': accessKey,
+      },
+    });
 
     if (!response.ok) {
       if (response.status === 404) {
         throw new RoomNotFoundError(`Room not found: ${roomId}`);
+      }
+      if (response.status === 403) {
+        throw new RoomAccessDeniedError(`Access denied for room: ${roomId}`);
       }
       throw new Error(`Failed to get room: ${response.statusText}`);
     }
@@ -96,14 +89,34 @@ export class RoomAPIClient {
   }
 
   /**
-   * Room状態を更新
+   * Room状態のみ取得（認証不要、Guest用）
    */
-  async updateRoomState(roomId: string, state: RoomState): Promise<void> {
+  async getRoomStatus(roomId: string): Promise<RoomStatusInfo> {
+    console.log(`📡 [RoomAPIClient] GET ${this.baseUrl}/api/rooms/${roomId}/status`);
+    const response = await fetch(`${this.baseUrl}/api/rooms/${roomId}/status`);
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        throw new RoomNotFoundError(`Room not found: ${roomId}`);
+      }
+      throw new Error(`Failed to get room status: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    console.log(`✅ [RoomAPIClient] Room status fetched:`, data);
+    return data;
+  }
+
+  /**
+   * Room状態を更新（accessKey必須）
+   */
+  async updateRoomState(roomId: string, state: RoomState, accessKey: string): Promise<void> {
     console.log(`📡 [RoomAPIClient] PATCH ${this.baseUrl}/api/rooms/${roomId}/state -> ${state}`);
     const response = await fetch(`${this.baseUrl}/api/rooms/${roomId}/state`, {
       method: 'PATCH',
       headers: {
         'Content-Type': 'application/json',
+        'x-room-access-key': accessKey,
       },
       body: JSON.stringify({ state }),
     });
@@ -112,6 +125,9 @@ export class RoomAPIClient {
       if (response.status === 404) {
         throw new RoomNotFoundError(`Room not found: ${roomId}`);
       }
+      if (response.status === 403) {
+        throw new RoomAccessDeniedError(`Access denied for room: ${roomId}`);
+      }
       throw new Error(`Failed to update room state: ${response.statusText}`);
     }
 
@@ -119,17 +135,23 @@ export class RoomAPIClient {
   }
 
   /**
-   * Roomを削除
+   * Roomを削除（accessKey必須）
    */
-  async deleteRoom(roomId: string): Promise<void> {
+  async deleteRoom(roomId: string, accessKey: string): Promise<void> {
     console.log(`📡 [RoomAPIClient] DELETE ${this.baseUrl}/api/rooms/${roomId}`);
     const response = await fetch(`${this.baseUrl}/api/rooms/${roomId}`, {
       method: 'DELETE',
+      headers: {
+        'x-room-access-key': accessKey,
+      },
     });
 
     if (!response.ok) {
       if (response.status === 404) {
         throw new RoomNotFoundError(`Room not found: ${roomId}`);
+      }
+      if (response.status === 403) {
+        throw new RoomAccessDeniedError(`Access denied for room: ${roomId}`);
       }
       throw new Error(`Failed to delete room: ${response.statusText}`);
     }
@@ -138,11 +160,29 @@ export class RoomAPIClient {
   }
 
   /**
-   * Room状態を監視（ポーリング用）
+   * Room内のRecording一覧を取得（accessKey必須）
    */
-  async getRoomState(roomId: string): Promise<RoomState> {
-    const room = await this.getRoom(roomId);
-    return room.state;
+  async getRoomRecordings(roomId: string, accessKey: string): Promise<{ room_id: string; recordings: unknown[] }> {
+    console.log(`📡 [RoomAPIClient] GET ${this.baseUrl}/api/rooms/${roomId}/recordings`);
+    const response = await fetch(`${this.baseUrl}/api/rooms/${roomId}/recordings`, {
+      headers: {
+        'x-room-access-key': accessKey,
+      },
+    });
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        throw new RoomNotFoundError(`Room not found: ${roomId}`);
+      }
+      if (response.status === 403) {
+        throw new RoomAccessDeniedError(`Access denied for room: ${roomId}`);
+      }
+      throw new Error(`Failed to get room recordings: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    console.log(`✅ [RoomAPIClient] Room recordings fetched:`, data);
+    return data;
   }
 }
 
@@ -153,5 +193,15 @@ export class RoomNotFoundError extends Error {
   constructor(message: string) {
     super(message);
     this.name = 'RoomNotFoundError';
+  }
+}
+
+/**
+ * Room Access Denied Error
+ */
+export class RoomAccessDeniedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'RoomAccessDeniedError';
   }
 }

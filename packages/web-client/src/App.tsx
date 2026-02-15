@@ -4,6 +4,7 @@ import { DIProvider, setupContainer } from './infrastructure/di';
 import { SoloPage } from './presentation/components/pages/SoloPage';
 import { GuestPage } from './presentation/components/pages/GuestPage';
 import { DirectorPage } from './presentation/components/pages/DirectorPage';
+import { RoomDetailPage } from './presentation/components/pages/RoomDetailPage';
 import { TopPage } from './presentation/components/pages/TopPage';
 
 // Standalone Mode用のルーター
@@ -55,6 +56,19 @@ function DirectorModeRouter() {
   );
 }
 
+// Room Detail用のルーター
+function RoomDetailModeRouter() {
+  const diContainer = useMemo(() => {
+    return setupContainer('remote');
+  }, []);
+
+  return (
+    <DIProvider container={diContainer}>
+      <RoomDetailPage />
+    </DIProvider>
+  );
+}
+
 function App() {
   return (
     <BrowserRouter>
@@ -64,6 +78,9 @@ function App() {
 
         {/* Director Mode - /director */}
         <Route path="/director" element={<DirectorModeRouter />} />
+
+        {/* Room Detail - /director/rooms/:roomId */}
+        <Route path="/director/rooms/:roomId" element={<RoomDetailModeRouter />} />
 
         {/* Guest Mode - /guest/:roomId */}
         <Route path="/guest/:roomId" element={<GuestModeRouter />} />

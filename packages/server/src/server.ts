@@ -8,12 +8,14 @@ import { createRecordingsRouter } from './presentation/routes/recordings.js';
 import { createChunksRouter } from './presentation/routes/chunks.js';
 import { createRoomsRouter } from './presentation/routes/rooms.js';
 import { errorHandler } from './presentation/middleware/errorHandler.js';
+import { createRoomAccessMiddleware } from './presentation/middleware/roomAccessMiddleware.js';
 import { getWebSocketManager } from './infrastructure/websocket/WebSocketManager.js';
 import type { RecordingController } from './presentation/controllers/RecordingController.js';
 import type { ChunkController } from './presentation/controllers/ChunkController.js';
 import type { RoomController } from './presentation/controllers/RoomController.js';
 import type { UpdateRoomStateUseCase } from './domain/usecases/UpdateRoomState.usecase.js';
 import type { GetRoomUseCase } from './domain/usecases/GetRoom.usecase.js';
+import type { ValidateRoomAccessUseCase } from './domain/usecases/ValidateRoomAccess.usecase.js';
 import type { IRecordingRepository } from './domain/repositories/IRecordingRepository.js';
 
 // Load environment variables
@@ -31,7 +33,11 @@ const chunkController = container.resolve<ChunkController>('ChunkController');
 const roomController = container.resolve<RoomController>('RoomController');
 const updateRoomStateUseCase = container.resolve<UpdateRoomStateUseCase>('UpdateRoomStateUseCase');
 const getRoomUseCase = container.resolve<GetRoomUseCase>('GetRoomUseCase');
+const validateRoomAccessUseCase = container.resolve<ValidateRoomAccessUseCase>('ValidateRoomAccessUseCase');
 const recordingRepository = container.resolve<IRecordingRepository>('RecordingRepository');
+
+// Room Access Middleware
+const roomAccessMiddleware = createRoomAccessMiddleware(validateRoomAccessUseCase);
 
 // Middleware
 app.use(cors({
@@ -47,7 +53,7 @@ app.use(morgan(LOG_LEVEL === 'debug' ? 'dev' : 'combined'));
 // - ルームルーター: express.json()でJSONデータをパース
 app.use('/api', createChunksRouter(chunkController));
 app.use('/api', createRecordingsRouter(recordingController));
-app.use('/api', createRoomsRouter(roomController));
+app.use('/api', createRoomsRouter(roomController, roomAccessMiddleware));
 
 // Health check endpoint
 app.get('/health', (_req, res) => {
@@ -72,6 +78,16 @@ const httpServer = createServer(app);
 // Initialize WebSocket
 const webSocketManager = getWebSocketManager();
 webSocketManager.initialize(httpServer, CORS_ORIGIN);
+
+// WebSocket accessKey検証コールバックを設定
+webSocketManager.setValidateAccessKeyCallback(async (roomId: string, accessKey: string) => {
+  try {
+    await validateRoomAccessUseCase.execute({ roomId, accessKey });
+    return true;
+  } catch {
+    return false;
+  }
+});
 
 // Guest録画リンク時にparticipantNameをRecordingメタデータに保存
 webSocketManager.setOnGuestRecordingLinkedCallback(async (recordingId: string, guestName: string) => {

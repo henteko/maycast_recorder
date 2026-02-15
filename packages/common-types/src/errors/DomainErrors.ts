@@ -93,3 +93,9 @@ export class InvalidRoomStateTransitionError extends DomainError {
     super(message, 'INVALID_ROOM_STATE_TRANSITION');
   }
 }
+
+export class RoomAccessDeniedError extends DomainError {
+  constructor(message: string) {
+    super(message, 'ROOM_ACCESS_DENIED');
+  }
+}

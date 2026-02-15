@@ -60,6 +60,10 @@ function getStatusCodeForDomainError(error: DomainError): number {
     case 'ROOM_NOT_FOUND':
       return 404;
 
+    // 403 Forbidden
+    case 'ROOM_ACCESS_DENIED':
+      return 403;
+
     // 400 Bad Request
     case 'INVALID_STATE_TRANSITION':
     case 'INVALID_OPERATION':

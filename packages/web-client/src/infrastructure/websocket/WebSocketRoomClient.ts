@@ -22,7 +22,7 @@ import type {
  * クライアントからサーバーへのイベント
  */
 interface ClientToServerEvents {
-  join_room: (data: { roomId: string; name?: string }) => void;
+  join_room: (data: { roomId: string; name?: string; accessKey?: string }) => void;
   leave_room: (data: { roomId: string }) => void;
   set_recording_id: (data: { roomId: string; recordingId: string }) => void;
   guest_sync_update: (data: {
@@ -117,6 +117,7 @@ export class WebSocketRoomClient {
   private serverUrl: string;
   private currentRoomId: string | null = null;
   private currentName: string | null = null;
+  private currentAccessKey: string | null = null;
   private listeners: RoomEventListeners = {};
   private isConnected = false;
 
@@ -160,7 +161,7 @@ export class WebSocketRoomClient {
 
       // 再接続時にRoomに再参加
       if (this.currentRoomId) {
-        this.joinRoom(this.currentRoomId, this.currentName ?? undefined);
+        this.joinRoom(this.currentRoomId, this.currentName ?? undefined, this.currentAccessKey ?? undefined);
       }
     });
 
@@ -235,8 +236,9 @@ export class WebSocketRoomClient {
    * Roomに参加
    * @param roomId Room ID
    * @param name Guest名（任意、指定するとゲストとして追跡される）
+   * @param accessKey Director用アクセスキー（任意）
    */
-  joinRoom(roomId: string, name?: string): void {
+  joinRoom(roomId: string, name?: string, accessKey?: string): void {
     if (!this.socket) {
       console.warn('⚠️ [WebSocketRoomClient] Not connected, cannot join room');
       return;
@@ -245,7 +247,8 @@ export class WebSocketRoomClient {
     console.log(`📥 [WebSocketRoomClient] Joining room: ${roomId}${name ? ` (name: ${name})` : ''}`);
     this.currentRoomId = roomId;
     this.currentName = name ?? null;
-    this.socket.emit('join_room', { roomId, name });
+    this.currentAccessKey = accessKey ?? null;
+    this.socket.emit('join_room', { roomId, name, accessKey });
   }
 
   /**
@@ -305,6 +308,7 @@ export class WebSocketRoomClient {
     if (this.currentRoomId === roomId) {
       this.currentRoomId = null;
       this.currentName = null;
+      this.currentAccessKey = null;
     }
   }
 
@@ -375,6 +379,7 @@ export class WebSocketRoomClient {
       this.isConnected = false;
       this.currentRoomId = null;
       this.currentName = null;
+      this.currentAccessKey = null;
     }
   }
 

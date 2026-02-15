@@ -46,7 +46,7 @@ interface GuestTrackingInfo {
  * クライアントからサーバーへのイベント
  */
 interface ClientToServerEvents {
-  join_room: (data: { roomId: string; name?: string }) => void;
+  join_room: (data: { roomId: string; name?: string; accessKey?: string }) => void;
   leave_room: (data: { roomId: string }) => void;
   set_recording_id: (data: { roomId: string; recordingId: string }) => void;
   guest_sync_update: (data: {
@@ -116,6 +116,11 @@ export type OnGuestRecordingLinkedCallback = (recordingId: string, guestName: st
 export type OnAllGuestsSyncedCallback = (roomId: string) => Promise<void>;
 
 /**
+ * Directorアクセスキー検証コールバック
+ */
+export type ValidateAccessKeyCallback = (roomId: string, accessKey: string) => Promise<boolean>;
+
+/**
  * WebSocket Manager
  */
 export class WebSocketManager {
@@ -127,6 +132,7 @@ export class WebSocketManager {
   private socketToGuest: Map<string, { roomId: string; guestId: string }> = new Map();
   private onAllGuestsSyncedCallback: OnAllGuestsSyncedCallback | null = null;
   private onGuestRecordingLinkedCallback: OnGuestRecordingLinkedCallback | null = null;
+  private validateAccessKeyCallback: ValidateAccessKeyCallback | null = null;
 
   /**
    * Socket.IOサーバーを初期化
@@ -155,25 +161,41 @@ export class WebSocketManager {
    */
   private handleConnection(socket: Socket<ClientToServerEvents, ServerToClientEvents>): void {
     // Room参加
-    socket.on('join_room', ({ roomId, name }) => {
-      console.log(`📥 [WebSocket] Client ${socket.id} joining room: ${roomId}${name ? ` (name: ${name})` : ''}`);
+    socket.on('join_room', async ({ roomId, name, accessKey }) => {
+      console.log(`📥 [WebSocket] Client ${socket.id} joining room: ${roomId}${name ? ` (name: ${name})` : ''}${accessKey ? ' (with accessKey)' : ''}`);
+
+      // accessKeyが提供された場合はDirectorとして検証
+      if (!name && accessKey && this.validateAccessKeyCallback) {
+        try {
+          const isValid = await this.validateAccessKeyCallback(roomId, accessKey);
+          if (!isValid) {
+            socket.emit('error', { message: 'Access denied: invalid access key' });
+            return;
+          }
+        } catch {
+          socket.emit('error', { message: 'Access denied: room not found or invalid access key' });
+          return;
+        }
+      }
+
       socket.join(`room:${roomId}`);
 
-      // nameがない場合はDirector等なのでゲスト追跡しない
-      // ただし現在のゲスト一覧を送信する
+      // nameがない場合はゲスト追跡しない
       if (!name) {
-        // 現在のゲスト一覧を送信
-        const guests = this.getRoomGuests(roomId).map((g) => ({
-          guestId: g.guestId,
-          recordingId: g.recordingId,
-          name: g.name,
-          syncState: g.syncState,
-          uploadedChunks: g.uploadedChunks,
-          totalChunks: g.totalChunks,
-          mediaStatus: g.mediaStatus,
-        }));
-        socket.emit('room_guests', { roomId, guests });
-        console.log(`📤 [WebSocket] Sent ${guests.length} guests to Director for room: ${roomId}`);
+        // accessKeyが提供された場合（Director）のみゲスト一覧を送信
+        if (accessKey) {
+          const guests = this.getRoomGuests(roomId).map((g) => ({
+            guestId: g.guestId,
+            recordingId: g.recordingId,
+            name: g.name,
+            syncState: g.syncState,
+            uploadedChunks: g.uploadedChunks,
+            totalChunks: g.totalChunks,
+            mediaStatus: g.mediaStatus,
+          }));
+          socket.emit('room_guests', { roomId, guests });
+          console.log(`📤 [WebSocket] Sent ${guests.length} guests to Director for room: ${roomId}`);
+        }
         return;
       }
 
@@ -582,6 +604,13 @@ export class WebSocketManager {
    */
   setOnAllGuestsSyncedCallback(callback: OnAllGuestsSyncedCallback): void {
     this.onAllGuestsSyncedCallback = callback;
+  }
+
+  /**
+   * Directorアクセスキー検証コールバックを設定
+   */
+  setValidateAccessKeyCallback(callback: ValidateAccessKeyCallback): void {
+    this.validateAccessKeyCallback = callback;
   }
 }
 
