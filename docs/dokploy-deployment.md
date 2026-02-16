@@ -87,7 +87,7 @@ The client downloads recording data directly from R2 using presigned URLs. Since
 [
   {
     "AllowedOrigins": ["https://maycast.example.com"],
-    "AllowedMethods": ["GET", "HEAD"],
+    "AllowedMethods": ["GET", "HEAD", "PUT"],
     "AllowedHeaders": ["*"],
     "ExposeHeaders": ["Content-Length", "Content-Type", "ETag"],
     "MaxAgeSeconds": 3600
