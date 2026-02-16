@@ -19,6 +19,8 @@ import { UploadInitSegmentUseCase } from '../../domain/usecases/UploadInitSegmen
 import { UploadChunkUseCase } from '../../domain/usecases/UploadChunk.usecase.js';
 import { DownloadRecordingUseCase } from '../../domain/usecases/DownloadRecording.usecase.js';
 import { GetDownloadUrlsUseCase } from '../../domain/usecases/GetDownloadUrls.usecase.js';
+import { GetUploadUrlUseCase } from '../../domain/usecases/GetUploadUrl.usecase.js';
+import { ConfirmChunkUploadUseCase } from '../../domain/usecases/ConfirmChunkUpload.usecase.js';
 
 // Use Cases - Room
 import { CreateRoomUseCase } from '../../domain/usecases/CreateRoom.usecase.js';
@@ -128,6 +130,15 @@ export function setupContainer(): DIContainer {
   );
   container.register('GetDownloadUrlsUseCase', getDownloadUrlsUseCase);
 
+  const getUploadUrlUseCase = new GetUploadUrlUseCase(
+    recordingRepository,
+    presignedUrlService
+  );
+  container.register('GetUploadUrlUseCase', getUploadUrlUseCase);
+
+  const confirmChunkUploadUseCase = new ConfirmChunkUploadUseCase(recordingRepository);
+  container.register('ConfirmChunkUploadUseCase', confirmChunkUploadUseCase);
+
   // Controllers
   const recordingController = new RecordingController(
     createRecordingUseCase,
@@ -139,7 +150,12 @@ export function setupContainer(): DIContainer {
   );
   container.register('RecordingController', recordingController);
 
-  const chunkController = new ChunkController(uploadInitSegmentUseCase, uploadChunkUseCase);
+  const chunkController = new ChunkController(
+    uploadInitSegmentUseCase,
+    uploadChunkUseCase,
+    getUploadUrlUseCase,
+    confirmChunkUploadUseCase
+  );
   container.register('ChunkController', chunkController);
 
   // Room Use Cases

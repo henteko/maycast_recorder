@@ -114,59 +114,48 @@ export const GuestPage: React.FC<GuestPageProps> = ({ roomId }) => {
     setHasJoined(true);
   };
 
-  // Loading画面
-  if (isRoomLoading) {
-    return <LoadingScreen message="Loading room info..." />;
-  }
+  const renderContent = () => {
+    // Loading画面
+    if (isRoomLoading) {
+      return <LoadingScreen message="Loading room info..." />;
+    }
 
-  // Error画面
-  if (roomError || isRoomNotFound) {
-    return (
-      <RoomNotFoundScreen
-        roomId={roomId}
-        isRoomNotFound={isRoomNotFound}
-        errorMessage={roomError}
-      />
-    );
-  }
-
-  // Room終了画面（参加不可）
-  if (!hasJoined && roomState && !canJoinRoom) {
-    return <RoomClosedScreen roomId={roomId} roomState={roomState} />;
-  }
-
-  // 名前入力画面（参加前）
-  if (!hasJoined) {
-    return <GuestNameInput roomId={roomId} onJoin={handleJoinRoom} />;
-  }
-
-  // Complete画面 (sync完了後)
-  if (guestSyncState === 'synced') {
-    return (
-      <>
-        {toast && <Toast message={toast.message} visible={toast.visible} />}
-        <GuestCompletePage
-          recordings={savedRecordings}
-          onDownload={handleDownload}
-          isDownloading={downloadProgress.isDownloading}
+    // Error画面
+    if (roomError || isRoomNotFound) {
+      return (
+        <RoomNotFoundScreen
+          roomId={roomId}
+          isRoomNotFound={isRoomNotFound}
+          errorMessage={roomError}
         />
-      </>
-    );
-  }
+      );
+    }
 
-  return (
-    <>
-      <ResumeUploadModal
-        isOpen={showResumeModal}
-        onClose={() => setShowResumeModal(false)}
-        unfinishedRecordings={unfinishedRecordings}
-        onResumeAll={resumeAllRecordings}
-        onSkip={skipResume}
-        uploadProgress={uploadProgress}
-        isUploading={isResuming}
-        formatElapsedTime={formatElapsedTime}
-      />
+    // Room終了画面（参加不可）
+    if (!hasJoined && roomState && !canJoinRoom) {
+      return <RoomClosedScreen roomId={roomId} roomState={roomState} />;
+    }
 
+    // 名前入力画面（参加前）
+    if (!hasJoined) {
+      return <GuestNameInput roomId={roomId} onJoin={handleJoinRoom} />;
+    }
+
+    // Complete画面 (sync完了後)
+    if (guestSyncState === 'synced') {
+      return (
+        <>
+          {toast && <Toast message={toast.message} visible={toast.visible} />}
+          <GuestCompletePage
+            recordings={savedRecordings}
+            onDownload={handleDownload}
+            isDownloading={downloadProgress.isDownloading}
+          />
+        </>
+      );
+    }
+
+    return (
       <MainLayout
         sidebar={
           <Sidebar
@@ -212,6 +201,22 @@ export const GuestPage: React.FC<GuestPageProps> = ({ roomId }) => {
           />
         )}
       </MainLayout>
+    );
+  };
+
+  return (
+    <>
+      <ResumeUploadModal
+        isOpen={showResumeModal}
+        onClose={() => setShowResumeModal(false)}
+        unfinishedRecordings={unfinishedRecordings}
+        onResumeAll={resumeAllRecordings}
+        onSkip={skipResume}
+        uploadProgress={uploadProgress}
+        isUploading={isResuming}
+        formatElapsedTime={formatElapsedTime}
+      />
+      {renderContent()}
     </>
   );
 };

@@ -114,9 +114,27 @@ export class ResumeUploadManager {
         const initSegment = await this.chunkRepository.getInitSegment(localRecordingId);
 
         if (initSegment) {
-          await this.apiClient.uploadInitSegment(serverRecordingId, new Uint8Array(initSegment));
+          const initData = new Uint8Array(initSegment);
+
+          // Presigned URLによる直接アップロードを試行
+          try {
+            const uploadUrlResponse = await this.apiClient.getInitSegmentUploadUrl(serverRecordingId);
+            if (uploadUrlResponse.directUpload) {
+              await this.apiClient.uploadToPresignedUrl(uploadUrlResponse.url, initData);
+              await this.apiClient.confirmInitSegmentUpload(serverRecordingId);
+              console.log('✅ [ResumeUploadManager] Init segment uploaded directly to S3');
+            } else {
+              await this.apiClient.uploadInitSegment(serverRecordingId, initData);
+              console.log('✅ [ResumeUploadManager] Init segment uploaded via proxy');
+            }
+          } catch (urlErr) {
+            // フォールバック: プロキシ方式
+            console.warn('⚠️ [ResumeUploadManager] Presigned URL failed, falling back to proxy:', urlErr);
+            await this.apiClient.uploadInitSegment(serverRecordingId, initData);
+            console.log('✅ [ResumeUploadManager] Init segment uploaded via proxy fallback');
+          }
+
           await updateInitSegmentUploaded(localRecordingId, true);
-          console.log('✅ [ResumeUploadManager] Init segment uploaded');
 
           // 進捗更新
           const currentProgress = this.progress.get(localRecordingId)!;

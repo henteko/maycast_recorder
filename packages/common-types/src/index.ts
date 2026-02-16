@@ -38,6 +38,9 @@ export type {
   DownloadUrlsDirectResponse,
   DownloadUrlsFallbackResponse,
   DownloadUrlsResponse,
+  UploadUrlDirectResponse,
+  UploadUrlProxyResponse,
+  UploadUrlResponse,
 } from './api-types.js';
 
 // Room types

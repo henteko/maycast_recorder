@@ -43,3 +43,22 @@ export interface DownloadUrlsFallbackResponse {
 }
 
 export type DownloadUrlsResponse = DownloadUrlsDirectResponse | DownloadUrlsFallbackResponse;
+
+/**
+ * GET /api/recordings/:id/upload-url/init-segment - Response
+ * GET /api/recordings/:id/upload-url/chunk?chunk_id=N - Response
+ *
+ * S3バックエンドの場合: directUpload=true + presigned URL
+ * ローカルバックエンドの場合: directUpload=false（従来のプロキシ方式を使用）
+ */
+export interface UploadUrlDirectResponse {
+  directUpload: true;
+  url: string;
+  expiresIn: number;
+}
+
+export interface UploadUrlProxyResponse {
+  directUpload: false;
+}
+
+export type UploadUrlResponse = UploadUrlDirectResponse | UploadUrlProxyResponse;
