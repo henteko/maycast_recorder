@@ -39,19 +39,26 @@ export const useGuestMediaStatus = ({
     const videoTrack = stream?.getVideoTracks()[0];
     const audioTrack = stream?.getAudioTracks()[0];
 
-    // デバイス情報を取得
-    const cameraDevice = videoDevices.find((d) => d.deviceId === videoDeviceId);
-    const micDevice = audioDevices.find((d) => d.deviceId === audioDeviceId);
+    // デバイス情報を取得（default選択時はトラックから実際のdeviceIdを取得）
+    const actualVideoDeviceId = videoDeviceId || videoTrack?.getSettings().deviceId;
+    const actualAudioDeviceId = audioDeviceId || audioTrack?.getSettings().deviceId;
+
+    const cameraDevice = videoDevices.find((d) => d.deviceId === actualVideoDeviceId);
+    const micDevice = audioDevices.find((d) => d.deviceId === actualAudioDeviceId);
 
     return {
       isCameraActive: videoTrack?.enabled ?? false,
       isMicMuted: !(audioTrack?.enabled ?? false),
       cameraDevice: cameraDevice
-        ? { deviceId: cameraDevice.deviceId, label: cameraDevice.label || 'Unknown Camera' }
-        : undefined,
+        ? { deviceId: cameraDevice.deviceId, label: cameraDevice.label || 'Default' }
+        : actualVideoDeviceId
+          ? { deviceId: actualVideoDeviceId, label: 'Default' }
+          : undefined,
       micDevice: micDevice
-        ? { deviceId: micDevice.deviceId, label: micDevice.label || 'Unknown Microphone' }
-        : undefined,
+        ? { deviceId: micDevice.deviceId, label: micDevice.label || 'Default' }
+        : actualAudioDeviceId
+          ? { deviceId: actualAudioDeviceId, label: 'Default' }
+          : undefined,
     };
   }, [stream, videoDeviceId, audioDeviceId, videoDevices, audioDevices]);
 
