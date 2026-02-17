@@ -19,6 +19,7 @@
 
 import { useRef, useState, useCallback } from 'react';
 import { generateRecordingId } from '../../infrastructure/storage/chunk-storage';
+import { ClapperboardMixer } from '../../infrastructure/audio/clapperboard';
 import type { ChunkStats } from '../../types/webcodecs';
 import type { RecorderSettings } from '../../types/settings';
 import { QUALITY_PRESETS } from '../../types/settings';
@@ -73,8 +74,7 @@ export const useRecorder = ({
   const videoProcessorRef = useRef<MediaStreamTrackProcessor<VideoFrame> | null>(null);
   // @ts-expect-error - MediaStreamTrackProcessor is experimental
   const audioProcessorRef = useRef<MediaStreamTrackProcessor<AudioData> | null>(null);
-
-  const startRecording = useCallback(async () => {
+  const startRecording = useCallback(async (options?: { playClapperboard?: boolean }) => {
     await closeEncoders();
 
     const recordingId = generateRecordingId();
@@ -159,12 +159,19 @@ export const useRecorder = ({
       audioProcessorRef.current = new MediaStreamTrackProcessor({ track: audioTrack })
       const reader = audioProcessorRef.current.readable.getReader()
 
+      // カチンコ音ミキサー（ゲストモードで使用）
+      const clapperboardMixer = options?.playClapperboard ? new ClapperboardMixer() : null;
+
       const processAudioData = async () => {
         while (isRecordingRef.current) {
           const result = await reader.read()
           if (result.done) break
 
-          const audioData = result.value
+          let audioData = result.value
+          // カチンコ音を AudioData の生サンプルに直接合成
+          if (clapperboardMixer) {
+            audioData = clapperboardMixer.mixInto(audioData);
+          }
           if (audioEncoderRef.current && audioEncoderRef.current.state === 'configured') {
             audioEncoderRef.current.encode(audioData)
           }

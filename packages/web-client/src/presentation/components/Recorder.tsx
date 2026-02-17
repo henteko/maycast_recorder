@@ -29,7 +29,7 @@ export interface RecorderExports {
   savedChunks: number;
   isRecording: boolean;
   wasmInitialized: boolean;
-  startRecording: () => void;
+  startRecording: (options?: { playClapperboard?: boolean }) => void;
   stopRecording: () => void;
 }
 
