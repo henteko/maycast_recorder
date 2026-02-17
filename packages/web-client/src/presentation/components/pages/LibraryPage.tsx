@@ -2,6 +2,7 @@ import React from 'react';
 import { ServerStackIcon, TrashIcon } from '@heroicons/react/24/solid';
 import { SessionItem } from '../molecules/SessionItem';
 import type { Recording, RecordingId } from '@maycast/common-types';
+import type { DownloadProgress } from '../../hooks/useDownload';
 
 interface LibraryPageProps {
   recordings: Recording[];
@@ -9,6 +10,8 @@ interface LibraryPageProps {
   onDelete: (recordingId: RecordingId) => Promise<void>;
   onClearAll: () => Promise<void>;
   isDownloading: boolean;
+  downloadingRecordingId?: RecordingId;
+  downloadProgress?: DownloadProgress;
 }
 
 export const LibraryPage: React.FC<LibraryPageProps> = ({
@@ -17,6 +20,8 @@ export const LibraryPage: React.FC<LibraryPageProps> = ({
   onDelete,
   onClearAll,
   isDownloading,
+  downloadingRecordingId,
+  downloadProgress,
 }) => {
   return (
     <div className="flex flex-col h-full bg-maycast-bg text-maycast-text">
@@ -58,7 +63,8 @@ export const LibraryPage: React.FC<LibraryPageProps> = ({
                 recording={recording}
                 onDownload={onDownload}
                 onDelete={onDelete}
-                isDownloading={isDownloading}
+                isDownloading={isDownloading && downloadingRecordingId === recording.id}
+                downloadProgress={isDownloading && downloadingRecordingId === recording.id ? downloadProgress : undefined}
               />
             ))}
           </div>

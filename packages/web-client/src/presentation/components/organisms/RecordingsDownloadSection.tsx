@@ -11,10 +11,18 @@ import { Button } from '../atoms/Button';
 import { RecordingDownloadItem } from '../molecules/RecordingDownloadItem';
 import type { GuestInfo } from '@maycast/common-types';
 
+export interface DownloadAllProgress {
+  currentRecording: number;
+  totalRecordings: number;
+  currentChunk: number;
+  totalChunks: number;
+}
+
 interface RecordingsDownloadSectionProps {
   recordingIds: string[];
   onDownloadAll: () => void;
   isDownloadingAll: boolean;
+  downloadAllProgress?: DownloadAllProgress;
   guests?: GuestInfo[];
 }
 
@@ -22,11 +30,12 @@ export const RecordingsDownloadSection: React.FC<RecordingsDownloadSectionProps>
   recordingIds,
   onDownloadAll,
   isDownloadingAll,
+  downloadAllProgress,
   guests = [],
 }) => {
   const [recordings, setRecordings] = useState<Map<string, RecordingInfo>>(new Map());
   const [loadingIds, setLoadingIds] = useState<Set<string>>(new Set());
-  const [downloadingIds, setDownloadingIds] = useState<Set<string>>(new Set());
+  const [downloadProgress, setDownloadProgress] = useState<Map<string, { current: number; total: number }>>(new Map());
   const fetchedIdsRef = useRef<Set<string>>(new Set());
 
   // recordingId -> guestName のマッピングを作成（WebSocket上のguest情報優先、fallbackとしてrecordingメタデータを使用）
@@ -72,10 +81,14 @@ export const RecordingsDownloadSection: React.FC<RecordingsDownloadSectionProps>
 
   // 個別ダウンロード
   const handleDownload = useCallback(async (recordingId: string) => {
-    setDownloadingIds((prev) => new Set(prev).add(recordingId));
+    setDownloadProgress((prev) => new Map(prev).set(recordingId, { current: 0, total: 0 }));
     try {
       const serverUrl = getServerUrl();
       const apiClient = new RecordingAPIClient(serverUrl);
+
+      const onChunkProgress = (progress: { current: number; total: number }) => {
+        setDownloadProgress((prev) => new Map(prev).set(recordingId, progress));
+      };
 
       // Presigned URL対応: まずdownload-urlsを試行
       let blob: Blob;
@@ -84,7 +97,7 @@ export const RecordingsDownloadSection: React.FC<RecordingsDownloadSectionProps>
         const downloadUrls = await apiClient.getDownloadUrls(recordingId);
         if (downloadUrls.directDownload) {
           const cloudService = new CloudDownloadService();
-          blob = await cloudService.download(downloadUrls);
+          blob = await cloudService.download(downloadUrls, onChunkProgress);
           filename = downloadUrls.filename;
         } else {
           blob = await apiClient.downloadRecording(recordingId);
@@ -114,8 +127,8 @@ export const RecordingsDownloadSection: React.FC<RecordingsDownloadSectionProps>
       console.error(`Failed to download recording ${recordingId}:`, err);
       alert(`Failed to download recording: ${err instanceof Error ? err.message : 'Unknown error'}`);
     } finally {
-      setDownloadingIds((prev) => {
-        const next = new Set(prev);
+      setDownloadProgress((prev) => {
+        const next = new Map(prev);
         next.delete(recordingId);
         return next;
       });
@@ -150,7 +163,9 @@ export const RecordingsDownloadSection: React.FC<RecordingsDownloadSectionProps>
             {isDownloadingAll ? (
               <>
                 <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                Downloading...
+                {downloadAllProgress && downloadAllProgress.totalRecordings > 0
+                  ? `${downloadAllProgress.currentRecording}/${downloadAllProgress.totalRecordings}`
+                  : 'Downloading...'}
               </>
             ) : (
               <>
@@ -169,7 +184,8 @@ export const RecordingsDownloadSection: React.FC<RecordingsDownloadSectionProps>
             recording={recordings.get(recordingId) || null}
             isLoading={loadingIds.has(recordingId)}
             onDownload={handleDownload}
-            isDownloading={downloadingIds.has(recordingId)}
+            isDownloading={downloadProgress.has(recordingId)}
+            chunkProgress={downloadProgress.get(recordingId)}
             guestName={getGuestNameForRecording(recordingId)}
           />
         ))}

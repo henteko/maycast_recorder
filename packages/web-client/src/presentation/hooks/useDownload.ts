@@ -21,11 +21,14 @@ export const useDownload = () => {
 
   const downloadRecordingById = async (recordingId: RecordingId) => {
     try {
-      setDownloadProgress({ isDownloading: true, current: 0, total: 1 });
+      setDownloadProgress({ isDownloading: true, current: 0, total: 0 });
 
-      const result = await downloadRecordingUseCase.execute({ recordingId });
-
-      setDownloadProgress({ isDownloading: true, current: 1, total: 1 });
+      const result = await downloadRecordingUseCase.execute({
+        recordingId,
+        onProgress: (progress) => {
+          setDownloadProgress({ isDownloading: true, ...progress });
+        },
+      });
 
       // Download the file
       const url = URL.createObjectURL(result.blob);

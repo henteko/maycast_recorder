@@ -7,11 +7,14 @@
 
 import { CheckCircleIcon, ArrowDownTrayIcon, VideoCameraIcon } from '@heroicons/react/24/solid';
 import type { Recording, RecordingId } from '@maycast/common-types';
+import type { DownloadProgress } from '../../hooks/useDownload';
 
 interface GuestCompletePageProps {
   recordings: Recording[];
   onDownload: (id: RecordingId) => Promise<void>;
   isDownloading: boolean;
+  downloadProgress?: DownloadProgress;
+  downloadingRecordingId?: RecordingId;
 }
 
 const formatDuration = (startTime: number, endTime: number | undefined): string => {
@@ -37,6 +40,8 @@ export const GuestCompletePage: React.FC<GuestCompletePageProps> = ({
   recordings,
   onDownload,
   isDownloading,
+  downloadProgress,
+  downloadingRecordingId,
 }) => {
   const recentRecordings = recordings.slice(0, 3);
 
@@ -102,8 +107,17 @@ export const GuestCompletePage: React.FC<GuestCompletePageProps> = ({
                             : 'bg-maycast-safe/20 hover:bg-maycast-safe/30 text-maycast-safe border border-maycast-safe/30 cursor-pointer'
                         }`}
                       >
-                        <ArrowDownTrayIcon className="w-3.5 h-3.5" />
-                        DL
+                        {downloadingRecordingId === recording.id && downloadProgress && downloadProgress.total > 0 ? (
+                          <>
+                            <div className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                            {downloadProgress.current}/{downloadProgress.total}
+                          </>
+                        ) : (
+                          <>
+                            <ArrowDownTrayIcon className="w-3.5 h-3.5" />
+                            DL
+                          </>
+                        )}
                       </button>
                     </div>
                   );

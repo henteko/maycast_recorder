@@ -8,6 +8,7 @@ import type { IChunkRepository } from '../repositories/IChunkRepository';
  */
 export interface DownloadRecordingRequest {
   recordingId: RecordingId;
+  onProgress?: (progress: { current: number; total: number }) => void;
 }
 
 /**
@@ -68,7 +69,13 @@ export class DownloadRecordingUseCase {
       });
 
     // 3. チャンクを結合
+    const total = 1 + sortedChunks.length; // init segment + chunks
+    let current = 0;
+
     const chunks: ArrayBuffer[] = [initSegment];
+    current++;
+    request.onProgress?.({ current, total });
+
     for (const metadata of sortedChunks) {
       const chunkData = await this.chunkRepository.findById(
         request.recordingId,
@@ -77,6 +84,8 @@ export class DownloadRecordingUseCase {
       if (chunkData) {
         chunks.push(chunkData);
       }
+      current++;
+      request.onProgress?.({ current, total });
     }
 
     const blob = new Blob(chunks, { type: 'video/mp4' });

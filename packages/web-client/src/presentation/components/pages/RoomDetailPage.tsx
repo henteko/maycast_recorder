@@ -19,7 +19,7 @@ import { ConnectionBadge } from '../atoms/ConnectionBadge';
 import { Button } from '../atoms/Button';
 import { GuestUrlInput } from '../molecules/GuestUrlInput';
 import { GuestListItem } from '../molecules/GuestListItem';
-import { RecordingsDownloadSection } from '../organisms/RecordingsDownloadSection';
+import { RecordingsDownloadSection, type DownloadAllProgress } from '../organisms/RecordingsDownloadSection';
 
 export const RoomDetailPage: React.FC = () => {
   const { roomId } = useParams<{ roomId: string }>();
@@ -42,6 +42,9 @@ export const RoomDetailPage: React.FC = () => {
 
   const [isUpdating, setIsUpdating] = useState(false);
   const [isDownloadingAll, setIsDownloadingAll] = useState(false);
+  const [downloadAllProgress, setDownloadAllProgress] = useState<DownloadAllProgress>({
+    currentRecording: 0, totalRecordings: 0, currentChunk: 0, totalChunks: 0,
+  });
 
   const guestUrl = roomId ? `${window.location.origin}/guest/${roomId}` : '';
 
@@ -84,21 +87,32 @@ export const RoomDetailPage: React.FC = () => {
   const handleDownloadAll = useCallback(async () => {
     if (!room || room.recording_ids.length === 0) return;
 
+    const totalRecordings = room.recording_ids.length;
     setIsDownloadingAll(true);
+    setDownloadAllProgress({ currentRecording: 0, totalRecordings, currentChunk: 0, totalChunks: 0 });
     try {
       const serverUrl = getServerUrl();
       const apiClient = new RecordingAPIClient(serverUrl);
       const zip = new JSZip();
 
+      let completedRecordings = 0;
       for (const recordingId of room.recording_ids) {
         try {
           let blob: Blob;
           let fileName: string | undefined;
+          const onChunkProgress = (progress: { current: number; total: number }) => {
+            setDownloadAllProgress({
+              currentRecording: completedRecordings,
+              totalRecordings,
+              currentChunk: progress.current,
+              totalChunks: progress.total,
+            });
+          };
           try {
             const downloadUrls = await apiClient.getDownloadUrls(recordingId);
             if (downloadUrls.directDownload) {
               const cloudService = new CloudDownloadService();
-              blob = await cloudService.download(downloadUrls);
+              blob = await cloudService.download(downloadUrls, onChunkProgress);
               fileName = downloadUrls.filename;
             } else {
               blob = await apiClient.downloadRecording(recordingId);
@@ -121,8 +135,12 @@ export const RoomDetailPage: React.FC = () => {
               : `recording-${recordingId.substring(0, 8)}.mp4`;
           }
           zip.file(fileName, blob);
+          completedRecordings++;
+          setDownloadAllProgress((prev) => ({ ...prev, currentRecording: completedRecordings }));
         } catch (err) {
           console.error(`Failed to download recording ${recordingId}:`, err);
+          completedRecordings++;
+          setDownloadAllProgress((prev) => ({ ...prev, currentRecording: completedRecordings }));
         }
       }
 
@@ -296,6 +314,7 @@ export const RoomDetailPage: React.FC = () => {
                 recordingIds={room.recording_ids}
                 onDownloadAll={handleDownloadAll}
                 isDownloadingAll={isDownloadingAll}
+                downloadAllProgress={downloadAllProgress}
                 guests={guests}
               />
             </div>

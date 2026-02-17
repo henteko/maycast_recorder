@@ -5,7 +5,7 @@
  * Room状態に応じて自動的に録画制御を行う
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Recorder } from '../Recorder';
 import { LibraryPage } from './LibraryPage';
 import { SettingsPage } from './SettingsPage';
@@ -64,6 +64,16 @@ export const GuestPage: React.FC<GuestPageProps> = ({ roomId }) => {
     skipResume,
   } = useSessionManager();
   const { downloadProgress, downloadRecordingById } = useDownload();
+  const [downloadingRecordingId, setDownloadingRecordingId] = useState<string | null>(null);
+
+  const handleDownload = useCallback(async (recordingId: string) => {
+    setDownloadingRecordingId(recordingId);
+    try {
+      await downloadRecordingById(recordingId);
+    } finally {
+      setDownloadingRecordingId(null);
+    }
+  }, [downloadRecordingById]);
   const { toast, showToast } = useToast();
 
   const {
@@ -147,8 +157,10 @@ export const GuestPage: React.FC<GuestPageProps> = ({ roomId }) => {
           {toast && <Toast message={toast.message} visible={toast.visible} />}
           <GuestCompletePage
             recordings={savedRecordings}
-            onDownload={downloadRecordingById}
+            onDownload={handleDownload}
             isDownloading={downloadProgress.isDownloading}
+            downloadProgress={downloadProgress}
+            downloadingRecordingId={downloadingRecordingId ?? undefined}
           />
         </>
       );
@@ -169,7 +181,7 @@ export const GuestPage: React.FC<GuestPageProps> = ({ roomId }) => {
             settings={settings}
             storageStrategy={storageStrategy}
             onSessionComplete={loadRecordings}
-            onDownload={downloadRecordingById}
+            onDownload={handleDownload}
             downloadProgress={downloadProgress}
             exportRef={recorderRef}
             hideControls={true}
@@ -185,10 +197,12 @@ export const GuestPage: React.FC<GuestPageProps> = ({ roomId }) => {
         {currentPage === 'library' && (
           <LibraryPage
             recordings={savedRecordings}
-            onDownload={downloadRecordingById}
+            onDownload={handleDownload}
             onDelete={deleteRecording}
             onClearAll={clearAllRecordings}
             isDownloading={downloadProgress.isDownloading}
+            downloadingRecordingId={downloadingRecordingId ?? undefined}
+            downloadProgress={downloadProgress}
           />
         )}
         {currentPage === 'settings' && (

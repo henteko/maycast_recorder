@@ -12,6 +12,7 @@ interface RecordingDownloadItemProps {
   isLoading: boolean;
   onDownload: (recordingId: string) => void;
   isDownloading: boolean;
+  chunkProgress?: { current: number; total: number };
   guestName?: string;
 }
 
@@ -21,6 +22,7 @@ export const RecordingDownloadItem: React.FC<RecordingDownloadItemProps> = ({
   isLoading,
   onDownload,
   isDownloading,
+  chunkProgress,
   guestName,
 }) => {
   const duration = recording ? RecordingAPIClient.calculateDuration(recording) : null;
@@ -64,7 +66,9 @@ export const RecordingDownloadItem: React.FC<RecordingDownloadItemProps> = ({
         {isDownloading ? (
           <>
             <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-            <span>Processing...</span>
+            <span>{chunkProgress && chunkProgress.total > 0
+              ? `${chunkProgress.current}/${chunkProgress.total}`
+              : 'Processing...'}</span>
           </>
         ) : (
           <>

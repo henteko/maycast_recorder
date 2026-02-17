@@ -5,7 +5,7 @@
  * OPFSにデータを保存し、ローカルでダウンロード可能
  */
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { Recorder } from '../Recorder';
 import { LibraryPage } from './LibraryPage';
 import { SettingsPage } from './SettingsPage';
@@ -34,6 +34,16 @@ export const SoloPage: React.FC = () => {
   } = useSessionManager();
   const { downloadProgress, downloadRecordingById } = useDownload();
   const { toast, showToast } = useToast();
+  const [downloadingRecordingId, setDownloadingRecordingId] = useState<string | null>(null);
+
+  const handleDownload = useCallback(async (recordingId: string) => {
+    setDownloadingRecordingId(recordingId);
+    try {
+      await downloadRecordingById(recordingId);
+    } finally {
+      setDownloadingRecordingId(null);
+    }
+  }, [downloadRecordingById]);
 
   const storageStrategy = useMemo(() => {
     console.log('🔄 [SoloPage] Using StandaloneStorageStrategy');
@@ -71,7 +81,7 @@ export const SoloPage: React.FC = () => {
           settings={settings}
           storageStrategy={storageStrategy}
           onSessionComplete={loadRecordings}
-          onDownload={downloadRecordingById}
+          onDownload={handleDownload}
           downloadProgress={downloadProgress}
           onNavigateToLibrary={() => setCurrentPage('library')}
           onSettingsChange={handleSettingsChange}
@@ -82,10 +92,12 @@ export const SoloPage: React.FC = () => {
       {currentPage === 'library' && (
         <LibraryPage
           recordings={savedRecordings}
-          onDownload={downloadRecordingById}
+          onDownload={handleDownload}
           onDelete={deleteRecording}
           onClearAll={clearAllRecordings}
           isDownloading={downloadProgress.isDownloading}
+          downloadingRecordingId={downloadingRecordingId ?? undefined}
+          downloadProgress={downloadProgress}
         />
       )}
       {currentPage === 'settings' && (

@@ -7,15 +7,17 @@ import {
   ExclamationTriangleIcon,
 } from '@heroicons/react/24/solid';
 import type { Recording, RecordingId } from '@maycast/common-types';
+import type { DownloadProgress } from '../../hooks/useDownload';
 
 interface SessionItemProps {
   recording: Recording;
   onDownload: (recordingId: RecordingId) => void;
   onDelete: (recordingId: RecordingId) => void;
   isDownloading: boolean;
+  downloadProgress?: DownloadProgress;
 }
 
-export const SessionItem = ({ recording, onDownload, onDelete, isDownloading }: SessionItemProps) => {
+export const SessionItem = ({ recording, onDownload, onDelete, isDownloading, downloadProgress }: SessionItemProps) => {
   const startDate = recording.startTime ? new Date(recording.startTime) : null;
   const isValidStart = startDate && !isNaN(startDate.getTime());
 
@@ -57,14 +59,21 @@ export const SessionItem = ({ recording, onDownload, onDelete, isDownloading }: 
         <button
           onClick={() => onDownload(recording.id)}
           disabled={isDownloading}
-          className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
+          className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all flex items-center gap-2 ${
             isDownloading
               ? 'bg-gray-600 cursor-not-allowed opacity-50'
               : 'bg-maycast-safe hover:bg-maycast-safe/80 shadow-lg cursor-pointer'
           }`}
           title="Download"
         >
-          <ArrowDownTrayIcon className="w-5 h-5" />
+          {isDownloading && downloadProgress && downloadProgress.total > 0 ? (
+            <>
+              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              <span className="text-xs">{downloadProgress.current}/{downloadProgress.total}</span>
+            </>
+          ) : (
+            <ArrowDownTrayIcon className="w-5 h-5" />
+          )}
         </button>
         <button
           onClick={() => onDelete(recording.id)}
