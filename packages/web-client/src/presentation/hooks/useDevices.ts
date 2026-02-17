@@ -36,8 +36,21 @@ export const useDevices = (stream?: MediaStream | null) => {
 
   // 初回マウント時 + stream変更時（getUserMedia完了後）に再列挙
   useEffect(() => {
-    enumerate();
-  }, [enumerate, stream]);
+    let cancelled = false;
+
+    mediaStreamService.enumerateDevices().then((devices) => {
+      if (cancelled) return;
+      const videoInputs = devices.filter((d) => d.kind === 'videoinput');
+      const audioInputs = devices.filter((d) => d.kind === 'audioinput');
+
+      setVideoDevices(videoInputs);
+      setAudioDevices(audioInputs);
+    }).catch((err) => {
+      console.error('❌ Failed to enumerate devices:', err);
+    });
+
+    return () => { cancelled = true; };
+  }, [mediaStreamService, stream]);
 
   // デバイスの接続/切断を検知して再列挙
   useEffect(() => {
