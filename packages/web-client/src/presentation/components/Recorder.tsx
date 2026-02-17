@@ -208,8 +208,8 @@ export const Recorder: React.FC<RecorderProps> = ({
     }
   }, [stream])
 
-  // Guest mode: デバイス情報を取得
-  const { videoDevices, audioDevices } = useDevices();
+  // デバイス情報を取得（streamを渡してgetUserMedia完了後に再列挙）
+  const { videoDevices, audioDevices } = useDevices(stream);
 
   // Guest mode: メディアステータスをDirectorに送信
   useGuestMediaStatus({
