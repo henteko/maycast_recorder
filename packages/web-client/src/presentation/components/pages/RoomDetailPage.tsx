@@ -108,18 +108,14 @@ export const RoomDetailPage: React.FC = () => {
               totalChunks: progress.total,
             });
           };
-          try {
-            const downloadUrls = await apiClient.getDownloadUrls(recordingId);
-            if (downloadUrls.directDownload) {
-              const cloudService = new CloudDownloadService();
-              blob = await cloudService.download(downloadUrls, onChunkProgress);
-              fileName = downloadUrls.filename;
-            } else {
-              blob = await apiClient.downloadRecording(recordingId);
-              fileName = downloadUrls.filename;
-            }
-          } catch {
+          const downloadUrls = await apiClient.getDownloadUrls(recordingId);
+          if (downloadUrls.directDownload) {
+            const cloudService = new CloudDownloadService();
+            blob = await cloudService.download(downloadUrls, onChunkProgress);
+            fileName = downloadUrls.filename;
+          } else {
             blob = await apiClient.downloadRecording(recordingId);
+            fileName = downloadUrls.filename;
           }
 
           if (!fileName) {

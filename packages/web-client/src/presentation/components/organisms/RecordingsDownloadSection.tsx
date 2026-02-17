@@ -90,22 +90,17 @@ export const RecordingsDownloadSection: React.FC<RecordingsDownloadSectionProps>
         setDownloadProgress((prev) => new Map(prev).set(recordingId, progress));
       };
 
-      // Presigned URL対応: まずdownload-urlsを試行
+      // Presigned URL対応: download-urlsを使用
       let blob: Blob;
       let filename: string | undefined;
-      try {
-        const downloadUrls = await apiClient.getDownloadUrls(recordingId);
-        if (downloadUrls.directDownload) {
-          const cloudService = new CloudDownloadService();
-          blob = await cloudService.download(downloadUrls, onChunkProgress);
-          filename = downloadUrls.filename;
-        } else {
-          blob = await apiClient.downloadRecording(recordingId);
-          filename = downloadUrls.filename;
-        }
-      } catch {
-        // download-urls APIが利用できない場合は既存のダウンロードにフォールバック
+      const downloadUrls = await apiClient.getDownloadUrls(recordingId);
+      if (downloadUrls.directDownload) {
+        const cloudService = new CloudDownloadService();
+        blob = await cloudService.download(downloadUrls, onChunkProgress);
+        filename = downloadUrls.filename;
+      } else {
         blob = await apiClient.downloadRecording(recordingId);
+        filename = downloadUrls.filename;
       }
 
       // ダウンロードリンクを作成
