@@ -71,9 +71,9 @@ export const GuestListItem: React.FC<GuestListItemProps> = ({ guest, waveformDat
               </div>
             </div>
           )}
-          {guest.syncState === 'uploading' && (
+          {(guest.syncState === 'recording' || guest.syncState === 'uploading') && (guest.uploadedChunks !== undefined && guest.totalChunks !== undefined) && guest.totalChunks > 0 && (
             <span className="text-xs text-maycast-text-secondary font-mono">
-              {guest.uploadedChunks}/{guest.totalChunks}
+              {guest.uploadedChunks}/{guest.totalChunks} chunks
             </span>
           )}
           <GuestSyncBadge syncState={guest.syncState} />

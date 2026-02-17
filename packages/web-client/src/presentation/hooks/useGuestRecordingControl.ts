@@ -140,6 +140,17 @@ export const useGuestRecordingControl = ({
     }
   }, [hasStartedRecording, storageStrategy, setWsRecordingId]);
 
+  // 録画中のアップロード進捗をDirectorに定期送信
+  useEffect(() => {
+    if (guestSyncState !== 'recording') return;
+
+    const interval = setInterval(() => {
+      emitSyncUpdate('recording');
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [guestSyncState, emitSyncUpdate]);
+
   // アップロード進捗を監視して同期状態を更新
   useEffect(() => {
     if (guestSyncState !== 'uploading') return;
