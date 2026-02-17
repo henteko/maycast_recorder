@@ -12,8 +12,11 @@ export interface DownloadProgress {
  * Blobとして組み立てる
  */
 export class CloudDownloadService {
+  private readonly maxConcurrency = 6;
+
   /**
-   * Presigned URLからチャンクを全並列ダウンロードしてBlobを組み立てる
+   * Presigned URLからチャンクを並列ダウンロードしてBlobを組み立てる
+   * 同時接続数を制限してブラウザのリソース枯渇を防ぐ
    */
   async download(
     response: DownloadUrlsDirectResponse,
@@ -27,15 +30,25 @@ export class CloudDownloadService {
     current++;
     onProgress?.({ current, total });
 
-    // 2. 全チャンクを同時並列で取得（順序はPromise.allで維持）
-    const chunkResults = await Promise.all(
-      response.chunks.map(async (chunk) => {
-        const data = await this.fetchData(chunk.url);
+    // 2. 並列数を制限してチャンクを取得（順序は維持）
+    const chunkResults = new Array<ArrayBuffer>(response.chunks.length);
+    let nextIndex = 0;
+
+    const worker = async () => {
+      while (true) {
+        const idx = nextIndex++;
+        if (idx >= response.chunks.length) break;
+        chunkResults[idx] = await this.fetchData(response.chunks[idx].url);
         current++;
         onProgress?.({ current, total });
-        return data;
-      })
+      }
+    };
+
+    const workers = Array.from(
+      { length: Math.min(this.maxConcurrency, response.chunks.length) },
+      () => worker()
     );
+    await Promise.all(workers);
 
     // 3. Blobとして組み立て
     return new Blob([initData, ...chunkResults], { type: 'video/mp4' });
