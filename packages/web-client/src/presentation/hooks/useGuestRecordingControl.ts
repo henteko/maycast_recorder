@@ -11,7 +11,7 @@ import { useRoomWebSocket } from './useRoomWebSocket';
 import { GuestStorageStrategy } from '../../storage-strategies/GuestStorageStrategy';
 import { getWebSocketRoomClient } from '../../infrastructure/websocket/WebSocketRoomClient';
 import { getServerUrl } from '../../infrastructure/config/serverConfig';
-import type { GuestSyncState, RecordingId, RoomState } from '@maycast/common-types';
+import type { GuestSyncState, RoomState } from '@maycast/common-types';
 
 interface UseGuestRecordingControlOptions {
   roomId: string;
@@ -29,7 +29,6 @@ interface UseGuestRecordingControlResult {
   isRoomNotFound: boolean;
   isWebSocketConnected: boolean;
   getWaitingMessage: () => string | undefined;
-  handleDownload: (recordingId: RecordingId) => Promise<void>;
   resetAfterSync: () => void;
 }
 
@@ -186,28 +185,6 @@ export const useGuestRecordingControl = ({
     setHasStartedRecording(false);
   }, []);
 
-  // ダウンロードハンドラー
-  const handleDownload = useCallback(async (recordingId: RecordingId) => {
-    try {
-      console.log('📥 [useGuestRecordingControl] Downloading from server...');
-      const blob = await storageStrategy.downloadFromServer(recordingId);
-
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `recording-${recordingId}.mp4`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-
-      console.log('✅ [useGuestRecordingControl] Download completed');
-    } catch (err) {
-      console.error('❌ [useGuestRecordingControl] Download failed:', err);
-      alert('Failed to download recording from server');
-    }
-  }, [storageStrategy]);
-
   return {
     recorderRef,
     storageStrategy,
@@ -218,7 +195,6 @@ export const useGuestRecordingControl = ({
     isRoomNotFound,
     isWebSocketConnected,
     getWaitingMessage,
-    handleDownload,
     resetAfterSync,
   };
 };

@@ -76,7 +76,6 @@ export const GuestPage: React.FC<GuestPageProps> = ({ roomId }) => {
     isRoomNotFound,
     isWebSocketConnected,
     getWaitingMessage,
-    handleDownload,
   } = useGuestRecordingControl({
     roomId,
     guestName: guestName ?? undefined,
@@ -148,7 +147,7 @@ export const GuestPage: React.FC<GuestPageProps> = ({ roomId }) => {
           {toast && <Toast message={toast.message} visible={toast.visible} />}
           <GuestCompletePage
             recordings={savedRecordings}
-            onDownload={handleDownload}
+            onDownload={downloadRecordingById}
             isDownloading={downloadProgress.isDownloading}
           />
         </>
@@ -170,7 +169,7 @@ export const GuestPage: React.FC<GuestPageProps> = ({ roomId }) => {
             settings={settings}
             storageStrategy={storageStrategy}
             onSessionComplete={loadRecordings}
-            onDownload={handleDownload}
+            onDownload={downloadRecordingById}
             downloadProgress={downloadProgress}
             exportRef={recorderRef}
             hideControls={true}

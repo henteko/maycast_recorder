@@ -244,36 +244,6 @@ export class GuestStorageStrategy implements IStorageStrategy {
   }
 
   /**
-   * サーバーからRecordingをダウンロード
-   */
-  async downloadFromServer(localRecordingId: RecordingId): Promise<Blob> {
-    const localId = asLocalRecordingId(localRecordingId);
-
-    let remoteRecordingId = this.completedRecordingsMap.get(localId);
-    if (!remoteRecordingId) {
-      remoteRecordingId = this.serverRecordingIdMap.get(localId);
-    }
-
-    if (!remoteRecordingId) {
-      throw new Error(`No server recording found for local recording: ${localId}`);
-    }
-
-    console.log(`📥 [GuestStorageStrategy] Downloading from server: local=${localId}, remote=${remoteRecordingId}`);
-
-    const serverUrl = getServerUrl();
-    const response = await fetch(`${serverUrl}/api/recordings/${remoteRecordingId}/download`);
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to download from server: ${response.status} ${response.statusText} - ${errorText}`);
-    }
-
-    const blob = await response.blob();
-    console.log(`✅ [GuestStorageStrategy] Download completed: ${blob.size} bytes`);
-    return blob;
-  }
-
-  /**
    * Room IDを取得
    */
   getRoomId(): RoomId {
