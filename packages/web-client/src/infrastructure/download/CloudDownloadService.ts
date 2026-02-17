@@ -13,7 +13,7 @@ export interface DownloadProgress {
  */
 export class CloudDownloadService {
   /**
-   * Presigned URLからチャンクを直接ダウンロードしてBlobを組み立てる
+   * Presigned URLからチャンクを全並列ダウンロードしてBlobを組み立てる
    */
   async download(
     response: DownloadUrlsDirectResponse,
@@ -27,17 +27,18 @@ export class CloudDownloadService {
     current++;
     onProgress?.({ current, total });
 
-    // 2. チャンクを順番に取得
-    const parts: ArrayBuffer[] = [initData];
-    for (const chunk of response.chunks) {
-      const chunkData = await this.fetchData(chunk.url);
-      parts.push(chunkData);
-      current++;
-      onProgress?.({ current, total });
-    }
+    // 2. 全チャンクを同時並列で取得（順序はPromise.allで維持）
+    const chunkResults = await Promise.all(
+      response.chunks.map(async (chunk) => {
+        const data = await this.fetchData(chunk.url);
+        current++;
+        onProgress?.({ current, total });
+        return data;
+      })
+    );
 
     // 3. Blobとして組み立て
-    return new Blob(parts, { type: 'video/mp4' });
+    return new Blob([initData, ...chunkResults], { type: 'video/mp4' });
   }
 
   private async fetchData(url: string): Promise<ArrayBuffer> {
