@@ -40,11 +40,27 @@ In the Dokploy UI, set the following environment variables:
 
 | Variable | Description | Example |
 |---|---|---|
-| `DOMAIN_NAME` | Domain for Traefik routing (used in Traefik Host rule) | `maycast.example.com` |
-| `CORS_ORIGIN` | Frontend URL (used by the server for CORS) | `https://maycast.example.com` |
-| `VITE_SERVER_URL` | API server URL (used by the web client) | `https://maycast.example.com` |
+| `DOMAIN_NAME` | Primary domain for Traefik routing | `maycast.example.com` |
+| `CORS_ORIGIN` | Allowed origins for CORS (comma-separated for multiple) | `https://maycast.example.com` |
+| `TRAEFIK_HOST_RULE` | Custom Traefik Host rule (optional, for multiple domains) | See below |
 
-> **Note:** `VITE_SERVER_URL` is a build-time variable. If you change it, you need to redeploy (rebuild) the web-client container.
+#### Multiple Domains
+
+To serve the app from multiple independent domains (e.g. `example.com` and `other-domain.com`):
+
+1. Set `TRAEFIK_HOST_RULE` to match all domains:
+   ```
+   TRAEFIK_HOST_RULE=Host(`example.com`) || Host(`other-domain.com`)
+   ```
+
+2. Set `CORS_ORIGIN` with all origins (comma-separated):
+   ```
+   CORS_ORIGIN=https://example.com,https://other-domain.com
+   ```
+
+3. If using R2/S3 presigned URL downloads, add all origins to the R2 CORS `AllowedOrigins` array as well.
+
+When `TRAEFIK_HOST_RULE` is set, it takes precedence over `DOMAIN_NAME`. If not set, it defaults to `Host(\`${DOMAIN_NAME}\`)` (single domain, same behavior as before).
 
 #### Storage (Cloudflare R2)
 
@@ -95,7 +111,7 @@ The client downloads recording data directly from R2 using presigned URLs. Since
 ]
 ```
 
-> **Note:** Set `AllowedOrigins` to your deployment domain (same value as `CORS_ORIGIN`). To allow multiple origins (e.g. during development), add them to the array.
+> **Note:** Set `AllowedOrigins` to your deployment domain(s). If serving from multiple domains, add all origins to the array (e.g. `["https://example.com", "https://other-domain.com"]`).
 
 ### 3. Configure Domain Routing
 

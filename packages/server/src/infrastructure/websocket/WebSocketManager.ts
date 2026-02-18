@@ -137,7 +137,7 @@ export class WebSocketManager {
   /**
    * Socket.IOサーバーを初期化
    */
-  initialize(httpServer: HTTPServer, corsOrigin: string): void {
+  initialize(httpServer: HTTPServer, corsOrigin: string | string[]): void {
     this.io = new SocketIOServer<ClientToServerEvents, ServerToClientEvents>(httpServer, {
       cors: {
         origin: corsOrigin,

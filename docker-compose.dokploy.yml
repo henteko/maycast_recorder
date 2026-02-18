@@ -34,7 +34,7 @@ services:
     restart: unless-stopped
     labels:
       - traefik.enable=true
-      - traefik.http.routers.maycast.rule=Host(`${DOMAIN_NAME}`)
+      - traefik.http.routers.maycast.rule=${TRAEFIK_HOST_RULE:-Host(`${DOMAIN_NAME}`)}
       - traefik.http.routers.maycast.entrypoints=websecure
       - traefik.http.routers.maycast.tls.certresolver=letsencrypt
       - traefik.http.services.maycast.loadbalancer.server.port=80

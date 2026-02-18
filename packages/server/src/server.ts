@@ -26,6 +26,9 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const LOG_LEVEL = process.env.LOG_LEVEL || 'info';
 const CORS_ORIGIN = process.env.CORS_ORIGIN || 'http://localhost:5173';
+const corsOrigins = CORS_ORIGIN.includes(',')
+  ? CORS_ORIGIN.split(',').map(s => s.trim())
+  : CORS_ORIGIN;
 
 // Initialize DI Container
 const container = setupContainer();
@@ -42,7 +45,7 @@ const roomAccessMiddleware = createRoomAccessMiddleware(validateRoomAccessUseCas
 
 // Middleware
 app.use(cors({
-  origin: CORS_ORIGIN,
+  origin: corsOrigins,
   credentials: true,
 }));
 app.use(morgan(LOG_LEVEL === 'debug' ? 'dev' : 'combined'));
@@ -78,7 +81,7 @@ const httpServer = createServer(app);
 
 // Initialize WebSocket
 const webSocketManager = getWebSocketManager();
-webSocketManager.initialize(httpServer, CORS_ORIGIN);
+webSocketManager.initialize(httpServer, corsOrigins);
 
 // WebSocket accessKey検証コールバックを設定
 webSocketManager.setValidateAccessKeyCallback(async (roomId: string, accessKey: string) => {
