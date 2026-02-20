@@ -45,6 +45,7 @@ export function useRoomWebSocket(
   const [guestCount, setGuestCount] = useState(0);
 
   const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const safetyPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const wsClientRef = useRef<ReturnType<typeof getWebSocketRoomClient> | null>(null);
 
   // HTTP経由でRoom状態を取得（認証不要）
@@ -108,6 +109,25 @@ export function useRoomWebSocket(
     }
   }, []);
 
+  // セーフティネットポーリングを開始（WebSocket接続中も10秒間隔で状態確認）
+  const startSafetyPolling = useCallback(() => {
+    if (safetyPollingRef.current) return;
+
+    console.log('🛡️ [useRoomWebSocket] Starting safety-net polling (10s)');
+    safetyPollingRef.current = setInterval(() => {
+      fetchRoom();
+    }, 10000);
+  }, [fetchRoom]);
+
+  // セーフティネットポーリングを停止
+  const stopSafetyPolling = useCallback(() => {
+    if (safetyPollingRef.current) {
+      console.log('🛡️ [useRoomWebSocket] Stopping safety-net polling');
+      clearInterval(safetyPollingRef.current);
+      safetyPollingRef.current = null;
+    }
+  }, []);
+
   // WebSocket接続とイベントハンドリング
   useEffect(() => {
     if (!roomId) return;
@@ -126,11 +146,15 @@ export function useRoomWebSocket(
         console.log('✅ [useRoomWebSocket] WebSocket connected');
         setIsWebSocketConnected(true);
         stopPolling();
+        startSafetyPolling();
+        // 再接続時に見逃した状態変更をキャッチ
+        fetchRoom();
         wsClient.joinRoom(roomId, guestName);
       },
       onDisconnect: () => {
         console.log('🔌 [useRoomWebSocket] WebSocket disconnected, starting polling');
         setIsWebSocketConnected(false);
+        stopSafetyPolling();
         startPolling();
       },
       onRoomStateChanged: (data: RoomStateChanged) => {
@@ -157,6 +181,7 @@ export function useRoomWebSocket(
 
     return () => {
       stopPolling();
+      stopSafetyPolling();
       if (wsClient.getCurrentRoomId() === roomId) {
         wsClient.leaveRoom(roomId);
       }
@@ -164,7 +189,7 @@ export function useRoomWebSocket(
     };
     // Note: guestNameは意図的に依存配列から除外（下の別エフェクトで対応）
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roomId, fetchRoom, startPolling, stopPolling]);
+  }, [roomId, fetchRoom, startPolling, stopPolling, startSafetyPolling, stopSafetyPolling]);
 
   // guestNameが設定されたら再度Roomに参加（名前付きで）
   useEffect(() => {
@@ -181,9 +206,10 @@ export function useRoomWebSocket(
   useEffect(() => {
     return () => {
       stopPolling();
+      stopSafetyPolling();
       resetWebSocketRoomClient();
     };
-  }, [stopPolling]);
+  }, [stopPolling, stopSafetyPolling]);
 
   // Recording IDを設定（guestIdとrecordingIdを紐付け）
   const setRecordingId = useCallback((newRecordingId: string) => {

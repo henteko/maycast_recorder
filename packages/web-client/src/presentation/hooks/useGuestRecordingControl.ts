@@ -41,6 +41,7 @@ export const useGuestRecordingControl = ({
   const [hasStartedRecording, setHasStartedRecording] = useState(false);
   const [guestSyncState, setGuestSyncState] = useState<GuestSyncState>('idle');
   const lastSyncEmitRef = useRef<number>(0);
+  const hasInitiatedStopRef = useRef(false);
 
   // Room状態をWebSocket経由でリアルタイム取得
   const {
@@ -104,23 +105,25 @@ export const useGuestRecordingControl = ({
     // Room状態がrecordingになったら自動的に録画開始
     if (roomState === 'recording' && !hasStartedRecording && recorder.wasmInitialized) {
       console.log('🎬 [useGuestRecordingControl] Director started recording, auto-starting...');
+      hasInitiatedStopRef.current = false;
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setHasStartedRecording(true);
       setGuestSyncState('recording');
       recorder.startRecording({ playClapperboard: true });
     }
 
-    // Room状態がfinalizingになったら自動的に録画停止
-    if (roomState === 'finalizing' && hasStartedRecording && recorder.isRecording) {
-      console.log('🛑 [useGuestRecordingControl] Director stopped recording (finalizing), auto-stopping...');
+    // Room状態がfinalizingまたはfinishedになったら自動的に録画停止
+    // セーフティネットポーリングで遅れて状態変更が届いた場合でも確実に停止するため、
+    // recorder.isRecordingではなくhasInitiatedStopRefで管理する
+    if ((roomState === 'finalizing' || roomState === 'finished') && hasStartedRecording && !hasInitiatedStopRef.current) {
+      console.log(`🛑 [useGuestRecordingControl] Director stopped recording (${roomState}), auto-stopping...`);
+      hasInitiatedStopRef.current = true;
       setGuestSyncState('uploading');
-      recorder.stopRecording();
-    }
-
-    // Room状態がfinishedになったら（強制終了の場合）
-    if (roomState === 'finished' && hasStartedRecording && recorder.isRecording) {
-      console.log('🛑 [useGuestRecordingControl] Director force finished, auto-stopping...');
-      recorder.stopRecording();
+      try {
+        recorder.stopRecording();
+      } catch (err) {
+        console.error('❌ [useGuestRecordingControl] Error stopping recording:', err);
+      }
     }
   }, [roomState, hasStartedRecording, isRoomLoading, roomError]);
 
