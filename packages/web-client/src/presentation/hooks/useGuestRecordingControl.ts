@@ -109,7 +109,7 @@ export const useGuestRecordingControl = ({
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setHasStartedRecording(true);
       setGuestSyncState('recording');
-      recorder.startRecording({ playClapperboard: true });
+      recorder.startRecording();
     }
 
     // Room状態がfinalizingまたはfinishedになったら自動的に録画停止
