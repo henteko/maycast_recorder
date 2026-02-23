@@ -44,7 +44,7 @@ export type {
 } from './api-types.js';
 
 // Room types
-export type { RoomId, RoomState, Room, GuestSyncState, GuestInfo, GuestMediaStatus, DeviceInfo } from './room.js';
+export type { RoomId, RoomState, Room, GuestSyncState, GuestInfo, GuestMediaStatus, GuestClockSyncStatus, DeviceInfo } from './room.js';
 
 // WebSocket message types
 export type {

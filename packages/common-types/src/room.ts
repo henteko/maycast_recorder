@@ -28,6 +28,17 @@ export interface DeviceInfo {
 }
 
 /**
+ * Guestの時刻同期ステータス
+ */
+export interface GuestClockSyncStatus {
+  status: 'idle' | 'syncing' | 'synced';
+  offsetMs: number;
+  accuracyMs: number;
+  sampleCount: number;
+  rttMedianMs: number;
+}
+
+/**
  * Guestのメディアステータス
  */
 export interface GuestMediaStatus {
@@ -74,6 +85,9 @@ export interface GuestInfo {
 
   /** メディアステータス */
   mediaStatus?: GuestMediaStatus;
+
+  /** 時刻同期ステータス */
+  clockSyncStatus?: GuestClockSyncStatus;
 }
 
 /**

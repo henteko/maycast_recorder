@@ -255,6 +255,31 @@ export const useGuestRecordingControl = ({
     return () => clearInterval(checkAndSend);
   }, [hasStartedRecording, storageStrategy, getSyncMetadata]);
 
+  // clockSyncStatus変更時にサーバーに送信
+  useEffect(() => {
+    if (!isWebSocketConnected) return;
+
+    const serverUrl = getServerUrl();
+    const wsClient = getWebSocketRoomClient(serverUrl);
+
+    const emit = () => {
+      wsClient.emitClockSyncStatus(roomId, {
+        status: clockSyncStatus.status,
+        offsetMs: clockSyncStatus.offsetMs,
+        accuracyMs: Number.isFinite(clockSyncStatus.accuracyMs) ? clockSyncStatus.accuracyMs : 0,
+        sampleCount: clockSyncStatus.sampleCount,
+        rttMedianMs: clockSyncStatus.rttMedianMs,
+      });
+    };
+
+    // 即時送信
+    emit();
+
+    // 遅延再送信（join_roomとのレース対策：socketToGuestマッピング確立前に送信された場合のリカバリ）
+    const timer = setTimeout(emit, 2000);
+    return () => clearTimeout(timer);
+  }, [roomId, isWebSocketConnected, clockSyncStatus.status, clockSyncStatus.offsetMs, clockSyncStatus.accuracyMs, clockSyncStatus.sampleCount, clockSyncStatus.rttMedianMs]);
+
   // 録画中のアップロード進捗をDirectorに定期送信
   useEffect(() => {
     if (guestSyncState !== 'recording') return;
