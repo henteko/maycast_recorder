@@ -81,4 +81,20 @@ export class InMemoryRecordingRepository implements IRecordingRepository {
   ): Promise<void> {
     // No-op for in-memory implementation
   }
+
+  async getTranscriptionInfo(_id: RecordingId): Promise<{
+    transcriptionState: string | null;
+    outputVttKey: string | null;
+  } | null> {
+    return null;
+  }
+
+  async updateTranscriptionState(
+    _id: RecordingId,
+    _state: 'pending' | 'processing' | 'completed' | 'failed',
+    _error?: string,
+    _outputVttKey?: string
+  ): Promise<void> {
+    // No-op for in-memory implementation
+  }
 }

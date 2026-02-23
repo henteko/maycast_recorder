@@ -84,6 +84,13 @@ export class S3ChunkRepository {
     return chunkIds.sort((a, b) => a - b);
   }
 
+  /**
+   * 任意のS3キーからオブジェクトをダウンロード
+   */
+  async getObjectByKey(key: string): Promise<Buffer | null> {
+    return this.getObject(key);
+  }
+
   private async getObject(key: string): Promise<Buffer | null> {
     try {
       const response = await this.client.send(

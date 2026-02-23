@@ -1,13 +1,16 @@
 import { Worker } from 'bullmq';
 import { QUEUE_NAMES } from '@maycast/common-types';
-import type { AudioExtractionJobPayload, AudioExtractionJobResult } from '@maycast/common-types';
+import type { AudioExtractionJobPayload, AudioExtractionJobResult, TranscriptionJobPayload, TranscriptionJobResult } from '@maycast/common-types';
 import { getWorkerConfig } from './infrastructure/config/workerConfig.js';
 import { getStorageConfig } from './infrastructure/config/storageConfig.js';
 import type { S3StorageConfig } from './infrastructure/config/storageConfig.js';
+import { getAIConfig } from './infrastructure/config/aiConfig.js';
 import { getPool, closePool } from './infrastructure/database/PostgresClient.js';
 import { S3ChunkRepository } from './infrastructure/repositories/S3ChunkRepository.js';
 import { S3UploadService } from './infrastructure/services/S3UploadService.js';
+import { GeminiTranscriptionService } from './infrastructure/services/GeminiTranscriptionService.js';
 import { AudioExtractionJobHandler } from './application/AudioExtractionJobHandler.js';
+import { TranscriptionJobHandler } from './application/TranscriptionJobHandler.js';
 import { checkFfmpegAvailable } from './domain/usecases/ProcessRecording.usecase.js';
 
 async function main(): Promise<void> {
@@ -59,26 +62,73 @@ async function main(): Promise<void> {
   );
 
   worker.on('completed', (job) => {
-    console.log(`🎉 [Worker] Job ${job.id} completed successfully`);
+    console.log(`🎉 [Worker] Audio extraction job ${job.id} completed successfully`);
   });
 
   worker.on('failed', (job, err) => {
-    console.error(`❌ [Worker] Job ${job?.id} failed:`, err.message);
+    console.error(`❌ [Worker] Audio extraction job ${job?.id} failed:`, err.message);
   });
 
   worker.on('error', (err) => {
-    console.error('❌ [Worker] Worker error:', err);
+    console.error('❌ [Worker] Audio extraction worker error:', err);
   });
 
   console.log(`✅ [Worker] Listening on queue "${QUEUE_NAMES.AUDIO_EXTRACTION}" with concurrency ${workerConfig.concurrency}`);
   console.log(`📁 [Worker] Temp directory: ${workerConfig.tempDir}`);
+
+  // Transcription Worker（GEMINI_API_KEY が設定されている場合のみ起動）
+  const aiConfig = getAIConfig();
+  let transcriptionWorker: Worker<TranscriptionJobPayload, TranscriptionJobResult> | null = null;
+
+  if (aiConfig) {
+    const transcriptionService = new GeminiTranscriptionService(aiConfig);
+    const transcriptionHandler = new TranscriptionJobHandler(
+      pool,
+      chunkRepository,
+      uploadService,
+      transcriptionService,
+      workerConfig.tempDir,
+    );
+
+    transcriptionWorker = new Worker<TranscriptionJobPayload, TranscriptionJobResult>(
+      QUEUE_NAMES.TRANSCRIPTION,
+      async (job) => transcriptionHandler.handle(job),
+      {
+        connection: {
+          host: workerConfig.redisHost,
+          port: workerConfig.redisPort,
+        },
+        concurrency: 1, // Gemini APIレート制限を考慮して同時実行数1
+      },
+    );
+
+    transcriptionWorker.on('completed', (job) => {
+      console.log(`🎉 [Worker] Transcription job ${job.id} completed successfully`);
+    });
+
+    transcriptionWorker.on('failed', (job, err) => {
+      console.error(`❌ [Worker] Transcription job ${job?.id} failed:`, err.message);
+    });
+
+    transcriptionWorker.on('error', (err) => {
+      console.error('❌ [Worker] Transcription worker error:', err);
+    });
+
+    console.log(`✅ [Worker] Transcription worker listening on queue "${QUEUE_NAMES.TRANSCRIPTION}" (model: ${aiConfig.geminiModel})`);
+  } else {
+    console.log('ℹ️ [Worker] GEMINI_API_KEY not set, transcription worker disabled');
+  }
 
   // Graceful shutdown
   const shutdown = async (signal: string) => {
     console.log(`\n🛑 [Worker] Received ${signal}, shutting down gracefully...`);
     try {
       await worker.close();
-      console.log('✅ [Worker] Worker closed');
+      console.log('✅ [Worker] Audio extraction worker closed');
+      if (transcriptionWorker) {
+        await transcriptionWorker.close();
+        console.log('✅ [Worker] Transcription worker closed');
+      }
       await closePool();
       console.log('✅ [Worker] Database pool closed');
     } catch (err) {

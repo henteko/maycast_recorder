@@ -38,6 +38,10 @@ export interface DownloadUrlsDirectResponse {
   m4aUrl?: string;
   /** m4aのファイル名 */
   m4aFilename?: string;
+  /** Worker処理済みVTTのPresigned URL（存在する場合のみ） */
+  vttUrl?: string;
+  /** VTTのファイル名 */
+  vttFilename?: string;
 }
 
 export interface DownloadUrlsFallbackResponse {

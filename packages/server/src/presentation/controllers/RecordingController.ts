@@ -65,6 +65,7 @@ export class RecordingController {
 
     // Processing情報を取得
     const processingInfo = await this.recordingRepository.getProcessingInfo(id);
+    const transcriptionInfo = await this.recordingRepository.getTranscriptionInfo(id);
 
     res.json({
       id: recording.id,
@@ -76,6 +77,7 @@ export class RecordingController {
       metadata: recording.metadata,
       chunk_count: recording.chunkCount,
       processing_state: processingInfo?.processingState ?? null,
+      transcription_state: transcriptionInfo?.transcriptionState ?? null,
     });
   }
 
