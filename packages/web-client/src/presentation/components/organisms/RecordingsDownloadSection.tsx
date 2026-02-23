@@ -3,9 +3,10 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { ArrowDownTrayIcon, CheckIcon } from '@heroicons/react/24/solid';
+import { ArrowDownTrayIcon, CheckIcon, LanguageIcon } from '@heroicons/react/24/solid';
 import { RecordingAPIClient, type RecordingInfo } from '../../../infrastructure/api/recording-api';
 import { CloudDownloadService } from '../../../infrastructure/download/CloudDownloadService';
+import { fetchAndMergeVtts } from '../../../infrastructure/download/VttMergeService';
 import { getServerUrl } from '../../../infrastructure/config/serverConfig';
 import { Button } from '../atoms/Button';
 import { RecordingDownloadItem } from '../molecules/RecordingDownloadItem';
@@ -40,6 +41,7 @@ export const RecordingsDownloadSection: React.FC<RecordingsDownloadSectionProps>
   const [m4aAvailable, setM4aAvailable] = useState<Map<string, { url: string; filename: string }>>(new Map());
   const [vttDownloading, setVttDownloading] = useState<Set<string>>(new Set());
   const [vttAvailable, setVttAvailable] = useState<Map<string, { url: string; filename: string }>>(new Map());
+  const [isDownloadingMergedVtt, setIsDownloadingMergedVtt] = useState(false);
   const fetchedIdsRef = useRef<Set<string>>(new Set());
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -275,6 +277,40 @@ export const RecordingsDownloadSection: React.FC<RecordingsDownloadSectionProps>
     }
   }, [vttAvailable]);
 
+  // 全VTTが利用可能かチェック（2件以上の場合のみマージ意味あり）
+  const allVttAvailable = recordingIds.length > 1 && recordingIds.every(id => vttAvailable.has(id));
+
+  // マージVTTダウンロード
+  const handleDownloadMergedVtt = useCallback(async () => {
+    setIsDownloadingMergedVtt(true);
+    try {
+      const entries = Array.from(vttAvailable.entries()).map(([recordingId, info]) => ({
+        recordingId,
+        url: info.url,
+      }));
+      const mergedVtt = await fetchAndMergeVtts(entries, getGuestNameForRecording);
+      if (!mergedVtt) {
+        alert('No VTT segments found.');
+        return;
+      }
+
+      const blob = new Blob([mergedVtt], { type: 'text/vtt' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'merged-subtitles.vtt';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error('Failed to download merged VTT:', err);
+      alert(`Failed to download merged VTT: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setIsDownloadingMergedVtt(false);
+    }
+  }, [vttAvailable, getGuestNameForRecording]);
+
   if (recordingIds.length === 0) {
     return (
       <div className="text-sm text-maycast-text-secondary text-center py-4">
@@ -292,29 +328,52 @@ export const RecordingsDownloadSection: React.FC<RecordingsDownloadSectionProps>
             Recording Complete ({recordingIds.length})
           </span>
         </div>
-        {recordingIds.length > 1 && (
-          <Button
-            onClick={onDownloadAll}
-            disabled={isDownloadingAll}
-            variant="success"
-            size="sm"
-            className="!py-2 !px-4 !text-sm"
-          >
-            {isDownloadingAll ? (
-              <>
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                {downloadAllProgress && downloadAllProgress.totalRecordings > 0
-                  ? `${downloadAllProgress.currentRecording}/${downloadAllProgress.totalRecordings}`
-                  : 'Downloading...'}
-              </>
-            ) : (
-              <>
-                <ArrowDownTrayIcon className="w-4 h-4" />
-                Download All
-              </>
-            )}
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {allVttAvailable && (
+            <Button
+              onClick={handleDownloadMergedVtt}
+              disabled={isDownloadingMergedVtt}
+              variant="ghost"
+              size="sm"
+              className="!py-2 !px-4 !text-sm !bg-purple-600/80 hover:!bg-purple-600 !text-white !border-purple-500/50"
+            >
+              {isDownloadingMergedVtt ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Merging...
+                </>
+              ) : (
+                <>
+                  <LanguageIcon className="w-4 h-4" />
+                  Merged VTT
+                </>
+              )}
+            </Button>
+          )}
+          {recordingIds.length > 1 && (
+            <Button
+              onClick={onDownloadAll}
+              disabled={isDownloadingAll}
+              variant="success"
+              size="sm"
+              className="!py-2 !px-4 !text-sm"
+            >
+              {isDownloadingAll ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  {downloadAllProgress && downloadAllProgress.totalRecordings > 0
+                    ? `${downloadAllProgress.currentRecording}/${downloadAllProgress.totalRecordings}`
+                    : 'Downloading...'}
+                </>
+              ) : (
+                <>
+                  <ArrowDownTrayIcon className="w-4 h-4" />
+                  Download All
+                </>
+              )}
+            </Button>
+          )}
+        </div>
       </div>
       <div className="space-y-3">
         {recordingIds.map((recordingId) => (

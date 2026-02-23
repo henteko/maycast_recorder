@@ -20,6 +20,7 @@ import { Button } from '../atoms/Button';
 import { GuestUrlInput } from '../molecules/GuestUrlInput';
 import { GuestListItem } from '../molecules/GuestListItem';
 import { RecordingsDownloadSection, type DownloadAllProgress } from '../organisms/RecordingsDownloadSection';
+import { fetchAndMergeVtts } from '../../../infrastructure/download/VttMergeService';
 
 export const RoomDetailPage: React.FC = () => {
   const { roomId } = useParams<{ roomId: string }>();
@@ -95,6 +96,7 @@ export const RoomDetailPage: React.FC = () => {
       const apiClient = new RecordingAPIClient(serverUrl);
       const zip = new JSZip();
 
+      const vttEntries: { recordingId: string; url: string }[] = [];
       let completedRecordings = 0;
       for (const recordingId of room.recording_ids) {
         try {
@@ -126,6 +128,11 @@ export const RoomDetailPage: React.FC = () => {
                 console.error(`Failed to download m4a for ${recordingId}:`, m4aErr);
               }
             }
+
+            // VTT URLを収集（マージ用）
+            if (downloadUrls.vttUrl) {
+              vttEntries.push({ recordingId, url: downloadUrls.vttUrl });
+            }
           } else {
             blob = await apiClient.downloadRecording(recordingId);
             fileName = downloadUrls.filename;
@@ -150,6 +157,18 @@ export const RoomDetailPage: React.FC = () => {
           console.error(`Failed to download recording ${recordingId}:`, err);
           completedRecordings++;
           setDownloadAllProgress((prev) => ({ ...prev, currentRecording: completedRecordings }));
+        }
+      }
+
+      // マージVTTをZIPに追加（失敗時はスキップ）
+      if (vttEntries.length > 1) {
+        try {
+          const mergedVtt = await fetchAndMergeVtts(vttEntries, getGuestNameForRecording);
+          if (mergedVtt) {
+            zip.file('merged-subtitles.vtt', mergedVtt);
+          }
+        } catch (err) {
+          console.error('Failed to generate merged VTT for ZIP:', err);
         }
       }
 
