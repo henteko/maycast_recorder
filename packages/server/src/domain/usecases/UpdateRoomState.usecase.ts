@@ -63,6 +63,16 @@ export class UpdateRoomStateUseCase {
     // 4. WebSocket経由でイベント通知
     if (this.roomEventPublisher) {
       this.roomEventPublisher.publishRoomStateChanged(request.roomId, request.state);
+
+      // recording遷移時: 3秒後のT_startを算出してブロードキャスト
+      if (request.state === 'recording') {
+        const LEAD_TIME_MS = 3000;
+        const startAtServerTime = Date.now() + LEAD_TIME_MS;
+        this.roomEventPublisher.publishScheduledRecordingStart(
+          request.roomId,
+          startAtServerTime
+        );
+      }
     }
   }
 }

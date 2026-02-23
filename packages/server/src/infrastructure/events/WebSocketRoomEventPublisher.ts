@@ -23,4 +23,8 @@ export class WebSocketRoomEventPublisher implements IRoomEventPublisher {
   publishRecordingCreated(roomId: RoomId, recordingId: RecordingId): void {
     this.webSocketManager.emitRecordingCreated(roomId, recordingId);
   }
+
+  publishScheduledRecordingStart(roomId: RoomId, startAtServerTime: number): void {
+    this.webSocketManager.emitScheduledRecordingStart(roomId, startAtServerTime);
+  }
 }

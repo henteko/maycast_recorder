@@ -59,5 +59,8 @@ export type {
   GuestSyncStateChanged,
   GuestSyncComplete,
   GuestSyncError,
+  TimeSyncPing,
+  TimeSyncPong,
+  ScheduledRecordingStart,
   WebSocketMessage,
 } from './websocket.js';

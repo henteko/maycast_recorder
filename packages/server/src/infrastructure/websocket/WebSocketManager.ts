@@ -20,6 +20,8 @@ import type {
   GuestSyncStateChanged,
   GuestSyncComplete,
   GuestSyncError,
+  TimeSyncPong,
+  ScheduledRecordingStart,
 } from '@maycast/common-types';
 
 /**
@@ -76,6 +78,7 @@ interface ClientToServerEvents {
     waveformData: number[];
     isSilent: boolean;
   }) => void;
+  time_sync_ping: (data: { roomId: string; clientSendTime: number }) => void;
 }
 
 /**
@@ -102,6 +105,8 @@ interface ServerToClientEvents {
     totalChunks: number;
     mediaStatus?: GuestMediaStatus;
   }> }) => void;
+  time_sync_pong: (data: TimeSyncPong) => void;
+  scheduled_recording_start: (data: ScheduledRecordingStart) => void;
   error: (data: { message: string }) => void;
 }
 
@@ -469,6 +474,18 @@ export class WebSocketManager {
       this.io?.to(`room:${roomId}`).emit('guest_sync_error', message);
     });
 
+    // 時刻同期 ping/pong
+    socket.on('time_sync_ping', ({ roomId, clientSendTime }) => {
+      const serverReceiveTime = Date.now();
+      socket.emit('time_sync_pong', {
+        type: 'time_sync_pong',
+        roomId,
+        clientSendTime,
+        serverReceiveTime,
+        serverSendTime: Date.now(),
+      });
+    });
+
     // 切断時
     socket.on('disconnect', () => {
       console.log(`🔌 [WebSocket] Client disconnected: ${socket.id}`);
@@ -551,6 +568,25 @@ export class WebSocketManager {
 
     console.log(`📡 [WebSocket] Emitting recording_created to room:${roomId}`, message);
     this.io.to(`room:${roomId}`).emit('recording_created', message);
+  }
+
+  /**
+   * スケジュール録画開始指示を配信
+   */
+  emitScheduledRecordingStart(roomId: RoomId, startAtServerTime: number): void {
+    if (!this.io) {
+      console.warn('⚠️ [WebSocket] Not initialized, cannot emit scheduled_recording_start');
+      return;
+    }
+
+    const message: ScheduledRecordingStart = {
+      type: 'scheduled_recording_start',
+      roomId,
+      startAtServerTime,
+    };
+
+    console.log(`📡 [WebSocket] Emitting scheduled_recording_start to room:${roomId}, T_start=${startAtServerTime}`);
+    this.io.to(`room:${roomId}`).emit('scheduled_recording_start', message);
   }
 
   /**

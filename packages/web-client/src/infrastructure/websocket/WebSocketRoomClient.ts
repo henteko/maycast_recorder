@@ -52,6 +52,7 @@ interface ClientToServerEvents {
     waveformData: number[];
     isSilent: boolean;
   }) => void;
+  time_sync_ping: (data: { roomId: string; clientSendTime: number }) => void;
 }
 
 /**
@@ -85,6 +86,8 @@ interface ServerToClientEvents {
   guest_sync_complete: (data: GuestSyncComplete) => void;
   guest_sync_error: (data: GuestSyncError) => void;
   room_guests: (data: RoomGuestsData) => void;
+  time_sync_pong: (data: { type: string; roomId: string; clientSendTime: number; serverReceiveTime: number; serverSendTime: number }) => void;
+  scheduled_recording_start: (data: { type: string; roomId: string; startAtServerTime: number }) => void;
   error: (data: { message: string }) => void;
 }
 
@@ -104,6 +107,8 @@ export interface RoomEventListeners {
   onGuestSyncError?: (data: GuestSyncError) => void;
   /** Room参加時に現在のゲスト一覧を受信 */
   onRoomGuests?: (data: RoomGuestsData) => void;
+  onTimeSyncPong?: (data: { roomId: string; clientSendTime: number; serverReceiveTime: number; serverSendTime: number }) => void;
+  onScheduledRecordingStart?: (data: { roomId: string; startAtServerTime: number }) => void;
   onError?: (data: { message: string }) => void;
   onConnect?: () => void;
   onDisconnect?: () => void;
@@ -229,6 +234,15 @@ export class WebSocketRoomClient {
     this.socket.on('room_guests', (data) => {
       console.log('📡 [WebSocketRoomClient] room_guests:', data);
       this.listeners.onRoomGuests?.(data);
+    });
+
+    this.socket.on('time_sync_pong', (data) => {
+      this.listeners.onTimeSyncPong?.(data);
+    });
+
+    this.socket.on('scheduled_recording_start', (data) => {
+      console.log('📡 [WebSocketRoomClient] scheduled_recording_start:', data);
+      this.listeners.onScheduledRecordingStart?.(data);
     });
   }
 
@@ -366,6 +380,16 @@ export class WebSocketRoomClient {
 
     console.log(`📤 [WebSocketRoomClient] guest_sync_error: error=${errorMessage}, failed=${failedChunks}`);
     this.socket.emit('guest_sync_error', { roomId, recordingId, errorMessage, failedChunks });
+  }
+
+  /**
+   * 時刻同期pingを送信
+   */
+  emitTimeSyncPing(roomId: string, clientSendTime: number): void {
+    if (!this.socket) {
+      return;
+    }
+    this.socket.emit('time_sync_ping', { roomId, clientSendTime });
   }
 
   /**

@@ -16,4 +16,9 @@ export interface IRoomEventPublisher {
    * Recording作成イベントを発行
    */
   publishRecordingCreated(roomId: RoomId, recordingId: RecordingId): void;
+
+  /**
+   * スケジュール録画開始イベントを発行
+   */
+  publishScheduledRecordingStart(roomId: RoomId, startAtServerTime: number): void;
 }
