@@ -15,6 +15,37 @@ interface GuestListItemProps {
   isSilent?: boolean;
 }
 
+const ClockSyncBadge: React.FC<{ guest: GuestInfo }> = ({ guest }) => {
+  const clockSync = guest.clockSyncStatus;
+  if (!clockSync) return null;
+
+  if (clockSync.status === 'idle') {
+    return (
+      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-500/20 text-gray-400">
+        Not synced
+      </span>
+    );
+  }
+
+  if (clockSync.status === 'syncing') {
+    return (
+      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-yellow-500/20 text-yellow-400">
+        <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse" />
+        Syncing...
+      </span>
+    );
+  }
+
+  return (
+    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-maycast-safe/20 text-maycast-safe">
+      <svg className="w-2.5 h-2.5" viewBox="0 0 20 20" fill="currentColor">
+        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+      </svg>
+      {`±${Math.round(clockSync.accuracyMs)}ms`}
+    </span>
+  );
+};
+
 export const GuestListItem: React.FC<GuestListItemProps> = ({ guest, waveformData, isSilent = false }) => {
   const guestIdentifier = guest.guestId || guest.recordingId || 'unknown';
   const displayName = guest.name || `Guest ${guestIdentifier.substring(0, 6)}`;
@@ -33,6 +64,7 @@ export const GuestListItem: React.FC<GuestListItemProps> = ({ guest, waveformDat
           <span className="text-sm font-medium text-maycast-text">
             {displayName}
           </span>
+          <ClockSyncBadge guest={guest} />
         </div>
         <div className="flex items-center gap-3">
           {/* メディアステータスアイコン */}

@@ -13,6 +13,7 @@ import type {
   RecordingCreated,
   GuestSyncState,
   GuestMediaStatus,
+  GuestClockSyncStatus,
   GuestSyncStateChanged,
   GuestSyncComplete,
   GuestSyncError,
@@ -52,6 +53,11 @@ interface ClientToServerEvents {
     waveformData: number[];
     isSilent: boolean;
   }) => void;
+  guest_clock_sync_status: (data: {
+    roomId: string;
+    clockSyncStatus: GuestClockSyncStatus;
+  }) => void;
+  time_sync_ping: (data: { roomId: string; clientSendTime: number }) => void;
 }
 
 /**
@@ -67,6 +73,7 @@ export interface RoomGuestsData {
     uploadedChunks: number;
     totalChunks: number;
     mediaStatus?: GuestMediaStatus;
+    clockSyncStatus?: GuestClockSyncStatus;
   }>;
 }
 
@@ -81,10 +88,13 @@ interface ServerToClientEvents {
   guest_recording_linked: (data: { roomId: string; guestId: string; recordingId: string; name?: string }) => void;
   guest_media_status_changed: (data: { roomId: string; guestId: string; mediaStatus: GuestMediaStatus }) => void;
   guest_waveform_changed: (data: { roomId: string; guestId: string; waveformData: number[]; isSilent: boolean }) => void;
+  guest_clock_sync_status_changed: (data: { roomId: string; guestId: string; clockSyncStatus: GuestClockSyncStatus }) => void;
   guest_sync_state_changed: (data: GuestSyncStateChanged) => void;
   guest_sync_complete: (data: GuestSyncComplete) => void;
   guest_sync_error: (data: GuestSyncError) => void;
   room_guests: (data: RoomGuestsData) => void;
+  time_sync_pong: (data: { type: string; roomId: string; clientSendTime: number; serverReceiveTime: number; serverSendTime: number }) => void;
+  scheduled_recording_start: (data: { type: string; roomId: string; startAtServerTime: number }) => void;
   error: (data: { message: string }) => void;
 }
 
@@ -99,11 +109,14 @@ export interface RoomEventListeners {
   onGuestRecordingLinked?: (data: { roomId: string; guestId: string; recordingId: string; name?: string }) => void;
   onGuestMediaStatusChanged?: (data: { roomId: string; guestId: string; mediaStatus: GuestMediaStatus }) => void;
   onGuestWaveformChanged?: (data: { roomId: string; guestId: string; waveformData: number[]; isSilent: boolean }) => void;
+  onGuestClockSyncStatusChanged?: (data: { roomId: string; guestId: string; clockSyncStatus: GuestClockSyncStatus }) => void;
   onGuestSyncStateChanged?: (data: GuestSyncStateChanged) => void;
   onGuestSyncComplete?: (data: GuestSyncComplete) => void;
   onGuestSyncError?: (data: GuestSyncError) => void;
   /** Room参加時に現在のゲスト一覧を受信 */
   onRoomGuests?: (data: RoomGuestsData) => void;
+  onTimeSyncPong?: (data: { roomId: string; clientSendTime: number; serverReceiveTime: number; serverSendTime: number }) => void;
+  onScheduledRecordingStart?: (data: { roomId: string; startAtServerTime: number }) => void;
   onError?: (data: { message: string }) => void;
   onConnect?: () => void;
   onDisconnect?: () => void;
@@ -206,6 +219,10 @@ export class WebSocketRoomClient {
       this.listeners.onGuestWaveformChanged?.(data);
     });
 
+    this.socket.on('guest_clock_sync_status_changed', (data) => {
+      this.listeners.onGuestClockSyncStatusChanged?.(data);
+    });
+
     this.socket.on('error', (data) => {
       console.error('❌ [WebSocketRoomClient] error:', data);
       this.listeners.onError?.(data);
@@ -229,6 +246,15 @@ export class WebSocketRoomClient {
     this.socket.on('room_guests', (data) => {
       console.log('📡 [WebSocketRoomClient] room_guests:', data);
       this.listeners.onRoomGuests?.(data);
+    });
+
+    this.socket.on('time_sync_pong', (data) => {
+      this.listeners.onTimeSyncPong?.(data);
+    });
+
+    this.socket.on('scheduled_recording_start', (data) => {
+      console.log('📡 [WebSocketRoomClient] scheduled_recording_start:', data);
+      this.listeners.onScheduledRecordingStart?.(data);
     });
   }
 
@@ -292,6 +318,17 @@ export class WebSocketRoomClient {
     }
 
     this.socket.emit('guest_waveform_update', { roomId, waveformData, isSilent });
+  }
+
+  /**
+   * 時刻同期ステータスを送信
+   */
+  emitClockSyncStatus(roomId: string, clockSyncStatus: GuestClockSyncStatus): void {
+    if (!this.socket) {
+      return;
+    }
+
+    this.socket.emit('guest_clock_sync_status', { roomId, clockSyncStatus });
   }
 
   /**
@@ -366,6 +403,16 @@ export class WebSocketRoomClient {
 
     console.log(`📤 [WebSocketRoomClient] guest_sync_error: error=${errorMessage}, failed=${failedChunks}`);
     this.socket.emit('guest_sync_error', { roomId, recordingId, errorMessage, failedChunks });
+  }
+
+  /**
+   * 時刻同期pingを送信
+   */
+  emitTimeSyncPing(roomId: string, clientSendTime: number): void {
+    if (!this.socket) {
+      return;
+    }
+    this.socket.emit('time_sync_ping', { roomId, clientSendTime });
   }
 
   /**

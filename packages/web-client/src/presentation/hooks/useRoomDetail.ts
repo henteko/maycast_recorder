@@ -144,6 +144,8 @@ export function useRoomDetail(
               totalChunks: existing?.totalChunks ?? 0,
               isConnected: true,
               lastUpdatedAt: new Date().toISOString(),
+              mediaStatus: existing?.mediaStatus,
+              clockSyncStatus: existing?.clockSyncStatus,
             });
             return next;
           });
@@ -190,6 +192,22 @@ export function useRoomDetail(
               next.set(data.guestId, {
                 ...guest,
                 mediaStatus: data.mediaStatus,
+                lastUpdatedAt: new Date().toISOString(),
+              });
+            }
+            return next;
+          });
+        }
+      },
+      onGuestClockSyncStatusChanged: (data) => {
+        if (data.roomId === roomId) {
+          setGuests((prev) => {
+            const next = new Map(prev);
+            const guest = next.get(data.guestId);
+            if (guest) {
+              next.set(data.guestId, {
+                ...guest,
+                clockSyncStatus: data.clockSyncStatus,
                 lastUpdatedAt: new Date().toISOString(),
               });
             }
@@ -269,6 +287,7 @@ export function useRoomDetail(
                 uploadedChunks: guest.uploadedChunks,
                 totalChunks: guest.totalChunks,
                 mediaStatus: guest.mediaStatus,
+                clockSyncStatus: guest.clockSyncStatus,
                 isConnected: true,
                 lastUpdatedAt: new Date().toISOString(),
               });

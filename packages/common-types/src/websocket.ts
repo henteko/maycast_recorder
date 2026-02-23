@@ -116,6 +116,40 @@ export interface GuestSyncError {
 }
 
 /**
+ * WebSocket message: Time sync ping (client → server)
+ */
+export interface TimeSyncPing {
+  type: 'time_sync_ping';
+  roomId: RoomId;
+  /** クライアントがpingを送信した時刻(ms since epoch) */
+  clientSendTime: number;
+}
+
+/**
+ * WebSocket message: Time sync pong (server → client)
+ */
+export interface TimeSyncPong {
+  type: 'time_sync_pong';
+  roomId: RoomId;
+  /** クライアントの送信時刻(エコーバック) */
+  clientSendTime: number;
+  /** サーバーがpingを受信した時刻(ms since epoch) */
+  serverReceiveTime: number;
+  /** サーバーがpongを送信した時刻(ms since epoch) */
+  serverSendTime: number;
+}
+
+/**
+ * WebSocket message: Scheduled recording start (server → all clients)
+ */
+export interface ScheduledRecordingStart {
+  type: 'scheduled_recording_start';
+  roomId: RoomId;
+  /** 録画を開始すべきサーバー時刻(ms since epoch) */
+  startAtServerTime: number;
+}
+
+/**
  * Union type of all WebSocket messages
  */
 export type WebSocketMessage =
@@ -128,4 +162,7 @@ export type WebSocketMessage =
   | DirectorCommand
   | GuestSyncStateChanged
   | GuestSyncComplete
-  | GuestSyncError;
+  | GuestSyncError
+  | TimeSyncPing
+  | TimeSyncPong
+  | ScheduledRecordingStart;

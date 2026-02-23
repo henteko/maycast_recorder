@@ -39,7 +39,6 @@ Dockerfile
 
 # Rust
 target/
-Cargo.lock
 
 # Documentation
 docs/

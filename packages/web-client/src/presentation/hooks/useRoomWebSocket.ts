@@ -12,6 +12,18 @@ import type { RoomInfo } from '../../infrastructure/api/room-api';
 import type { RoomState, RoomStateChanged } from '@maycast/common-types';
 import { getServerUrl } from '../../infrastructure/config/serverConfig';
 
+export interface TimeSyncPongData {
+  roomId: string;
+  clientSendTime: number;
+  serverReceiveTime: number;
+  serverSendTime: number;
+}
+
+export interface ScheduledRecordingStartData {
+  roomId: string;
+  startAtServerTime: number;
+}
+
 export interface UseRoomWebSocketResult {
   room: RoomInfo | null;
   roomState: RoomState | null;
@@ -23,6 +35,12 @@ export interface UseRoomWebSocketResult {
   refetch: () => Promise<void>;
   /** Recording IDを設定してRoomに再参加 */
   setRecordingId: (recordingId: string) => void;
+  /** 時刻同期pongハンドラーを登録 */
+  onTimeSyncPong: (handler: ((data: TimeSyncPongData) => void) | null) => void;
+  /** スケジュール録画開始ハンドラーを登録 */
+  onScheduledRecordingStart: (handler: ((data: ScheduledRecordingStartData) => void) | null) => void;
+  /** 時刻同期pingを送信 */
+  emitTimeSyncPing: (clientSendTime: number) => void;
 }
 
 /**
@@ -47,6 +65,8 @@ export function useRoomWebSocket(
   const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const safetyPollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const wsClientRef = useRef<ReturnType<typeof getWebSocketRoomClient> | null>(null);
+  const timeSyncPongHandlerRef = useRef<((data: TimeSyncPongData) => void) | null>(null);
+  const scheduledRecordingStartHandlerRef = useRef<((data: ScheduledRecordingStartData) => void) | null>(null);
 
   // HTTP経由でRoom状態を取得（認証不要）
   const fetchRoom = useCallback(async () => {
@@ -173,6 +193,14 @@ export function useRoomWebSocket(
           setGuestCount(data.guestCount);
         }
       },
+      onTimeSyncPong: (data) => {
+        timeSyncPongHandlerRef.current?.(data);
+      },
+      onScheduledRecordingStart: (data) => {
+        if (data.roomId === roomId) {
+          scheduledRecordingStartHandlerRef.current?.(data);
+        }
+      },
       onError: (data) => {
         console.error('❌ [useRoomWebSocket] Error:', data.message);
         setError(data.message);
@@ -211,6 +239,24 @@ export function useRoomWebSocket(
     };
   }, [stopPolling, stopSafetyPolling]);
 
+  // 時刻同期pongハンドラーの登録
+  const onTimeSyncPong = useCallback((handler: ((data: TimeSyncPongData) => void) | null) => {
+    timeSyncPongHandlerRef.current = handler;
+  }, []);
+
+  // スケジュール録画開始ハンドラーの登録
+  const onScheduledRecordingStart = useCallback((handler: ((data: ScheduledRecordingStartData) => void) | null) => {
+    scheduledRecordingStartHandlerRef.current = handler;
+  }, []);
+
+  // 時刻同期pingを送信
+  const emitTimeSyncPing = useCallback((clientSendTime: number) => {
+    const wsClient = wsClientRef.current;
+    if (wsClient && roomId && isWebSocketConnected) {
+      wsClient.emitTimeSyncPing(roomId, clientSendTime);
+    }
+  }, [roomId, isWebSocketConnected]);
+
   // Recording IDを設定（guestIdとrecordingIdを紐付け）
   const setRecordingId = useCallback((newRecordingId: string) => {
     const wsClient = wsClientRef.current;
@@ -229,5 +275,8 @@ export function useRoomWebSocket(
     guestCount,
     refetch: fetchRoom,
     setRecordingId,
+    onTimeSyncPong,
+    onScheduledRecordingStart,
+    emitTimeSyncPing,
   };
 }

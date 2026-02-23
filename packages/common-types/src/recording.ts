@@ -49,6 +49,20 @@ export interface RecordingMetadata {
 
   /** Total duration in microseconds */
   durationUs?: number;
+
+  /** 同期録画開始情報（ポストプロダクション用） */
+  syncInfo?: {
+    /** スケジュールされたサーバー時刻T_start (ms since epoch) */
+    scheduledStartTime: number;
+    /** 実際にstartRecording()が呼ばれたローカル時刻 (ms since epoch) */
+    actualStartTime: number;
+    /** 使用した時計オフセット: localTime + offsetMs ≈ serverTime */
+    clockOffsetMs: number;
+    /** オフセットの推定精度（標準偏差, ms） */
+    clockOffsetAccuracyMs: number;
+    /** 同期に使用したサンプル数 */
+    syncSampleCount: number;
+  };
 }
 
 /**

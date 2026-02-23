@@ -15,11 +15,14 @@ import type {
   RecordingId,
   GuestSyncState,
   GuestMediaStatus,
+  GuestClockSyncStatus,
   RoomStateChanged,
   RecordingCreated,
   GuestSyncStateChanged,
   GuestSyncComplete,
   GuestSyncError,
+  TimeSyncPong,
+  ScheduledRecordingStart,
 } from '@maycast/common-types';
 
 /**
@@ -40,6 +43,8 @@ interface GuestTrackingInfo {
   errorMessage?: string;
   /** メディアステータス */
   mediaStatus?: GuestMediaStatus;
+  /** 時刻同期ステータス */
+  clockSyncStatus?: GuestClockSyncStatus;
 }
 
 /**
@@ -76,6 +81,11 @@ interface ClientToServerEvents {
     waveformData: number[];
     isSilent: boolean;
   }) => void;
+  guest_clock_sync_status: (data: {
+    roomId: string;
+    clockSyncStatus: GuestClockSyncStatus;
+  }) => void;
+  time_sync_ping: (data: { roomId: string; clientSendTime: number }) => void;
 }
 
 /**
@@ -89,6 +99,7 @@ interface ServerToClientEvents {
   guest_recording_linked: (data: { roomId: string; guestId: string; recordingId: string; name?: string }) => void;
   guest_media_status_changed: (data: { roomId: string; guestId: string; mediaStatus: GuestMediaStatus }) => void;
   guest_waveform_changed: (data: { roomId: string; guestId: string; waveformData: number[]; isSilent: boolean }) => void;
+  guest_clock_sync_status_changed: (data: { roomId: string; guestId: string; clockSyncStatus: GuestClockSyncStatus }) => void;
   guest_sync_state_changed: (data: GuestSyncStateChanged) => void;
   guest_sync_complete: (data: GuestSyncComplete) => void;
   guest_sync_error: (data: GuestSyncError) => void;
@@ -101,7 +112,10 @@ interface ServerToClientEvents {
     uploadedChunks: number;
     totalChunks: number;
     mediaStatus?: GuestMediaStatus;
+    clockSyncStatus?: GuestClockSyncStatus;
   }> }) => void;
+  time_sync_pong: (data: TimeSyncPong) => void;
+  scheduled_recording_start: (data: ScheduledRecordingStart) => void;
   error: (data: { message: string }) => void;
 }
 
@@ -192,6 +206,7 @@ export class WebSocketManager {
             uploadedChunks: g.uploadedChunks,
             totalChunks: g.totalChunks,
             mediaStatus: g.mediaStatus,
+            clockSyncStatus: g.clockSyncStatus,
           }));
           socket.emit('room_guests', { roomId, guests });
           console.log(`📤 [WebSocket] Sent ${guests.length} guests to Director for room: ${roomId}`);
@@ -351,6 +366,29 @@ export class WebSocketManager {
       }
     });
 
+    // Guest時刻同期ステータス更新
+    socket.on('guest_clock_sync_status', ({ roomId, clockSyncStatus }) => {
+      const guestMapping = this.socketToGuest.get(socket.id);
+      if (!guestMapping || guestMapping.roomId !== roomId) {
+        return;
+      }
+
+      const { guestId } = guestMapping;
+      const roomGuestMap = this.roomGuests.get(roomId);
+      const guestInfo = roomGuestMap?.get(guestId);
+
+      if (guestInfo) {
+        guestInfo.clockSyncStatus = clockSyncStatus;
+        guestInfo.lastUpdatedAt = new Date();
+
+        this.io?.to(`room:${roomId}`).emit('guest_clock_sync_status_changed', {
+          roomId,
+          guestId,
+          clockSyncStatus,
+        });
+      }
+    });
+
     // Guest波形データ更新（リアルタイム転送、保存なし）
     socket.on('guest_waveform_update', ({ roomId, waveformData, isSilent }) => {
       // socketIdからguestIdを取得
@@ -469,6 +507,18 @@ export class WebSocketManager {
       this.io?.to(`room:${roomId}`).emit('guest_sync_error', message);
     });
 
+    // 時刻同期 ping/pong
+    socket.on('time_sync_ping', ({ roomId, clientSendTime }) => {
+      const serverReceiveTime = Date.now();
+      socket.emit('time_sync_pong', {
+        type: 'time_sync_pong',
+        roomId,
+        clientSendTime,
+        serverReceiveTime,
+        serverSendTime: Date.now(),
+      });
+    });
+
     // 切断時
     socket.on('disconnect', () => {
       console.log(`🔌 [WebSocket] Client disconnected: ${socket.id}`);
@@ -551,6 +601,25 @@ export class WebSocketManager {
 
     console.log(`📡 [WebSocket] Emitting recording_created to room:${roomId}`, message);
     this.io.to(`room:${roomId}`).emit('recording_created', message);
+  }
+
+  /**
+   * スケジュール録画開始指示を配信
+   */
+  emitScheduledRecordingStart(roomId: RoomId, startAtServerTime: number): void {
+    if (!this.io) {
+      console.warn('⚠️ [WebSocket] Not initialized, cannot emit scheduled_recording_start');
+      return;
+    }
+
+    const message: ScheduledRecordingStart = {
+      type: 'scheduled_recording_start',
+      roomId,
+      startAtServerTime,
+    };
+
+    console.log(`📡 [WebSocket] Emitting scheduled_recording_start to room:${roomId}, T_start=${startAtServerTime}`);
+    this.io.to(`room:${roomId}`).emit('scheduled_recording_start', message);
   }
 
   /**
