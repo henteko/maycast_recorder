@@ -12,6 +12,7 @@ import { createRoomAccessMiddleware } from './presentation/middleware/roomAccess
 
 import { getWebSocketManager } from './infrastructure/websocket/WebSocketManager.js';
 import { getAudioExtractionQueue } from './infrastructure/queue/audioExtractionQueue.js';
+import { setupTranscriptionAutoQueue } from './infrastructure/queue/transcriptionAutoQueue.js';
 import type { RecordingController } from './presentation/controllers/RecordingController.js';
 import type { ChunkController } from './presentation/controllers/ChunkController.js';
 import type { RoomController } from './presentation/controllers/RoomController.js';
@@ -151,6 +152,11 @@ webSocketManager.setOnAllGuestsSyncedCallback(async (roomId: string) => {
   } catch (err) {
     console.error(`❌ [Server] Failed to transition room ${roomId} to finished:`, err);
   }
+});
+
+// AudioExtraction完了後にTranscriptionジョブを自動キューイング
+setupTranscriptionAutoQueue(recordingRepository).catch((err) => {
+  console.error('❌ [Server] Failed to setup transcription auto-queue:', err);
 });
 
 // Start server

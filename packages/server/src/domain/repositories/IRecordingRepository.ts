@@ -61,4 +61,22 @@ export interface IRecordingRepository {
     error?: string,
     outputKeys?: { mp4Key: string; m4aKey: string }
   ): Promise<void>;
+
+  /**
+   * Transcription情報を取得
+   */
+  getTranscriptionInfo(id: RecordingId): Promise<{
+    transcriptionState: string | null;
+    outputVttKey: string | null;
+  } | null>;
+
+  /**
+   * Transcription状態を更新
+   */
+  updateTranscriptionState(
+    id: RecordingId,
+    state: 'pending' | 'processing' | 'completed' | 'failed',
+    error?: string,
+    outputVttKey?: string
+  ): Promise<void>;
 }

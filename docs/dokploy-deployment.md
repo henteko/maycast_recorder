@@ -89,6 +89,23 @@ S3_SECRET_ACCESS_KEY=<your-r2-secret-key>
 S3_REGION=auto
 ```
 
+#### AI (Transcription / VTT Subtitle Generation)
+
+Automatically transcribes audio after recording and generates WebVTT subtitle files. This is optional — if not configured, transcription is simply disabled with no impact on other features.
+
+| Variable | Description | Example |
+|---|---|---|
+| `GEMINI_API_KEY` | Google Gemini API Key | - |
+| `GEMINI_MODEL` | Gemini model name (optional, default: `gemini-3-flash-preview`) | `gemini-3-flash-preview` |
+
+**Setup steps:**
+
+1. Obtain an API Key from [Google AI Studio](https://aistudio.google.com/apikey)
+2. Set `GEMINI_API_KEY` in the Dokploy environment variables
+3. Redeploy
+
+Once configured, a transcription job is automatically queued after audio extraction (m4a generation) completes. The resulting VTT file is uploaded to R2 and can be downloaded from the Director page.
+
 #### R2 CORS Configuration
 
 The client downloads recording data directly from R2 using presigned URLs. Since the browser makes cross-origin requests from your app domain to the R2 endpoint, CORS must be configured on the R2 bucket.

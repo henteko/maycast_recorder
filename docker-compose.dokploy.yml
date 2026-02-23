@@ -125,6 +125,8 @@ services:
       - S3_SECRET_ACCESS_KEY=${S3_SECRET_ACCESS_KEY}
       - S3_REGION=${S3_REGION:-auto}
       - WORKER_CONCURRENCY=2
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - GEMINI_MODEL=${GEMINI_MODEL:-}
     restart: unless-stopped
     networks:
       - maycast-network

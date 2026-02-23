@@ -2,7 +2,7 @@
  * RecordingDownloadItem - 録画ダウンロードアイテム
  */
 
-import { ArrowDownTrayIcon, DocumentArrowDownIcon, MusicalNoteIcon } from '@heroicons/react/24/solid';
+import { ArrowDownTrayIcon, DocumentArrowDownIcon, MusicalNoteIcon, LanguageIcon } from '@heroicons/react/24/solid';
 import { RecordingAPIClient, type RecordingInfo, type ProcessingState } from '../../../infrastructure/api/recording-api';
 import { Button } from '../atoms/Button';
 
@@ -12,11 +12,14 @@ interface RecordingDownloadItemProps {
   isLoading: boolean;
   onDownload: (recordingId: string) => void;
   onDownloadM4a?: (recordingId: string) => void;
+  onDownloadVtt?: (recordingId: string) => void;
   isDownloading: boolean;
   isDownloadingM4a?: boolean;
+  isDownloadingVtt?: boolean;
   chunkProgress?: { current: number; total: number };
   guestName?: string;
   hasM4a?: boolean;
+  hasVtt?: boolean;
 }
 
 function ProcessingBadge({ state }: { state: ProcessingState }) {
@@ -52,20 +55,52 @@ function ProcessingBadge({ state }: { state: ProcessingState }) {
   }
 }
 
+function TranscriptionBadge({ state }: { state: ProcessingState }) {
+  switch (state) {
+    case 'pending':
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-purple-500/20 text-purple-400 border border-purple-500/30">
+          <div className="w-1.5 h-1.5 bg-purple-400 rounded-full" />
+          Transcription Queued
+        </span>
+      );
+    case 'processing':
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-purple-500/20 text-purple-400 border border-purple-500/30">
+          <div className="w-1.5 h-1.5 bg-purple-400 rounded-full animate-pulse" />
+          Transcribing
+        </span>
+      );
+    case 'completed':
+      return null; // VTTボタンで表示するのでバッジは不要
+    case 'failed':
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-red-500/20 text-red-400 border border-red-500/30">
+          <div className="w-1.5 h-1.5 bg-red-400 rounded-full" />
+          Transcription Failed
+        </span>
+      );
+  }
+}
+
 export const RecordingDownloadItem: React.FC<RecordingDownloadItemProps> = ({
   recordingId,
   recording,
   isLoading,
   onDownload,
   onDownloadM4a,
+  onDownloadVtt,
   isDownloading,
   isDownloadingM4a = false,
+  isDownloadingVtt = false,
   chunkProgress,
   guestName,
   hasM4a = false,
+  hasVtt = false,
 }) => {
   const duration = recording ? RecordingAPIClient.calculateDuration(recording) : null;
   const processingState = recording?.processing_state;
+  const transcriptionState = recording?.transcription_state;
 
   return (
     <div className="flex items-center justify-between bg-maycast-bg/50 backdrop-blur-sm px-4 py-3 rounded-xl border border-maycast-border/30">
@@ -86,6 +121,9 @@ export const RecordingDownloadItem: React.FC<RecordingDownloadItemProps> = ({
             {processingState && (
               <ProcessingBadge state={processingState} />
             )}
+            {transcriptionState && transcriptionState !== 'completed' && (
+              <TranscriptionBadge state={transcriptionState} />
+            )}
           </div>
           {recording && (
             <div className="flex items-center gap-2 text-xs text-maycast-text-secondary mt-0.5">
@@ -100,6 +138,24 @@ export const RecordingDownloadItem: React.FC<RecordingDownloadItemProps> = ({
         </div>
       </div>
       <div className="flex items-center gap-2">
+        {hasVtt && onDownloadVtt && (
+          <Button
+            onClick={() => onDownloadVtt(recordingId)}
+            disabled={isLoading || isDownloadingVtt}
+            variant="ghost"
+            size="sm"
+            className="!py-2 !px-3 !text-sm !border-purple-500/30"
+          >
+            {isDownloadingVtt ? (
+              <div className="w-4 h-4 border-2 border-purple-400 border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <>
+                <LanguageIcon className="w-4 h-4 text-purple-400" />
+                <span>VTT</span>
+              </>
+            )}
+          </Button>
+        )}
         {hasM4a && onDownloadM4a && (
           <Button
             onClick={() => onDownloadM4a(recordingId)}

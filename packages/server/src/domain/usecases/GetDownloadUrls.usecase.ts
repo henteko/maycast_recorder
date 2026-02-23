@@ -87,6 +87,20 @@ export class GetDownloadUrlsUseCase {
         : `recording-${timestamp}.m4a`;
     }
 
+    // 8. Transcription済みVTTのURL生成（存在する場合）
+    let vttUrl: string | undefined;
+    let vttFilename: string | undefined;
+    const transcriptionInfo = await this.recordingRepository.getTranscriptionInfo(request.recordingId);
+    if (transcriptionInfo?.transcriptionState === 'completed' && transcriptionInfo.outputVttKey) {
+      vttUrl = await this.presignedUrlService.getPresignedUrlForKey(
+        transcriptionInfo.outputVttKey,
+        expiresIn
+      );
+      vttFilename = participantName
+        ? `${participantName}-${timestamp}.vtt`
+        : `recording-${timestamp}.vtt`;
+    }
+
     return {
       directDownload: true,
       filename,
@@ -96,6 +110,8 @@ export class GetDownloadUrlsUseCase {
       expiresIn,
       m4aUrl,
       m4aFilename,
+      vttUrl,
+      vttFilename,
     };
   }
 }

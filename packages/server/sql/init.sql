@@ -25,6 +25,10 @@ CREATE TABLE IF NOT EXISTS recordings (
     output_mp4_key    TEXT,
     output_m4a_key    TEXT,
     processed_at      TIMESTAMPTZ,
+    transcription_state  processing_state,
+    transcription_error  TEXT,
+    output_vtt_key       TEXT,
+    transcribed_at       TIMESTAMPTZ,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
