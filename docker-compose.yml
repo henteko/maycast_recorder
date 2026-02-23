@@ -20,6 +20,22 @@ services:
       timeout: 5s
       retries: 5
 
+  # Redis (BullMQジョブキュー)
+  redis:
+    image: redis:7-alpine
+    expose:
+      - "6379"
+    volumes:
+      - redis-data:/data
+    restart: unless-stopped
+    networks:
+      - maycast-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   # LocalStack (S3互換ストレージ)
   localstack:
     image: localstack/localstack:latest
@@ -67,11 +83,15 @@ services:
         condition: service_healthy
       localstack:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
       - NODE_ENV=${NODE_ENV:-development}
       - PORT=3000
       - CORS_ORIGIN=${CORS_ORIGIN:-http://localhost}
       - DATABASE_URL=postgresql://${POSTGRES_USER:-maycast}:${POSTGRES_PASSWORD:-maycast_dev}@postgres:5432/${POSTGRES_DB:-maycast}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
       - STORAGE_BACKEND=s3
       - S3_ENDPOINT=http://localstack:4566
       - S3_PUBLIC_ENDPOINT=http://localhost/s3
@@ -107,6 +127,35 @@ services:
       - maycast-network
 
 
+  # Audio Extraction Worker
+  worker:
+    build:
+      context: .
+      dockerfile: ./packages/worker/Dockerfile
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      localstack:
+        condition: service_healthy
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-maycast}:${POSTGRES_PASSWORD:-maycast_dev}@postgres:5432/${POSTGRES_DB:-maycast}
+      - STORAGE_BACKEND=s3
+      - S3_ENDPOINT=http://localstack:4566
+      - S3_BUCKET=maycast-recordings
+      - S3_ACCESS_KEY_ID=test
+      - S3_SECRET_ACCESS_KEY=test
+      - S3_REGION=us-east-1
+      - S3_FORCE_PATH_STYLE=true
+      - WORKER_CONCURRENCY=2
+    restart: unless-stopped
+    networks:
+      - maycast-network
+
 networks:
   maycast-network:
     driver: bridge
@@ -114,3 +163,4 @@ networks:
 volumes:
   localstack-data:
   postgres-data:
+  redis-data:

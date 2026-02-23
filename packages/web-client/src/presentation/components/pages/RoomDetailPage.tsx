@@ -113,6 +113,19 @@ export const RoomDetailPage: React.FC = () => {
             const cloudService = new CloudDownloadService();
             blob = await cloudService.download(downloadUrls, onChunkProgress);
             fileName = downloadUrls.filename;
+
+            // m4aが利用可能な場合はZIPに追加
+            if (downloadUrls.m4aUrl && downloadUrls.m4aFilename) {
+              try {
+                const m4aResponse = await fetch(downloadUrls.m4aUrl);
+                if (m4aResponse.ok) {
+                  const m4aBlob = await m4aResponse.blob();
+                  zip.file(downloadUrls.m4aFilename, m4aBlob);
+                }
+              } catch (m4aErr) {
+                console.error(`Failed to download m4a for ${recordingId}:`, m4aErr);
+              }
+            }
           } else {
             blob = await apiClient.downloadRecording(recordingId);
             fileName = downloadUrls.filename;

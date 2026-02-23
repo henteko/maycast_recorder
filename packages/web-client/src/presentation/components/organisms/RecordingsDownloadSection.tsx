@@ -36,25 +36,43 @@ export const RecordingsDownloadSection: React.FC<RecordingsDownloadSectionProps>
   const [recordings, setRecordings] = useState<Map<string, RecordingInfo>>(new Map());
   const [loadingIds, setLoadingIds] = useState<Set<string>>(new Set());
   const [downloadProgress, setDownloadProgress] = useState<Map<string, { current: number; total: number }>>(new Map());
+  const [m4aDownloading, setM4aDownloading] = useState<Set<string>>(new Set());
+  const [m4aAvailable, setM4aAvailable] = useState<Map<string, { url: string; filename: string }>>(new Map());
   const fetchedIdsRef = useRef<Set<string>>(new Set());
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // recordingId -> guestName のマッピングを作成（WebSocket上のguest情報優先、fallbackとしてrecordingメタデータを使用）
+  // recordingId -> guestName のマッピングを作成
   const getGuestNameForRecording = useCallback((recordingId: string): string | undefined => {
     const guest = guests.find((g) => g.recordingId === recordingId);
     if (guest?.name) return guest.name;
-    // Guest切断後はrecordingメタデータから取得
     const recording = recordings.get(recordingId);
     return recording?.metadata?.participantName;
   }, [guests, recordings]);
 
-  // Recording情報を取得
+  // m4a利用可能性をチェック
+  const checkM4aAvailability = useCallback(async (recordingId: string) => {
+    try {
+      const serverUrl = getServerUrl();
+      const apiClient = new RecordingAPIClient(serverUrl);
+      const downloadUrls = await apiClient.getDownloadUrls(recordingId);
+      if (downloadUrls.directDownload && downloadUrls.m4aUrl && downloadUrls.m4aFilename) {
+        setM4aAvailable((prev) => new Map(prev).set(recordingId, {
+          url: downloadUrls.m4aUrl!,
+          filename: downloadUrls.m4aFilename!,
+        }));
+      }
+    } catch {
+      // 無視
+    }
+  }, []);
+
+  // Recording情報を取得（初回）
   useEffect(() => {
     const fetchRecordings = async () => {
       const serverUrl = getServerUrl();
       const apiClient = new RecordingAPIClient(serverUrl);
 
       for (const recordingId of recordingIds) {
-        // 既に取得済みまたは取得中の場合はスキップ
         if (fetchedIdsRef.current.has(recordingId)) continue;
         fetchedIdsRef.current.add(recordingId);
 
@@ -62,9 +80,13 @@ export const RecordingsDownloadSection: React.FC<RecordingsDownloadSectionProps>
         try {
           const info = await apiClient.getRecording(recordingId);
           setRecordings((prev) => new Map(prev).set(recordingId, info));
+
+          // completedならm4aチェック
+          if (info.processing_state === 'completed') {
+            checkM4aAvailability(recordingId);
+          }
         } catch (err) {
           console.error(`Failed to fetch recording ${recordingId}:`, err);
-          // エラー時はrefから削除してリトライ可能に
           fetchedIdsRef.current.delete(recordingId);
         } finally {
           setLoadingIds((prev) => {
@@ -77,9 +99,54 @@ export const RecordingsDownloadSection: React.FC<RecordingsDownloadSectionProps>
     };
 
     fetchRecordings();
-  }, [recordingIds]);
+  }, [recordingIds, checkM4aAvailability]);
 
-  // 個別ダウンロード
+  // processing中のrecordingをポーリング
+  useEffect(() => {
+    const hasInProgress = Array.from(recordings.values()).some(
+      (r) => r.processing_state === 'pending' || r.processing_state === 'processing'
+    );
+
+    if (!hasInProgress) {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+      return;
+    }
+
+    if (pollingRef.current) return; // already polling
+
+    pollingRef.current = setInterval(async () => {
+      const serverUrl = getServerUrl();
+      const apiClient = new RecordingAPIClient(serverUrl);
+
+      for (const [recordingId, rec] of recordings) {
+        if (rec.processing_state !== 'pending' && rec.processing_state !== 'processing') continue;
+
+        try {
+          const info = await apiClient.getRecording(recordingId);
+          setRecordings((prev) => new Map(prev).set(recordingId, info));
+
+          // completedに遷移したらm4aチェック
+          if (info.processing_state === 'completed') {
+            checkM4aAvailability(recordingId);
+          }
+        } catch {
+          // ポーリング失敗は無視
+        }
+      }
+    }, 5000);
+
+    return () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+    };
+  }, [recordings, checkM4aAvailability]);
+
+  // 個別ダウンロード（MP4）
   const handleDownload = useCallback(async (recordingId: string) => {
     setDownloadProgress((prev) => new Map(prev).set(recordingId, { current: 0, total: 0 }));
     try {
@@ -90,7 +157,6 @@ export const RecordingsDownloadSection: React.FC<RecordingsDownloadSectionProps>
         setDownloadProgress((prev) => new Map(prev).set(recordingId, progress));
       };
 
-      // Presigned URL対応: download-urlsを使用
       let blob: Blob;
       let filename: string | undefined;
       const downloadUrls = await apiClient.getDownloadUrls(recordingId);
@@ -103,7 +169,6 @@ export const RecordingsDownloadSection: React.FC<RecordingsDownloadSectionProps>
         filename = downloadUrls.filename;
       }
 
-      // ダウンロードリンクを作成
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -129,6 +194,39 @@ export const RecordingsDownloadSection: React.FC<RecordingsDownloadSectionProps>
       });
     }
   }, [getGuestNameForRecording]);
+
+  // 個別ダウンロード（M4A）
+  const handleDownloadM4a = useCallback(async (recordingId: string) => {
+    const m4aInfo = m4aAvailable.get(recordingId);
+    if (!m4aInfo) return;
+
+    setM4aDownloading((prev) => new Set(prev).add(recordingId));
+    try {
+      const response = await fetch(m4aInfo.url);
+      if (!response.ok) {
+        throw new Error(`Failed to download m4a: ${response.status} ${response.statusText}`);
+      }
+      const blob = await response.blob();
+
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = m4aInfo.filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      console.error(`Failed to download m4a for ${recordingId}:`, err);
+      alert(`Failed to download audio: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    } finally {
+      setM4aDownloading((prev) => {
+        const next = new Set(prev);
+        next.delete(recordingId);
+        return next;
+      });
+    }
+  }, [m4aAvailable]);
 
   if (recordingIds.length === 0) {
     return (
@@ -179,9 +277,12 @@ export const RecordingsDownloadSection: React.FC<RecordingsDownloadSectionProps>
             recording={recordings.get(recordingId) || null}
             isLoading={loadingIds.has(recordingId)}
             onDownload={handleDownload}
+            onDownloadM4a={handleDownloadM4a}
             isDownloading={downloadProgress.has(recordingId)}
+            isDownloadingM4a={m4aDownloading.has(recordingId)}
             chunkProgress={downloadProgress.get(recordingId)}
             guestName={getGuestNameForRecording(recordingId)}
+            hasM4a={m4aAvailable.has(recordingId)}
           />
         ))}
       </div>

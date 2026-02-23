@@ -37,4 +37,9 @@ export interface IPresignedUrlService {
    * Chunkアップロード用のPresigned URLを生成
    */
   getChunkUploadUrl(recordingId: RecordingId, chunkId: number, roomId?: RoomId, expiresIn?: number): Promise<string>;
+
+  /**
+   * 任意のS3キーに対するPresigned URLを生成
+   */
+  getPresignedUrlForKey(key: string, expiresIn?: number): Promise<string>;
 }

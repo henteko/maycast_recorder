@@ -100,6 +100,54 @@ export class PostgresRecordingRepository implements IRecordingRepository {
     }
   }
 
+  async getProcessingInfo(id: RecordingId): Promise<{
+    processingState: string | null;
+    outputMp4Key: string | null;
+    outputM4aKey: string | null;
+  } | null> {
+    const result = await this.pool.query(
+      'SELECT processing_state, output_mp4_key, output_m4a_key FROM recordings WHERE id = $1',
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return null;
+    }
+
+    const row = result.rows[0];
+    return {
+      processingState: row.processing_state as string | null,
+      outputMp4Key: row.output_mp4_key as string | null,
+      outputM4aKey: row.output_m4a_key as string | null,
+    };
+  }
+
+  async updateProcessingState(
+    id: RecordingId,
+    state: 'pending' | 'processing' | 'completed' | 'failed',
+    error?: string,
+    outputKeys?: { mp4Key: string; m4aKey: string }
+  ): Promise<void> {
+    let query: string;
+    let params: unknown[];
+
+    if (state === 'completed' && outputKeys) {
+      query = `UPDATE recordings SET processing_state = $1, processing_error = NULL, output_mp4_key = $2, output_m4a_key = $3, processed_at = NOW() WHERE id = $4`;
+      params = [state, outputKeys.mp4Key, outputKeys.m4aKey, id];
+    } else if (state === 'failed') {
+      query = `UPDATE recordings SET processing_state = $1, processing_error = $2 WHERE id = $3`;
+      params = [state, error ?? null, id];
+    } else {
+      query = `UPDATE recordings SET processing_state = $1 WHERE id = $2`;
+      params = [state, id];
+    }
+
+    const result = await this.pool.query(query, params);
+    if (result.rowCount === 0) {
+      throw new RecordingNotFoundError(`Recording not found: ${id}`);
+    }
+  }
+
   /**
    * DBの行をRecording DTOに変換
    */

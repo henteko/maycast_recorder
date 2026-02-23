@@ -4,6 +4,9 @@
 -- Recording状態の列挙型
 CREATE TYPE recording_state AS ENUM ('standby', 'recording', 'finalizing', 'synced', 'interrupted');
 
+-- Processing状態の列挙型
+CREATE TYPE processing_state AS ENUM ('pending', 'processing', 'completed', 'failed');
+
 -- Room状態の列挙型
 CREATE TYPE room_state AS ENUM ('idle', 'recording', 'finalizing', 'finished');
 
@@ -17,6 +20,11 @@ CREATE TABLE IF NOT EXISTS recordings (
     total_size  BIGINT NOT NULL DEFAULT 0,
     start_time  BIGINT NOT NULL,
     end_time    BIGINT,
+    processing_state  processing_state,
+    processing_error  TEXT,
+    output_mp4_key    TEXT,
+    output_m4a_key    TEXT,
+    processed_at      TIMESTAMPTZ,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

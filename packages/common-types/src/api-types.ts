@@ -34,6 +34,10 @@ export interface DownloadUrlsDirectResponse {
   chunks: { url: string; chunkId: number }[];
   totalChunks: number;
   expiresIn: number;
+  /** Worker処理済みm4aのPresigned URL（存在する場合のみ） */
+  m4aUrl?: string;
+  /** m4aのファイル名 */
+  m4aFilename?: string;
 }
 
 export interface DownloadUrlsFallbackResponse {

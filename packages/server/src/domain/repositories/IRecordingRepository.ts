@@ -42,4 +42,23 @@ export interface IRecordingRepository {
    * チャンク数を増加
    */
   incrementChunkCount(id: RecordingId): Promise<void>;
+
+  /**
+   * Processing情報を取得
+   */
+  getProcessingInfo(id: RecordingId): Promise<{
+    processingState: string | null;
+    outputMp4Key: string | null;
+    outputM4aKey: string | null;
+  } | null>;
+
+  /**
+   * Processing状態を更新
+   */
+  updateProcessingState(
+    id: RecordingId,
+    state: 'pending' | 'processing' | 'completed' | 'failed',
+    error?: string,
+    outputKeys?: { mp4Key: string; m4aKey: string }
+  ): Promise<void>;
 }
