@@ -100,6 +100,32 @@ export class PostgresRecordingRepository implements IRecordingRepository {
     }
   }
 
+  async updateProcessingState(
+    id: RecordingId,
+    state: 'pending' | 'processing' | 'completed' | 'failed',
+    error?: string,
+    outputKeys?: { mp4Key: string; m4aKey: string }
+  ): Promise<void> {
+    let query: string;
+    let params: unknown[];
+
+    if (state === 'completed' && outputKeys) {
+      query = `UPDATE recordings SET processing_state = $1, processing_error = NULL, output_mp4_key = $2, output_m4a_key = $3, processed_at = NOW() WHERE id = $4`;
+      params = [state, outputKeys.mp4Key, outputKeys.m4aKey, id];
+    } else if (state === 'failed') {
+      query = `UPDATE recordings SET processing_state = $1, processing_error = $2 WHERE id = $3`;
+      params = [state, error ?? null, id];
+    } else {
+      query = `UPDATE recordings SET processing_state = $1 WHERE id = $2`;
+      params = [state, id];
+    }
+
+    const result = await this.pool.query(query, params);
+    if (result.rowCount === 0) {
+      throw new RecordingNotFoundError(`Recording not found: ${id}`);
+    }
+  }
+
   /**
    * DBの行をRecording DTOに変換
    */

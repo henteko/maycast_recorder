@@ -15,3 +15,7 @@ services:
       # 開発環境ではnode_modulesボリュームを使用しない（イメージのものを使用）
       - ./packages/web-client/src:/app/packages/web-client/src:ro
       - ./packages/web-client/public:/app/packages/web-client/public:ro
+
+  worker:
+    volumes:
+      - ./packages/worker/src:/app/packages/worker/src:ro

@@ -64,4 +64,13 @@ export class InMemoryRecordingRepository implements IRecordingRepository {
     data.chunkCount++;
     data.updatedAt = new Date().toISOString();
   }
+
+  async updateProcessingState(
+    _id: RecordingId,
+    _state: 'pending' | 'processing' | 'completed' | 'failed',
+    _error?: string,
+    _outputKeys?: { mp4Key: string; m4aKey: string }
+  ): Promise<void> {
+    // No-op for in-memory implementation
+  }
 }

@@ -5,6 +5,7 @@ vars:
   COMMON_TYPES_DIR: packages/common-types
   CLIENT_DIR: packages/web-client
   SERVER_DIR: packages/server
+  WORKER_DIR: packages/worker
 
 tasks:
   # Development tasks
@@ -33,6 +34,12 @@ tasks:
     cmds:
       - npm run dev
 
+  dev:worker:
+    desc: Start worker development mode with auto-reload
+    dir: "{{.WORKER_DIR}}"
+    cmds:
+      - npm run dev
+
   dev:solo:
     desc: Start Solo-only development server
     deps: [build:common-types, build:wasm]
@@ -42,12 +49,13 @@ tasks:
 
   # Build tasks
   build:
-    desc: Build everything (common-types + WASM + client + server)
+    desc: Build everything (common-types + WASM + client + server + worker)
     cmds:
       - task: build:common-types
       - task: build:wasm
       - task: build:client
       - task: build:server
+      - task: build:worker
 
   build:common-types:
     desc: Build common TypeScript type definitions
@@ -91,6 +99,18 @@ tasks:
   build:server:
     desc: Build server for production
     dir: "{{.SERVER_DIR}}"
+    cmds:
+      - npm run build
+    sources:
+      - src/**/*.ts
+      - tsconfig.json
+    generates:
+      - dist/**/*.js
+      - dist/**/*.d.ts
+
+  build:worker:
+    desc: Build worker for production
+    dir: "{{.WORKER_DIR}}"
     cmds:
       - npm run build
     sources:
@@ -242,6 +262,7 @@ tasks:
       - task: clean:wasm
       - task: clean:client
       - task: clean:server
+      - task: clean:worker
       - cargo clean
 
   clean:common-types:
@@ -270,6 +291,12 @@ tasks:
     cmds:
       - npm run clean || rm -rf dist
       - rm -rf node_modules
+
+  clean:worker:
+    desc: Clean worker build artifacts
+    dir: "{{.WORKER_DIR}}"
+    cmds:
+      - rm -rf dist
 
   # Utility tasks
   check:
