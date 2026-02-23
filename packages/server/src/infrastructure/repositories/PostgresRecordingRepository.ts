@@ -100,6 +100,28 @@ export class PostgresRecordingRepository implements IRecordingRepository {
     }
   }
 
+  async getProcessingInfo(id: RecordingId): Promise<{
+    processingState: string | null;
+    outputMp4Key: string | null;
+    outputM4aKey: string | null;
+  } | null> {
+    const result = await this.pool.query(
+      'SELECT processing_state, output_mp4_key, output_m4a_key FROM recordings WHERE id = $1',
+      [id]
+    );
+
+    if (result.rows.length === 0) {
+      return null;
+    }
+
+    const row = result.rows[0];
+    return {
+      processingState: row.processing_state as string | null,
+      outputMp4Key: row.output_mp4_key as string | null,
+      outputM4aKey: row.output_m4a_key as string | null,
+    };
+  }
+
   async updateProcessingState(
     id: RecordingId,
     state: 'pending' | 'processing' | 'completed' | 'failed',

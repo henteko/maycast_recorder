@@ -6,6 +6,7 @@ import type { UpdateRecordingStateUseCase } from '../../domain/usecases/UpdateRe
 import type { UpdateRecordingMetadataUseCase } from '../../domain/usecases/UpdateRecordingMetadata.usecase.js';
 import type { DownloadRecordingUseCase } from '../../domain/usecases/DownloadRecording.usecase.js';
 import type { GetDownloadUrlsUseCase } from '../../domain/usecases/GetDownloadUrls.usecase.js';
+import type { IRecordingRepository } from '../../domain/repositories/IRecordingRepository.js';
 
 /**
  * Recording Controller
@@ -20,6 +21,7 @@ export class RecordingController {
   private updateRecordingMetadataUseCase: UpdateRecordingMetadataUseCase;
   private downloadRecordingUseCase: DownloadRecordingUseCase;
   private getDownloadUrlsUseCase: GetDownloadUrlsUseCase;
+  private recordingRepository: IRecordingRepository;
 
   constructor(
     createRecordingUseCase: CreateRecordingUseCase,
@@ -27,7 +29,8 @@ export class RecordingController {
     updateRecordingStateUseCase: UpdateRecordingStateUseCase,
     updateRecordingMetadataUseCase: UpdateRecordingMetadataUseCase,
     downloadRecordingUseCase: DownloadRecordingUseCase,
-    getDownloadUrlsUseCase: GetDownloadUrlsUseCase
+    getDownloadUrlsUseCase: GetDownloadUrlsUseCase,
+    recordingRepository: IRecordingRepository
   ) {
     this.createRecordingUseCase = createRecordingUseCase;
     this.getRecordingUseCase = getRecordingUseCase;
@@ -35,6 +38,7 @@ export class RecordingController {
     this.updateRecordingMetadataUseCase = updateRecordingMetadataUseCase;
     this.downloadRecordingUseCase = downloadRecordingUseCase;
     this.getDownloadUrlsUseCase = getDownloadUrlsUseCase;
+    this.recordingRepository = recordingRepository;
   }
 
   async create(req: Request, res: Response): Promise<void> {
@@ -59,6 +63,9 @@ export class RecordingController {
       throw new RecordingNotFoundError(`Recording not found: ${id}`);
     }
 
+    // Processing情報を取得
+    const processingInfo = await this.recordingRepository.getProcessingInfo(id);
+
     res.json({
       id: recording.id,
       room_id: recording.roomId,
@@ -68,6 +75,7 @@ export class RecordingController {
       finished_at: recording.endTime,
       metadata: recording.metadata,
       chunk_count: recording.chunkCount,
+      processing_state: processingInfo?.processingState ?? null,
     });
   }
 

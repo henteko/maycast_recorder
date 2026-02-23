@@ -65,6 +65,14 @@ export class InMemoryRecordingRepository implements IRecordingRepository {
     data.updatedAt = new Date().toISOString();
   }
 
+  async getProcessingInfo(_id: RecordingId): Promise<{
+    processingState: string | null;
+    outputMp4Key: string | null;
+    outputM4aKey: string | null;
+  } | null> {
+    return null;
+  }
+
   async updateProcessingState(
     _id: RecordingId,
     _state: 'pending' | 'processing' | 'completed' | 'failed',

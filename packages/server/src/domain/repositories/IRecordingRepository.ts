@@ -44,6 +44,15 @@ export interface IRecordingRepository {
   incrementChunkCount(id: RecordingId): Promise<void>;
 
   /**
+   * Processing情報を取得
+   */
+  getProcessingInfo(id: RecordingId): Promise<{
+    processingState: string | null;
+    outputMp4Key: string | null;
+    outputM4aKey: string | null;
+  } | null>;
+
+  /**
    * Processing状態を更新
    */
   updateProcessingState(
