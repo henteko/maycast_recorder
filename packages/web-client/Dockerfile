@@ -37,9 +37,11 @@ RUN ARCH=$(uname -m) && \
 WORKDIR /app
 
 # WASMのビルド
-COPY Cargo.toml Cargo.lock* ./
+COPY Cargo.toml Cargo.lock ./
 COPY packages/wasm-core ./packages/wasm-core
-RUN cd packages/wasm-core && wasm-pack build --target web --out-dir pkg
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/app/target \
+    cd packages/wasm-core && wasm-pack build --target web --out-dir pkg
 
 # ビルドステージ
 FROM base AS builder
