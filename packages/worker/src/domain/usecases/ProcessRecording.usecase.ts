@@ -55,24 +55,43 @@ export class ProcessRecordingUseCase {
         throw new Error(`No chunks found for recording ${recordingId}`);
       }
 
-      // 3. init + chunks を結合して input.mp4 に書き込み
-      console.log(`  🔗 [Worker] Concatenating init segment + ${chunkIds.length} chunks into input.mp4`);
+      // 3. S3からチャンクを並列ダウンロード
+      const maxConcurrency = 6;
+      console.log(`  📥 [Worker] Downloading ${chunkIds.length} chunks (concurrency: ${maxConcurrency})`);
+      const chunkBuffers = new Array<Buffer | Uint8Array>(chunkIds.length);
+      let nextIndex = 0;
+
+      const downloadWorker = async () => {
+        while (true) {
+          const idx = nextIndex++;
+          if (idx >= chunkIds.length) break;
+          const chunk = await this.chunkRepository.getChunk(recordingId, chunkIds[idx], roomId);
+          if (!chunk) {
+            throw new Error(`Chunk ${chunkIds[idx]} not found for recording ${recordingId}`);
+          }
+          chunkBuffers[idx] = chunk;
+        }
+      };
+
+      const workers = Array.from(
+        { length: Math.min(maxConcurrency, chunkIds.length) },
+        () => downloadWorker(),
+      );
+      await Promise.all(workers);
+
+      // 4. init + chunks を順番に結合して input.mp4 に書き込み
+      console.log(`  🔗 [Worker] Writing init segment + ${chunkIds.length} chunks to input.mp4`);
       const fileHandle = await open(inputPath, 'w');
       try {
         await fileHandle.write(initSegment);
-
-        for (const chunkId of chunkIds) {
-          const chunk = await this.chunkRepository.getChunk(recordingId, chunkId, roomId);
-          if (!chunk) {
-            throw new Error(`Chunk ${chunkId} not found for recording ${recordingId}`);
-          }
-          await fileHandle.write(chunk);
+        for (const chunkBuffer of chunkBuffers) {
+          await fileHandle.write(chunkBuffer);
         }
       } finally {
         await fileHandle.close();
       }
 
-      // 4. ffmpegでaudio track抽出
+      // 5. ffmpegでaudio track抽出
       console.log(`  🎵 [Worker] Extracting audio track with ffmpeg for ${recordingId}`);
       try {
         await execFileAsync('ffmpeg', [
@@ -89,7 +108,7 @@ export class ProcessRecordingUseCase {
         throw new Error(`ffmpeg failed for recording ${recordingId}: ${error.stderr || error.message}`);
       }
 
-      // 5. output.mp4 と audio.m4a を S3 にアップロード
+      // 6. output.mp4 と audio.m4a を S3 にアップロード
       const mp4Key = `rooms/${roomId}/${recordingId}/output.mp4`;
       const m4aKey = `rooms/${roomId}/${recordingId}/audio.m4a`;
 
@@ -104,7 +123,7 @@ export class ProcessRecordingUseCase {
 
       return { mp4Key, m4aKey, mp4Size, m4aSize };
     } finally {
-      // 6. tempディレクトリをcleanup
+      // 7. tempディレクトリをcleanup
       try {
         await rm(workDir, { recursive: true, force: true });
       } catch {
