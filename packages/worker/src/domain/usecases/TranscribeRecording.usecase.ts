@@ -1,4 +1,4 @@
-import { GeminiTranscriptionService } from '../../infrastructure/services/GeminiTranscriptionService.js';
+import { DeepgramTranscriptionService } from '../../infrastructure/services/DeepgramTranscriptionService.js';
 import type { S3ChunkRepository } from '../../infrastructure/repositories/S3ChunkRepository.js';
 import type { S3UploadService } from '../../infrastructure/services/S3UploadService.js';
 import { mkdir, writeFile, rm } from 'fs/promises';
@@ -19,13 +19,13 @@ export interface TranscribeRecordingResult {
 /**
  * TranscribeRecording UseCase
  *
- * S3からm4aをダウンロード → Gemini APIで文字起こし → VTT生成 → S3にアップロード
+ * S3からm4aをダウンロード → Deepgram APIで文字起こし → VTT生成 → S3にアップロード
  */
 export class TranscribeRecordingUseCase {
   constructor(
     private readonly chunkRepository: S3ChunkRepository,
     private readonly uploadService: S3UploadService,
-    private readonly transcriptionService: GeminiTranscriptionService,
+    private readonly transcriptionService: DeepgramTranscriptionService,
   ) {}
 
   async execute(request: TranscribeRecordingRequest): Promise<TranscribeRecordingResult> {
@@ -43,13 +43,13 @@ export class TranscribeRecordingUseCase {
         throw new Error(`M4A file not found at key: ${m4aKey}`);
       }
 
-      // 2. Gemini APIで文字起こし
-      console.log(`  🎤 [Worker] Transcribing with Gemini API for ${recordingId} (${m4aBuffer.length} bytes)`);
+      // 2. Deepgram APIで文字起こし
+      console.log(`  🎤 [Worker] Transcribing with Deepgram API for ${recordingId} (${m4aBuffer.length} bytes)`);
       const segments = await this.transcriptionService.transcribe(m4aBuffer);
       console.log(`  📝 [Worker] Got ${segments.length} transcription segments for ${recordingId}`);
 
       // 3. VTT生成
-      const vttContent = GeminiTranscriptionService.toWebVTT(segments);
+      const vttContent = DeepgramTranscriptionService.toWebVTT(segments);
       await writeFile(vttPath, vttContent, 'utf-8');
 
       // 4. S3にアップロード

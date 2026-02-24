@@ -4,11 +4,11 @@ import type { AudioExtractionJobPayload, AudioExtractionJobResult, Transcription
 import { getWorkerConfig } from './infrastructure/config/workerConfig.js';
 import { getStorageConfig } from './infrastructure/config/storageConfig.js';
 import type { S3StorageConfig } from './infrastructure/config/storageConfig.js';
-import { getAIConfig } from './infrastructure/config/aiConfig.js';
+import { getTranscriptionConfig } from './infrastructure/config/aiConfig.js';
 import { getPool, closePool } from './infrastructure/database/PostgresClient.js';
 import { S3ChunkRepository } from './infrastructure/repositories/S3ChunkRepository.js';
 import { S3UploadService } from './infrastructure/services/S3UploadService.js';
-import { GeminiTranscriptionService } from './infrastructure/services/GeminiTranscriptionService.js';
+import { DeepgramTranscriptionService } from './infrastructure/services/DeepgramTranscriptionService.js';
 import { AudioExtractionJobHandler } from './application/AudioExtractionJobHandler.js';
 import { TranscriptionJobHandler } from './application/TranscriptionJobHandler.js';
 import { checkFfmpegAvailable } from './domain/usecases/ProcessRecording.usecase.js';
@@ -76,12 +76,12 @@ async function main(): Promise<void> {
   console.log(`✅ [Worker] Listening on queue "${QUEUE_NAMES.AUDIO_EXTRACTION}" with concurrency ${workerConfig.concurrency}`);
   console.log(`📁 [Worker] Temp directory: ${workerConfig.tempDir}`);
 
-  // Transcription Worker（GEMINI_API_KEY が設定されている場合のみ起動）
-  const aiConfig = getAIConfig();
+  // Transcription Worker（DEEPGRAM_API_KEY が設定されている場合のみ起動）
+  const transcriptionConfig = getTranscriptionConfig();
   let transcriptionWorker: Worker<TranscriptionJobPayload, TranscriptionJobResult> | null = null;
 
-  if (aiConfig) {
-    const transcriptionService = new GeminiTranscriptionService(aiConfig);
+  if (transcriptionConfig) {
+    const transcriptionService = new DeepgramTranscriptionService(transcriptionConfig);
     const transcriptionHandler = new TranscriptionJobHandler(
       pool,
       chunkRepository,
@@ -98,7 +98,7 @@ async function main(): Promise<void> {
           host: workerConfig.redisHost,
           port: workerConfig.redisPort,
         },
-        concurrency: 1, // Gemini APIレート制限を考慮して同時実行数1
+        concurrency: 3, // Deepgramは高い同時実行数に対応
       },
     );
 
@@ -114,9 +114,9 @@ async function main(): Promise<void> {
       console.error('❌ [Worker] Transcription worker error:', err);
     });
 
-    console.log(`✅ [Worker] Transcription worker listening on queue "${QUEUE_NAMES.TRANSCRIPTION}" (model: ${aiConfig.geminiModel})`);
+    console.log(`✅ [Worker] Transcription worker listening on queue "${QUEUE_NAMES.TRANSCRIPTION}" (model: nova-3)`);
   } else {
-    console.log('ℹ️ [Worker] GEMINI_API_KEY not set, transcription worker disabled');
+    console.log('ℹ️ [Worker] DEEPGRAM_API_KEY not set, transcription worker disabled');
   }
 
   // Graceful shutdown

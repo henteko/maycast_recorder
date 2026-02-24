@@ -1,21 +1,19 @@
-export interface AIConfig {
-  geminiApiKey: string;
-  geminiModel: string;
+export interface TranscriptionConfig {
+  deepgramApiKey: string;
 }
 
 /**
- * Gemini AI設定を取得
+ * Deepgram文字起こし設定を取得
  *
- * GEMINI_API_KEY が未設定の場合は null を返す
+ * DEEPGRAM_API_KEY が未設定の場合は null を返す
  */
-export function getAIConfig(): AIConfig | null {
-  const geminiApiKey = process.env.GEMINI_API_KEY;
-  if (!geminiApiKey) {
+export function getTranscriptionConfig(): TranscriptionConfig | null {
+  const deepgramApiKey = process.env.DEEPGRAM_API_KEY;
+  if (!deepgramApiKey) {
     return null;
   }
 
   return {
-    geminiApiKey,
-    geminiModel: process.env.GEMINI_MODEL || 'gemini-3-flash-preview',
+    deepgramApiKey,
   };
 }
