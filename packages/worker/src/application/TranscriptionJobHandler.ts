@@ -4,12 +4,12 @@ import type { TranscriptionJobPayload, TranscriptionJobResult } from '@maycast/c
 import { TranscribeRecordingUseCase } from '../domain/usecases/TranscribeRecording.usecase.js';
 import type { S3ChunkRepository } from '../infrastructure/repositories/S3ChunkRepository.js';
 import type { S3UploadService } from '../infrastructure/services/S3UploadService.js';
-import type { GeminiTranscriptionService } from '../infrastructure/services/GeminiTranscriptionService.js';
+import type { DeepgramTranscriptionService } from '../infrastructure/services/DeepgramTranscriptionService.js';
 
 /**
  * Transcription ジョブハンドラ
  *
- * m4aファイルをGemini APIで文字起こしし、VTT字幕ファイルを生成してS3に保存する
+ * m4aファイルをDeepgram APIで文字起こしし、VTT字幕ファイルを生成してS3に保存する
  */
 export class TranscriptionJobHandler {
   private readonly useCase: TranscribeRecordingUseCase;
@@ -18,7 +18,7 @@ export class TranscriptionJobHandler {
     private readonly pool: pg.Pool,
     chunkRepository: S3ChunkRepository,
     uploadService: S3UploadService,
-    transcriptionService: GeminiTranscriptionService,
+    transcriptionService: DeepgramTranscriptionService,
     private readonly tempDir: string,
   ) {
     this.useCase = new TranscribeRecordingUseCase(chunkRepository, uploadService, transcriptionService);

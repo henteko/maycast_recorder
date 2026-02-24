@@ -95,13 +95,12 @@ Automatically transcribes audio after recording and generates WebVTT subtitle fi
 
 | Variable | Description | Example |
 |---|---|---|
-| `GEMINI_API_KEY` | Google Gemini API Key | - |
-| `GEMINI_MODEL` | Gemini model name (optional, default: `gemini-3-flash-preview`) | `gemini-3-flash-preview` |
+| `DEEPGRAM_API_KEY` | Deepgram API Key | - |
 
 **Setup steps:**
 
-1. Obtain an API Key from [Google AI Studio](https://aistudio.google.com/apikey)
-2. Set `GEMINI_API_KEY` in the Dokploy environment variables
+1. Obtain an API Key from [Deepgram Console](https://console.deepgram.com/)
+2. Set `DEEPGRAM_API_KEY` in the Dokploy environment variables
 3. Redeploy
 
 Once configured, a transcription job is automatically queued after audio extraction (m4a generation) completes. The resulting VTT file is uploaded to R2 and can be downloaded from the Director page.
