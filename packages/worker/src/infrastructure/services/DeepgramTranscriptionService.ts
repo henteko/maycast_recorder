@@ -41,10 +41,11 @@ export class DeepgramTranscriptionService {
       return [];
     }
 
+    // 日本語モードではDeepgramがワード間にスペースを挿入するため全スペースを除去
     return utterances.map((utterance) => ({
       startTime: utterance.start,
       endTime: utterance.end,
-      text: removeJapaneseSpaces(utterance.transcript),
+      text: utterance.transcript.replace(/\s+/g, ''),
     }));
   }
 
@@ -64,23 +65,6 @@ export class DeepgramTranscriptionService {
 
     return lines.join('\n');
   }
-}
-
-/**
- * 日本語文字間のスペースを除去する
- *
- * Deepgramは日本語のワード間にスペースを挿入するが、
- * 日本語では単語間のスペースは不要なため除去する
- */
-function removeJapaneseSpaces(text: string): string {
-  // ひらがな・カタカナ・漢字・全角記号間のスペースを除去
-  // \u3000-\u303F: CJK記号・句読点（、。など）
-  // \u3040-\u309F: ひらがな
-  // \u30A0-\u30FF: カタカナ
-  // \u4E00-\u9FFF: 漢字
-  // \uFF00-\uFFEF: 全角英数・記号
-  const cjk = '\u3000-\u303F\u3040-\u309F\u30A0-\u30FF\u4E00-\u9FFF\uFF00-\uFFEF';
-  return text.replace(new RegExp(`(?<=[${cjk}])\\s+(?=[${cjk}])`, 'g'), '');
 }
 
 /**
