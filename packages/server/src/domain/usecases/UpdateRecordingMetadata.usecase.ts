@@ -32,9 +32,13 @@ export class UpdateRecordingMetadataUseCase {
       throw new RecordingNotFoundError(`Recording not found: ${request.recordingId}`);
     }
 
-    // Entityのビジネスルールでメタデータ設定
-    recording.setMetadata(request.metadata);
+    // 既存のメタデータとマージ（participantName等の既存フィールドを保持）
+    const existingMetadata = recording.getMetadata() || {};
+    const mergedMetadata = { ...existingMetadata, ...request.metadata };
 
-    await this.recordingRepository.updateMetadata(request.recordingId, request.metadata);
+    // Entityのビジネスルールでメタデータ設定
+    recording.setMetadata(mergedMetadata);
+
+    await this.recordingRepository.updateMetadata(request.recordingId, mergedMetadata);
   }
 }

@@ -9,11 +9,13 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { getWebSocketRoomClient, resetWebSocketRoomClient, type RoomGuestsData } from '../../infrastructure/websocket/WebSocketRoomClient';
 import { RoomAPIClient, RoomNotFoundError, RoomAccessDeniedError } from '../../infrastructure/api/room-api';
 import type { RoomInfo } from '../../infrastructure/api/room-api';
+import { RecordingAPIClient } from '../../infrastructure/api/recording-api';
 import type {
   RoomState,
   RoomStateChanged,
   RecordingCreated,
   GuestInfo,
+  GuestSyncState,
   GuestSyncStateChanged,
   GuestSyncComplete,
   GuestSyncError,
@@ -176,8 +178,14 @@ export function useRoomDetail(
               next.set(data.guestId, {
                 ...guest,
                 recordingId: data.recordingId,
+                name: data.name || guest.name,
                 lastUpdatedAt: new Date().toISOString(),
               });
+            }
+            // DB復元エントリが存在する場合は削除（重複防止）
+            const dbEntryKey = `recording:${data.recordingId}`;
+            if (next.has(dbEntryKey) && dbEntryKey !== data.guestId) {
+              next.delete(dbEntryKey);
             }
             return next;
           });
@@ -332,6 +340,72 @@ export function useRoomDetail(
       resetWebSocketRoomClient();
     };
   }, [stopPolling]);
+
+  // recording_idsからDBのrecording metadataを取得してofflineゲスト情報を復元
+  const recordingIdsKey = room?.recording_ids.join(',') ?? '';
+  useEffect(() => {
+    if (!room || room.recording_ids.length === 0) return;
+
+    const fetchRecordingGuests = async () => {
+      const serverUrl = getServerUrl();
+      const apiClient = new RecordingAPIClient(serverUrl);
+
+      const results = await Promise.allSettled(
+        room.recording_ids.map((id) => apiClient.getRecording(id))
+      );
+
+      setGuests((prev) => {
+        const next = new Map(prev);
+        let changed = false;
+
+        for (const result of results) {
+          if (result.status !== 'fulfilled') continue;
+          const info = result.value;
+          const participantName = info.metadata?.participantName;
+          if (!participantName) continue;
+
+          // 既にこのrecordingIdを持つゲストが存在するかチェック
+          let found = false;
+          for (const guest of next.values()) {
+            if (guest.recordingId === info.id) {
+              // 名前が未設定の場合のみ更新
+              if (!guest.name) {
+                next.set(guest.guestId, { ...guest, name: participantName });
+                changed = true;
+              }
+              found = true;
+              break;
+            }
+          }
+
+          // 存在しない場合はofflineゲストエントリを作成
+          if (!found) {
+            const guestId = `recording:${info.id}`;
+            let syncState: GuestSyncState = 'idle';
+            if (info.state === 'synced') syncState = 'synced';
+            else if (info.state === 'finalizing') syncState = 'uploading';
+            else if (info.state === 'recording') syncState = 'recording';
+
+            next.set(guestId, {
+              guestId,
+              recordingId: info.id,
+              name: participantName,
+              syncState,
+              uploadedChunks: info.state === 'synced' ? info.chunk_count : 0,
+              totalChunks: info.chunk_count,
+              isConnected: false,
+              lastUpdatedAt: new Date().toISOString(),
+            });
+            changed = true;
+          }
+        }
+
+        return changed ? next : prev;
+      });
+    };
+
+    fetchRecordingGuests();
+  }, [recordingIdsKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const updateRoomState = useCallback(async (state: RoomState): Promise<boolean> => {
     if (!roomId || !accessKey) return false;
