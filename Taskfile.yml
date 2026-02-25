@@ -298,13 +298,6 @@ tasks:
     cmds:
       - rm -rf dist
 
-  # Transcription CLI
-  transcribe:
-    desc: Transcribe a local m4a file to VTT (requires DEEPGRAM_API_KEY)
-    dir: "{{.WORKER_DIR}}"
-    cmds:
-      - npx tsx src/cli/transcribe.ts {{.CLI_ARGS}}
-
   # Utility tasks
   check:
     desc: Check if everything compiles without building

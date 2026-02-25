@@ -148,52 +148,6 @@ export class PostgresRecordingRepository implements IRecordingRepository {
     }
   }
 
-  async getTranscriptionInfo(id: RecordingId): Promise<{
-    transcriptionState: string | null;
-    outputVttKey: string | null;
-  } | null> {
-    const result = await this.pool.query(
-      'SELECT transcription_state, output_vtt_key FROM recordings WHERE id = $1',
-      [id]
-    );
-
-    if (result.rows.length === 0) {
-      return null;
-    }
-
-    const row = result.rows[0];
-    return {
-      transcriptionState: row.transcription_state as string | null,
-      outputVttKey: row.output_vtt_key as string | null,
-    };
-  }
-
-  async updateTranscriptionState(
-    id: RecordingId,
-    state: 'pending' | 'processing' | 'completed' | 'failed',
-    error?: string,
-    outputVttKey?: string
-  ): Promise<void> {
-    let query: string;
-    let params: unknown[];
-
-    if (state === 'completed' && outputVttKey) {
-      query = `UPDATE recordings SET transcription_state = $1, transcription_error = NULL, output_vtt_key = $2, transcribed_at = NOW() WHERE id = $3`;
-      params = [state, outputVttKey, id];
-    } else if (state === 'failed') {
-      query = `UPDATE recordings SET transcription_state = $1, transcription_error = $2 WHERE id = $3`;
-      params = [state, error ?? null, id];
-    } else {
-      query = `UPDATE recordings SET transcription_state = $1 WHERE id = $2`;
-      params = [state, id];
-    }
-
-    const result = await this.pool.query(query, params);
-    if (result.rowCount === 0) {
-      throw new RecordingNotFoundError(`Recording not found: ${id}`);
-    }
-  }
-
   /**
    * DBの行をRecording DTOに変換
    */

@@ -3,10 +3,9 @@
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { ArrowDownTrayIcon, CheckIcon, LanguageIcon } from '@heroicons/react/24/solid';
+import { ArrowDownTrayIcon, CheckIcon } from '@heroicons/react/24/solid';
 import { RecordingAPIClient, type RecordingInfo } from '../../../infrastructure/api/recording-api';
 import { CloudDownloadService } from '../../../infrastructure/download/CloudDownloadService';
-import { fetchAndMergeVtts } from '../../../infrastructure/download/VttMergeService';
 import { getServerUrl } from '../../../infrastructure/config/serverConfig';
 import { Button } from '../atoms/Button';
 import { RecordingDownloadItem } from '../molecules/RecordingDownloadItem';
@@ -39,9 +38,6 @@ export const RecordingsDownloadSection: React.FC<RecordingsDownloadSectionProps>
   const [downloadProgress, setDownloadProgress] = useState<Map<string, { current: number; total: number }>>(new Map());
   const [m4aDownloading, setM4aDownloading] = useState<Set<string>>(new Set());
   const [m4aAvailable, setM4aAvailable] = useState<Map<string, { url: string; filename: string }>>(new Map());
-  const [vttDownloading, setVttDownloading] = useState<Set<string>>(new Set());
-  const [vttAvailable, setVttAvailable] = useState<Map<string, { url: string; filename: string }>>(new Map());
-  const [isDownloadingMergedVtt, setIsDownloadingMergedVtt] = useState(false);
   const fetchedIdsRef = useRef<Set<string>>(new Set());
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -53,7 +49,7 @@ export const RecordingsDownloadSection: React.FC<RecordingsDownloadSectionProps>
     return recording?.metadata?.participantName;
   }, [guests, recordings]);
 
-  // m4a/vtt利用可能性をチェック
+  // m4a利用可能性をチェック
   const checkDownloadAvailability = useCallback(async (recordingId: string) => {
     try {
       const serverUrl = getServerUrl();
@@ -64,12 +60,6 @@ export const RecordingsDownloadSection: React.FC<RecordingsDownloadSectionProps>
           setM4aAvailable((prev) => new Map(prev).set(recordingId, {
             url: downloadUrls.m4aUrl!,
             filename: downloadUrls.m4aFilename!,
-          }));
-        }
-        if (downloadUrls.vttUrl && downloadUrls.vttFilename) {
-          setVttAvailable((prev) => new Map(prev).set(recordingId, {
-            url: downloadUrls.vttUrl!,
-            filename: downloadUrls.vttFilename!,
           }));
         }
       }
@@ -93,8 +83,8 @@ export const RecordingsDownloadSection: React.FC<RecordingsDownloadSectionProps>
           const info = await apiClient.getRecording(recordingId);
           setRecordings((prev) => new Map(prev).set(recordingId, info));
 
-          // completedならm4a/vttチェック
-          if (info.processing_state === 'completed' || info.transcription_state === 'completed') {
+          // completedならm4aチェック
+          if (info.processing_state === 'completed') {
             checkDownloadAvailability(recordingId);
           }
         } catch (err) {
@@ -113,12 +103,11 @@ export const RecordingsDownloadSection: React.FC<RecordingsDownloadSectionProps>
     fetchRecordings();
   }, [recordingIds, checkDownloadAvailability]);
 
-  // processing中またはtranscription中のrecordingをポーリング
+  // processing中のrecordingをポーリング
   useEffect(() => {
     const hasInProgress = Array.from(recordings.values()).some(
       (r) =>
-        r.processing_state === 'pending' || r.processing_state === 'processing' ||
-        r.transcription_state === 'pending' || r.transcription_state === 'processing'
+        r.processing_state === 'pending' || r.processing_state === 'processing'
     );
 
     if (!hasInProgress) {
@@ -137,15 +126,14 @@ export const RecordingsDownloadSection: React.FC<RecordingsDownloadSectionProps>
 
       for (const [recordingId, rec] of recordings) {
         const processingInProgress = rec.processing_state === 'pending' || rec.processing_state === 'processing';
-        const transcriptionInProgress = rec.transcription_state === 'pending' || rec.transcription_state === 'processing';
-        if (!processingInProgress && !transcriptionInProgress) continue;
+        if (!processingInProgress) continue;
 
         try {
           const info = await apiClient.getRecording(recordingId);
           setRecordings((prev) => new Map(prev).set(recordingId, info));
 
-          // completedに遷移したらm4a/vttチェック
-          if (info.processing_state === 'completed' || info.transcription_state === 'completed') {
+          // completedに遷移したらm4aチェック
+          if (info.processing_state === 'completed') {
             checkDownloadAvailability(recordingId);
           }
         } catch {
@@ -244,73 +232,6 @@ export const RecordingsDownloadSection: React.FC<RecordingsDownloadSectionProps>
     }
   }, [m4aAvailable]);
 
-  // 個別ダウンロード（VTT）
-  const handleDownloadVtt = useCallback(async (recordingId: string) => {
-    const vttInfo = vttAvailable.get(recordingId);
-    if (!vttInfo) return;
-
-    setVttDownloading((prev) => new Set(prev).add(recordingId));
-    try {
-      const response = await fetch(vttInfo.url);
-      if (!response.ok) {
-        throw new Error(`Failed to download vtt: ${response.status} ${response.statusText}`);
-      }
-      const blob = await response.blob();
-
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = vttInfo.filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      console.error(`Failed to download vtt for ${recordingId}:`, err);
-      alert(`Failed to download subtitle: ${err instanceof Error ? err.message : 'Unknown error'}`);
-    } finally {
-      setVttDownloading((prev) => {
-        const next = new Set(prev);
-        next.delete(recordingId);
-        return next;
-      });
-    }
-  }, [vttAvailable]);
-
-  // 全VTTが利用可能かチェック（2件以上の場合のみマージ意味あり）
-  const allVttAvailable = recordingIds.length > 1 && recordingIds.every(id => vttAvailable.has(id));
-
-  // マージVTTダウンロード
-  const handleDownloadMergedVtt = useCallback(async () => {
-    setIsDownloadingMergedVtt(true);
-    try {
-      const entries = Array.from(vttAvailable.entries()).map(([recordingId, info]) => ({
-        recordingId,
-        url: info.url,
-      }));
-      const mergedVtt = await fetchAndMergeVtts(entries, getGuestNameForRecording);
-      if (!mergedVtt) {
-        alert('No VTT segments found.');
-        return;
-      }
-
-      const blob = new Blob([mergedVtt], { type: 'text/vtt' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'merged-subtitles.vtt';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      console.error('Failed to download merged VTT:', err);
-      alert(`Failed to download merged VTT: ${err instanceof Error ? err.message : 'Unknown error'}`);
-    } finally {
-      setIsDownloadingMergedVtt(false);
-    }
-  }, [vttAvailable, getGuestNameForRecording]);
-
   if (recordingIds.length === 0) {
     return (
       <div className="text-sm text-maycast-text-secondary text-center py-4">
@@ -329,27 +250,6 @@ export const RecordingsDownloadSection: React.FC<RecordingsDownloadSectionProps>
           </span>
         </div>
         <div className="flex items-center gap-2">
-          {allVttAvailable && (
-            <Button
-              onClick={handleDownloadMergedVtt}
-              disabled={isDownloadingMergedVtt}
-              variant="ghost"
-              size="sm"
-              className="!py-2 !px-4 !text-sm !bg-purple-600/80 hover:!bg-purple-600 !text-white !border-purple-500/50"
-            >
-              {isDownloadingMergedVtt ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  Merging...
-                </>
-              ) : (
-                <>
-                  <LanguageIcon className="w-4 h-4" />
-                  Merged VTT
-                </>
-              )}
-            </Button>
-          )}
           {recordingIds.length > 1 && (
             <Button
               onClick={onDownloadAll}
@@ -384,14 +284,11 @@ export const RecordingsDownloadSection: React.FC<RecordingsDownloadSectionProps>
             isLoading={loadingIds.has(recordingId)}
             onDownload={handleDownload}
             onDownloadM4a={handleDownloadM4a}
-            onDownloadVtt={handleDownloadVtt}
             isDownloading={downloadProgress.has(recordingId)}
             isDownloadingM4a={m4aDownloading.has(recordingId)}
-            isDownloadingVtt={vttDownloading.has(recordingId)}
             chunkProgress={downloadProgress.get(recordingId)}
             guestName={getGuestNameForRecording(recordingId)}
             hasM4a={m4aAvailable.has(recordingId)}
-            hasVtt={vttAvailable.has(recordingId)}
           />
         ))}
       </div>

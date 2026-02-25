@@ -27,7 +27,6 @@ export interface RecordingInfo {
   chunk_count: number;
   room_id?: string;
   processing_state?: ProcessingState | null;
-  transcription_state?: ProcessingState | null;
 }
 
 export class RecordingAPIClient {
