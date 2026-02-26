@@ -17,16 +17,29 @@ export const useSystemHealth = (): SystemHealth => {
 
   // OPFS使用量を正確に計算
   useEffect(() => {
+    let persistRequested = false;
+
     const updateStorage = async () => {
       try {
+        // 初回のみ永続ストレージをリクエスト（クォータ増加 + 自動削除防止）
+        if (!persistRequested && 'storage' in navigator && 'persist' in navigator.storage) {
+          await navigator.storage.persist();
+          persistRequested = true;
+        }
+
         // OPFS内の実際のファイルサイズを計算
         const used = await calculateTotalUsage();
         setOpfsUsed(used);
 
-        // ブラウザのストレージクォータ（上限）を取得
+        // OPFSが利用可能な最大容量を計算
+        // estimate.quota はオリジン全体のクォータ、estimate.usage はオリジン全体の使用量
+        // OPFSが使える上限 = OPFS使用量 + 残り容量(quota - usage)
         if ('storage' in navigator && 'estimate' in navigator.storage) {
           const estimate = await navigator.storage.estimate();
-          setOpfsTotal(estimate.quota || 0);
+          const quota = estimate.quota || 0;
+          const totalUsage = estimate.usage || 0;
+          const remaining = Math.max(0, quota - totalUsage);
+          setOpfsTotal(used + remaining);
         }
       } catch (err) {
         console.error('Failed to get storage estimate:', err);
