@@ -35,11 +35,39 @@ export const useSessionManager = () => {
     ? di.resolve<ResumeUploadManager>('ResumeUploadManager')
     : null;
 
+  const MAX_LOCAL_RECORDINGS = 2;
+
+  const cleanupOldRecordings = useCallback(async (recordings: Recording[]) => {
+    const activeStates = new Set(['recording', 'finalizing']);
+    const cleanupTargets = recordings.filter(r => !activeStates.has(r.state));
+    const toDelete = cleanupTargets.slice(MAX_LOCAL_RECORDINGS);
+
+    if (toDelete.length === 0) return false;
+
+    console.log(`🧹 Auto-cleanup: deleting ${toDelete.length} old recording(s)`);
+    for (const recording of toDelete) {
+      try {
+        await deleteRecordingUseCase.execute({ recordingId: recording.id });
+        console.log(`🗑️ Auto-deleted recording: ${recording.id}`);
+      } catch (err) {
+        console.error(`❌ Failed to auto-delete recording: ${recording.id}`, err);
+      }
+    }
+    return true;
+  }, [deleteRecordingUseCase]);
+
   const loadRecordings = useCallback(async () => {
     try {
       const result = await listRecordingsUseCase.execute();
       setSavedRecordings(result.recordings);
       console.log('📂 Loaded saved recordings:', result.recordings.length);
+
+      // 古い録画データの自動クリーンアップ（直近2件のみ保持）
+      const deleted = await cleanupOldRecordings(result.recordings);
+      if (deleted) {
+        const updatedResult = await listRecordingsUseCase.execute();
+        setSavedRecordings(updatedResult.recordings);
+      }
 
       // Remote モードの場合は Resume Upload の検出を行う
       if (resumeUploadManager) {
@@ -85,7 +113,7 @@ export const useSessionManager = () => {
     } catch (err) {
       console.error('❌ Failed to load recordings:', err);
     }
-  }, [listRecordingsUseCase, resumeUploadManager, recordingRepository, chunkRepository]);
+  }, [listRecordingsUseCase, cleanupOldRecordings, resumeUploadManager, recordingRepository, chunkRepository]);
 
   useEffect(() => {
     loadRecordings();
