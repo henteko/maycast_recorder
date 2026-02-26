@@ -100,6 +100,16 @@ export const GuestPage: React.FC<GuestPageProps> = ({ roomId }) => {
     prevSyncStateRef.current = guestSyncState;
   }, [guestSyncState, showToast]);
 
+  // 録画中・アップロード中はナビゲーションを制限
+  const isRecordingActive = guestSyncState === 'recording' || guestSyncState === 'uploading';
+
+  // 録画開始時にRecorderページに強制遷移
+  useEffect(() => {
+    if (isRecordingActive) {
+      setCurrentPage('recorder');
+    }
+  }, [isRecordingActive]);
+
   // 参加可能なRoom状態かどうか
   const canJoinRoom = roomState === 'idle' || roomState === 'recording';
 
@@ -172,6 +182,7 @@ export const GuestPage: React.FC<GuestPageProps> = ({ roomId }) => {
           <Sidebar
             currentPage={currentPage}
             onNavigate={handleNavigate}
+            disabledPages={isRecordingActive ? ['library', 'settings'] : undefined}
             systemHealth={systemHealth}
           />
         }
