@@ -46,7 +46,7 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
   const analyserRef = useRef<AnalyserNode | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
-  const lastDataSentRef = useRef<number>(0);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const onWaveformDataRef = useRef(onWaveformData);
   const silenceFramesRef = useRef<number>(0);
   const [isSilent, setIsSilent] = useState(false);
@@ -168,31 +168,43 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
       ctx.lineTo(width, height / 2);
       ctx.stroke();
 
-      // 波形データを外部に送信（間引き）
-      if (onWaveformDataRef.current) {
-        const now = Date.now();
-        if (now - lastDataSentRef.current >= waveformDataInterval) {
-          // データを間引いて送信（32サンプルに縮小）
-          const reducedData: number[] = [];
-          const step = Math.floor(bufferLength / 32);
-          for (let i = 0; i < 32; i++) {
-            reducedData.push(dataArray[i * step]);
-          }
-          onWaveformDataRef.current(reducedData, isSilentRef.current);
-          lastDataSentRef.current = now;
-        }
-      }
-
       animationRef.current = requestAnimationFrame(draw);
     };
 
     // 描画開始
     draw();
 
+    // 波形データの外部送信はsetIntervalで行う
+    // requestAnimationFrameはバックグラウンドタブで停止するが、
+    // setIntervalは最低1秒に1回は実行されるため、
+    // ゲストが別タブを開いていてもディレクターに波形データが届く
+    if (onWaveformDataRef.current) {
+      intervalRef.current = setInterval(() => {
+        const currentAnalyser = analyserRef.current;
+        if (!currentAnalyser || !onWaveformDataRef.current) return;
+
+        const bufferLength = currentAnalyser.frequencyBinCount;
+        const dataArray = new Uint8Array(bufferLength);
+        currentAnalyser.getByteTimeDomainData(dataArray);
+
+        // データを間引いて送信（32サンプルに縮小）
+        const reducedData: number[] = [];
+        const step = Math.floor(bufferLength / 32);
+        for (let i = 0; i < 32; i++) {
+          reducedData.push(dataArray[i * step]);
+        }
+        onWaveformDataRef.current(reducedData, isSilentRef.current);
+      }, waveformDataInterval);
+    }
+
     return () => {
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current);
         animationRef.current = null;
+      }
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
       }
       if (sourceRef.current) {
         sourceRef.current.disconnect();
