@@ -61,12 +61,12 @@ impl MuxideMuxer {
     #[wasm_bindgen(constructor)]
     pub fn new(video_width: u32, video_height: u32, sps: Vec<u8>, pps: Vec<u8>) -> Self {
         let config = MuxideConfig {
-            video_width,
-            video_height,
-            video_timescale: 90000,
+            video_width: Some(video_width),
+            video_height: Some(video_height),
+            video_timescale: Some(90000),
             fragment_duration_ms: 2000,
-            sps,
-            pps,
+            sps: Some(sps),
+            pps: Some(pps),
             audio_sample_rate: None,
             audio_channels: None,
             audio_timescale: None,
@@ -90,12 +90,12 @@ impl MuxideMuxer {
         let (sps, pps) = extract_sps_pps_from_avcc(avcc)?;
 
         let config = MuxideConfig {
-            video_width,
-            video_height,
-            video_timescale: 90000,
+            video_width: Some(video_width),
+            video_height: Some(video_height),
+            video_timescale: Some(90000),
             fragment_duration_ms: 2000,
-            sps,
-            pps,
+            sps: Some(sps),
+            pps: Some(pps),
             audio_sample_rate: None,
             audio_channels: None,
             audio_timescale: None,
@@ -129,12 +129,12 @@ impl MuxideMuxer {
         let (sps, pps) = extract_sps_pps_from_avcc(avcc)?;
 
         let config = MuxideConfig {
-            video_width,
-            video_height,
-            video_timescale: 90000,
+            video_width: Some(video_width),
+            video_height: Some(video_height),
+            video_timescale: Some(90000),
             fragment_duration_ms: 2000,
-            sps,
-            pps,
+            sps: Some(sps),
+            pps: Some(pps),
             audio_sample_rate: Some(audio_sample_rate),
             audio_channels: Some(audio_channels),
             audio_timescale: Some(audio_sample_rate), // Use sample rate as timescale
@@ -144,6 +144,37 @@ impl MuxideMuxer {
         Ok(Self {
             state: MuxideMuxerState::new(config),
         })
+    }
+
+    /// Create a MuxideMuxer for audio-only recording (no video track)
+    ///
+    /// # Arguments
+    /// * `audio_sample_rate` - Audio sample rate (e.g., 48000)
+    /// * `audio_channels` - Number of audio channels (1 = mono, 2 = stereo)
+    /// * `audio_specific_config` - Optional AudioSpecificConfig from WebCodecs (decoderConfig.description).
+    ///                             If not provided, it will be auto-generated for AAC-LC.
+    #[wasm_bindgen]
+    pub fn from_audio_only(
+        audio_sample_rate: u32,
+        audio_channels: u16,
+        audio_specific_config: Option<Vec<u8>>,
+    ) -> MuxideMuxer {
+        let config = MuxideConfig {
+            video_width: None,
+            video_height: None,
+            video_timescale: None,
+            fragment_duration_ms: 2000,
+            sps: None,
+            pps: None,
+            audio_sample_rate: Some(audio_sample_rate),
+            audio_channels: Some(audio_channels),
+            audio_timescale: Some(audio_sample_rate), // Use sample rate as timescale
+            audio_specific_config,
+        };
+
+        MuxideMuxer {
+            state: MuxideMuxerState::new(config),
+        }
     }
 
     /// Initialize the muxer and get the fMP4 initialization segment (ftyp + moov)
@@ -203,6 +234,14 @@ impl MuxideMuxer {
     #[wasm_bindgen]
     pub fn has_audio(&self) -> bool {
         self.state.has_audio()
+    }
+
+    /// Check if video is enabled for this muxer
+    ///
+    /// Returns false when the muxer was created with `from_audio_only`.
+    #[wasm_bindgen]
+    pub fn has_video_track(&self) -> bool {
+        self.state.has_video()
     }
 
     /// Force flush the current segment

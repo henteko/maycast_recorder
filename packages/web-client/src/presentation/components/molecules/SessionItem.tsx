@@ -3,7 +3,7 @@ import {
   TrashIcon,
   CheckIcon,
   ServerStackIcon,
-  VideoCameraIcon,
+  MicrophoneIcon,
   ExclamationTriangleIcon,
 } from '@heroicons/react/24/solid';
 import type { Recording, RecordingId } from '@maycast/common-types';
@@ -42,8 +42,8 @@ export const SessionItem = ({ recording, onDownload, onDelete, isDownloading, do
           )}
           {recording.state !== 'synced' && recording.state !== 'interrupted' && (
             <span className="flex items-center gap-1 px-2 py-1 bg-yellow-500/20 text-yellow-300 text-xs font-semibold rounded-lg border border-yellow-500/30">
-              <VideoCameraIcon className="w-3 h-3" />
-              録画中
+              <MicrophoneIcon className="w-3 h-3" />
+              収録中
             </span>
           )}
         </div>

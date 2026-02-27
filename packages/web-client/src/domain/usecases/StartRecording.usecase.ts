@@ -1,14 +1,14 @@
 import type { RecordingId, Recording } from '@maycast/common-types';
 import { RecordingEntity } from '@maycast/common-types';
 import type { IRecordingRepository } from '../repositories/IRecordingRepository';
-import type { IMediaStreamService, ScreenCaptureOptions } from '../services/IMediaStreamService';
+import type { IMediaStreamService, MicCaptureOptions } from '../services/IMediaStreamService';
 import { v4 as uuidv4 } from 'uuid';
 
 /**
  * 録画開始リクエスト
  */
 export interface StartRecordingRequest {
-  screenOptions?: ScreenCaptureOptions;
+  micOptions?: MicCaptureOptions;
 }
 
 /**
@@ -46,10 +46,9 @@ export class StartRecordingUseCase {
     const recordingId = uuidv4();
     const recording = RecordingEntity.create(recordingId);
 
-    // 2. メディアストリームの取得
-    const mediaStream = await this.mediaStreamService.captureScreen(
-      request.screenOptions ?? {
-        video: true,
+    // 2. メディアストリームの取得（マイク音声のみ）
+    const mediaStream = await this.mediaStreamService.captureMic(
+      request.micOptions ?? {
         audio: true,
       }
     );

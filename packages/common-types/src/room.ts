@@ -42,12 +42,8 @@ export interface GuestClockSyncStatus {
  * Guestのメディアステータス
  */
 export interface GuestMediaStatus {
-  /** カメラがアクティブか */
-  isCameraActive: boolean;
   /** マイクがミュートか */
   isMicMuted: boolean;
-  /** 選択中のカメラデバイス */
-  cameraDevice?: DeviceInfo;
   /** 選択中のマイクデバイス */
   micDevice?: DeviceInfo;
 }

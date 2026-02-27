@@ -1,7 +1,7 @@
 /**
  * useDevices Hook
  *
- * 利用可能なメディアデバイス（カメラ/マイク）を列挙
+ * 利用可能なオーディオデバイス（マイク）を列挙
  *
  * BrowserMediaStreamServiceを使用してデバイス情報を取得
  * streamを渡すと、getUserMedia完了後にデバイスラベル付きで再列挙する
@@ -15,19 +15,15 @@ export const useDevices = (stream?: MediaStream | null) => {
   const di = useDI();
   const mediaStreamService = di.resolve<IMediaStreamService>('MediaStreamService');
 
-  const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
   const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([]);
 
   const enumerate = useCallback(async () => {
     try {
       const devices = await mediaStreamService.enumerateDevices();
-      const videoInputs = devices.filter((d) => d.kind === 'videoinput');
       const audioInputs = devices.filter((d) => d.kind === 'audioinput');
 
-      setVideoDevices(videoInputs);
       setAudioDevices(audioInputs);
 
-      console.log('📹 Video devices:', videoInputs.length);
       console.log('🎤 Audio devices:', audioInputs.length);
     } catch (err) {
       console.error('❌ Failed to enumerate devices:', err);
@@ -40,10 +36,8 @@ export const useDevices = (stream?: MediaStream | null) => {
 
     mediaStreamService.enumerateDevices().then((devices) => {
       if (cancelled) return;
-      const videoInputs = devices.filter((d) => d.kind === 'videoinput');
       const audioInputs = devices.filter((d) => d.kind === 'audioinput');
 
-      setVideoDevices(videoInputs);
       setAudioDevices(audioInputs);
     }).catch((err) => {
       console.error('❌ Failed to enumerate devices:', err);
@@ -61,7 +55,6 @@ export const useDevices = (stream?: MediaStream | null) => {
   }, [enumerate]);
 
   return {
-    videoDevices,
     audioDevices,
   };
 };

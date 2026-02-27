@@ -340,7 +340,7 @@ export class WebSocketManager {
 
     // Guestメディアステータス更新
     socket.on('guest_media_status_update', ({ roomId, mediaStatus }) => {
-      console.log(`🎥 [WebSocket] Guest media status update: room=${roomId}, camera=${mediaStatus.isCameraActive}, mic=${mediaStatus.isMicMuted ? 'muted' : 'active'}`);
+      console.log(`🎤 [WebSocket] Guest media status update: room=${roomId}, mic=${mediaStatus.isMicMuted ? 'muted' : 'active'}`);
 
       // socketIdからguestIdを取得してGuest情報を更新
       const guestMapping = this.socketToGuest.get(socket.id);

@@ -1,7 +1,7 @@
 /**
  * useGuestMediaStatus - Guestのメディアステータスを監視・送信するフック
  *
- * カメラ/マイクの有効状態とデバイス情報をDirectorにリアルタイムで送信
+ * マイクの有効状態とデバイス情報をDirectorにリアルタイムで送信
  */
 
 import { useEffect, useRef, useCallback } from 'react';
@@ -13,9 +13,7 @@ interface UseGuestMediaStatusOptions {
   roomId: string | null;
   stream: MediaStream | null;
   isWebSocketConnected: boolean;
-  videoDeviceId?: string;
   audioDeviceId?: string;
-  videoDevices?: MediaDeviceInfo[];
   audioDevices?: MediaDeviceInfo[];
 }
 
@@ -26,9 +24,7 @@ export const useGuestMediaStatus = ({
   roomId,
   stream,
   isWebSocketConnected,
-  videoDeviceId,
   audioDeviceId,
-  videoDevices = [],
   audioDevices = [],
 }: UseGuestMediaStatusOptions): void => {
   const lastStatusRef = useRef<string | null>(null);
@@ -36,31 +32,22 @@ export const useGuestMediaStatus = ({
 
   // 現在のメディアステータスを取得
   const getMediaStatus = useCallback((): GuestMediaStatus => {
-    const videoTrack = stream?.getVideoTracks()[0];
     const audioTrack = stream?.getAudioTracks()[0];
 
     // デバイス情報を取得（default選択時はトラックから実際のdeviceIdを取得）
-    const actualVideoDeviceId = videoDeviceId || videoTrack?.getSettings().deviceId;
     const actualAudioDeviceId = audioDeviceId || audioTrack?.getSettings().deviceId;
 
-    const cameraDevice = videoDevices.find((d) => d.deviceId === actualVideoDeviceId);
     const micDevice = audioDevices.find((d) => d.deviceId === actualAudioDeviceId);
 
     return {
-      isCameraActive: videoTrack?.enabled ?? false,
       isMicMuted: !(audioTrack?.enabled ?? false),
-      cameraDevice: cameraDevice
-        ? { deviceId: cameraDevice.deviceId, label: cameraDevice.label || 'Default' }
-        : actualVideoDeviceId
-          ? { deviceId: actualVideoDeviceId, label: 'Default' }
-          : undefined,
       micDevice: micDevice
         ? { deviceId: micDevice.deviceId, label: micDevice.label || 'Default' }
         : actualAudioDeviceId
           ? { deviceId: actualAudioDeviceId, label: 'Default' }
           : undefined,
     };
-  }, [stream, videoDeviceId, audioDeviceId, videoDevices, audioDevices]);
+  }, [stream, audioDeviceId, audioDevices]);
 
   // ステータスを送信
   const sendStatus = useCallback(() => {
@@ -77,7 +64,7 @@ export const useGuestMediaStatus = ({
       const wsClient = getWebSocketRoomClient(serverUrl);
       wsClient.emitMediaStatusUpdate(roomId, status);
 
-      console.log(`📤 [useGuestMediaStatus] Sent media status: camera=${status.isCameraActive}, mic=${status.isMicMuted ? 'muted' : 'active'}`);
+      console.log(`📤 [useGuestMediaStatus] Sent media status: mic=${status.isMicMuted ? 'muted' : 'active'}`);
     }
   }, [roomId, isWebSocketConnected, getMediaStatus]);
 
@@ -89,21 +76,14 @@ export const useGuestMediaStatus = ({
       sendStatus();
     };
 
-    // 各トラックのイベントを監視
-    const videoTrack = stream.getVideoTracks()[0];
+    // オーディオトラックのイベントを監視
     const audioTrack = stream.getAudioTracks()[0];
 
-    videoTrack?.addEventListener('ended', handleTrackChange);
-    videoTrack?.addEventListener('mute', handleTrackChange);
-    videoTrack?.addEventListener('unmute', handleTrackChange);
     audioTrack?.addEventListener('ended', handleTrackChange);
     audioTrack?.addEventListener('mute', handleTrackChange);
     audioTrack?.addEventListener('unmute', handleTrackChange);
 
     return () => {
-      videoTrack?.removeEventListener('ended', handleTrackChange);
-      videoTrack?.removeEventListener('mute', handleTrackChange);
-      videoTrack?.removeEventListener('unmute', handleTrackChange);
       audioTrack?.removeEventListener('ended', handleTrackChange);
       audioTrack?.removeEventListener('mute', handleTrackChange);
       audioTrack?.removeEventListener('unmute', handleTrackChange);

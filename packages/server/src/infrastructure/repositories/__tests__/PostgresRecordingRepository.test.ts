@@ -41,12 +41,11 @@ describe('PostgresRecordingRepository', () => {
       const recording = RecordingEntity.create('rec-003');
       recording.setMetadata({
         displayName: 'Test Recording',
-        videoConfig: {
-          codec: 'avc1.42001E',
-          width: 1920,
-          height: 1080,
-          frameRate: 30,
-          bitrate: 5000000,
+        audioConfig: {
+          codec: 'mp4a.40.2',
+          sampleRate: 48000,
+          channelCount: 2,
+          bitrate: 128000,
         },
       });
       await repository.save(recording);
@@ -55,8 +54,8 @@ describe('PostgresRecordingRepository', () => {
       expect(found).not.toBeNull();
       const metadata = found!.getMetadata();
       expect(metadata?.displayName).toBe('Test Recording');
-      expect(metadata?.videoConfig?.width).toBe(1920);
-      expect(metadata?.videoConfig?.height).toBe(1080);
+      expect(metadata?.audioConfig?.codec).toBe('mp4a.40.2');
+      expect(metadata?.audioConfig?.sampleRate).toBe(48000);
     });
 
     it('同じIDで保存すると上書きされる（UPSERT）', async () => {

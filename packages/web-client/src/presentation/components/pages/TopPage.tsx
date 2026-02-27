@@ -16,7 +16,7 @@ export const TopPage: React.FC = () => {
             Maycast Recorder
           </h1>
           <p className="mt-3 text-maycast-text-secondary text-sm leading-relaxed">
-            WebCodecs-based video/audio recorder with OPFS storage and real-time server synchronization.
+            WebCodecs-based audio recorder with OPFS storage and real-time server synchronization.
           </p>
         </div>
 

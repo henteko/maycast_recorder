@@ -1,5 +1,5 @@
 import React from 'react';
-import { VideoCameraIcon, FolderIcon } from '@heroicons/react/24/solid';
+import { MicrophoneIcon, FolderIcon } from '@heroicons/react/24/solid';
 import { NavigationItem } from '../molecules/NavigationItem';
 
 export type NavigationPage = 'recorder' | 'library';
@@ -18,7 +18,7 @@ export const SidebarNavigation: React.FC<SidebarNavigationProps> = ({
   return (
     <nav className="flex-1 py-4">
       <NavigationItem
-        icon={<VideoCameraIcon />}
+        icon={<MicrophoneIcon />}
         label="Recorder"
         isActive={currentPage === 'recorder'}
         disabled={disabledPages.includes('recorder')}

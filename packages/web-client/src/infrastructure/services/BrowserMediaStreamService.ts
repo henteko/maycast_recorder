@@ -1,63 +1,32 @@
 import type {
   IMediaStreamService,
-  ScreenCaptureOptions,
-  CameraCaptureOptions,
+  MicCaptureOptions,
 } from '../../domain/services/IMediaStreamService';
 
 /**
  * ブラウザの MediaDevices API を使用した MediaStream Service の実装
  *
- * getDisplayMedia, getUserMedia を使用してメディアストリームを取得
+ * getUserMedia を使用してメディアストリームを取得
  */
 export class BrowserMediaStreamService implements IMediaStreamService {
-  async captureScreen(options: ScreenCaptureOptions): Promise<MediaStream> {
-    try {
-      // getDisplayMedia の制約
-      const displayMediaOptions: DisplayMediaStreamOptions = {
-        video: options.video !== false ? (options.video || true) : false,
-        audio: options.audio !== false ? (options.audio || true) : false,
-      };
-
-      // Chrome の preferCurrentTab オプション（実験的機能）
-      if (options.preferCurrentTab && 'preferCurrentTab' in displayMediaOptions) {
-        (displayMediaOptions as unknown as { preferCurrentTab: boolean }).preferCurrentTab = true;
-      }
-
-      const mediaStream = await navigator.mediaDevices.getDisplayMedia(displayMediaOptions);
-
-      console.log('✅ Screen capture acquired:', {
-        videoTracks: mediaStream.getVideoTracks().length,
-        audioTracks: mediaStream.getAudioTracks().length,
-      });
-
-      return mediaStream;
-    } catch (error) {
-      console.error('❌ Failed to capture screen:', error);
-      throw new Error(
-        `Screen capture failed: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
-  }
-
-  async captureCamera(options: CameraCaptureOptions): Promise<MediaStream> {
+  async captureMic(options: MicCaptureOptions): Promise<MediaStream> {
     try {
       const constraints: MediaStreamConstraints = {
-        video: options.video || true,
+        video: false,
         audio: options.audio || true,
       };
 
       const mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
 
-      console.log('✅ Camera capture acquired:', {
-        videoTracks: mediaStream.getVideoTracks().length,
+      console.log('✅ Mic capture acquired:', {
         audioTracks: mediaStream.getAudioTracks().length,
       });
 
       return mediaStream;
     } catch (error) {
-      console.error('❌ Failed to capture camera:', error);
+      console.error('❌ Failed to capture mic:', error);
       throw new Error(
-        `Camera capture failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+        `Mic capture failed: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
     }
   }
