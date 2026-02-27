@@ -319,7 +319,7 @@ export const Recorder: React.FC<RecorderProps> = ({
               ))}
             </select>
           </div>
-          {isRecording && (
+          {isRecording && !guestMode && (
             <div className="flex items-center gap-2 mb-3 px-3 py-2 bg-maycast-rec/20 backdrop-blur-sm rounded-full border border-maycast-rec/30 w-fit">
               <div className="relative">
                 <div className="w-2 h-2 bg-maycast-rec rounded-full animate-pulse" />
