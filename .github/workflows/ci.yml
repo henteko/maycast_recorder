@@ -183,15 +183,15 @@ jobs:
     name: S3 Integration Tests
     runs-on: ubuntu-latest
     services:
-      localstack:
-        image: localstack/localstack:latest
+      minio:
+        image: pgsty/minio
         env:
-          SERVICES: s3
-          DEFAULT_REGION: us-east-1
+          MINIO_ROOT_USER: minioadmin
+          MINIO_ROOT_PASSWORD: minioadmin
         ports:
-          - 4566:4566
+          - 9000:9000
         options: >-
-          --health-cmd "curl -sf http://localhost:4566/_localstack/health || exit 1"
+          --health-cmd "bash -c 'echo > /dev/tcp/localhost/9000'"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
@@ -212,14 +212,15 @@ jobs:
         run: npm run build -w @maycast/common-types
 
       - name: Create S3 test bucket
-        run: aws --endpoint-url=http://localhost:4566 s3 mb s3://maycast-recordings
+        run: |
+          aws --endpoint-url=http://localhost:9000 s3 mb s3://maycast-recordings
         env:
-          AWS_ACCESS_KEY_ID: test
-          AWS_SECRET_ACCESS_KEY: test
+          AWS_ACCESS_KEY_ID: minioadmin
+          AWS_SECRET_ACCESS_KEY: minioadmin
           AWS_DEFAULT_REGION: us-east-1
 
       - name: Run S3 integration tests
         working-directory: packages/server
         env:
-          TEST_S3_ENDPOINT: http://localhost:4566
+          TEST_S3_ENDPOINT: http://localhost:9000
         run: npx vitest run --config vitest.config.s3.ts

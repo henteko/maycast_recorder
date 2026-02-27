@@ -23,7 +23,7 @@ export type StorageConfig = LocalStorageConfig | S3StorageConfig;
  * 環境変数からストレージ設定を取得
  *
  * STORAGE_BACKEND=local (default): ローカルファイルシステム
- * STORAGE_BACKEND=s3: S3互換ストレージ (Cloudflare R2, LocalStack, AWS S3)
+ * STORAGE_BACKEND=s3: S3互換ストレージ (Cloudflare R2, MinIO, AWS S3)
  */
 export function getStorageConfig(): StorageConfig {
   const backend = (process.env.STORAGE_BACKEND || 'local') as StorageBackend;

@@ -36,25 +36,42 @@ services:
       timeout: 5s
       retries: 5
 
-  # LocalStack (S3互換ストレージ)
-  localstack:
-    image: localstack/localstack:latest
+  # MinIO (S3互換ストレージ)
+  minio:
+    image: pgsty/minio
+    command: server /data --console-address ":9001"
     environment:
-      - SERVICES=s3
-      - DEFAULT_REGION=us-east-1
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
     volumes:
-      - localstack-data:/var/lib/localstack
-      - ./localstack/init-s3.sh:/etc/localstack/init/ready.d/init-s3.sh:ro
-    expose:
-      - "4566"
+      - minio-data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
     restart: unless-stopped
     networks:
       - maycast-network
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:4566/_localstack/health || exit 1"]
+      test: ["CMD", "bash", "-c", "echo > /dev/tcp/localhost/9000"]
       interval: 5s
       timeout: 5s
       retries: 5
+
+  # MinIO バケット初期化
+  minio-init:
+    image: minio/mc
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 minioadmin minioadmin;
+      mc mb local/maycast-recordings --ignore-existing;
+      mc anonymous set download local/maycast-recordings;
+      exit 0;
+      "
+    networks:
+      - maycast-network
 
   # nginx リバースプロキシ（HTTP/2対応）
   nginx:
@@ -81,7 +98,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      localstack:
+      minio:
         condition: service_healthy
       redis:
         condition: service_healthy
@@ -93,11 +110,11 @@ services:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
       - STORAGE_BACKEND=s3
-      - S3_ENDPOINT=http://localstack:4566
-      - S3_PUBLIC_ENDPOINT=http://localhost/s3
+      - S3_ENDPOINT=http://minio:9000
+      - S3_PUBLIC_ENDPOINT=http://localhost:9000
       - S3_BUCKET=maycast-recordings
-      - S3_ACCESS_KEY_ID=test
-      - S3_SECRET_ACCESS_KEY=test
+      - S3_ACCESS_KEY_ID=minioadmin
+      - S3_SECRET_ACCESS_KEY=minioadmin
       - S3_REGION=us-east-1
       - S3_FORCE_PATH_STYLE=true
     volumes:
@@ -137,7 +154,7 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
-      localstack:
+      minio:
         condition: service_healthy
     environment:
       - NODE_ENV=${NODE_ENV:-development}
@@ -145,10 +162,10 @@ services:
       - REDIS_PORT=6379
       - DATABASE_URL=postgresql://${POSTGRES_USER:-maycast}:${POSTGRES_PASSWORD:-maycast_dev}@postgres:5432/${POSTGRES_DB:-maycast}
       - STORAGE_BACKEND=s3
-      - S3_ENDPOINT=http://localstack:4566
+      - S3_ENDPOINT=http://minio:9000
       - S3_BUCKET=maycast-recordings
-      - S3_ACCESS_KEY_ID=test
-      - S3_SECRET_ACCESS_KEY=test
+      - S3_ACCESS_KEY_ID=minioadmin
+      - S3_SECRET_ACCESS_KEY=minioadmin
       - S3_REGION=us-east-1
       - S3_FORCE_PATH_STYLE=true
       - WORKER_CONCURRENCY=2
@@ -161,6 +178,6 @@ networks:
     driver: bridge
 
 volumes:
-  localstack-data:
+  minio-data:
   postgres-data:
   redis-data:

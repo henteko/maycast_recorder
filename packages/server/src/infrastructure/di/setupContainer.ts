@@ -45,7 +45,7 @@ import type { IPresignedUrlService } from '../../domain/services/IPresignedUrlSe
  *
  * ストレージバックエンドは環境変数 STORAGE_BACKEND で切り替え:
  * - 'local' (default): LocalFileSystemChunkRepository
- * - 's3': S3ChunkRepository (Cloudflare R2, LocalStack, AWS S3)
+ * - 's3': S3ChunkRepository (Cloudflare R2, MinIO, AWS S3)
  */
 export function setupContainer(): DIContainer {
   const container = DIContainer.getInstance();
