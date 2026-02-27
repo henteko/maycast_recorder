@@ -23,7 +23,7 @@ import { useSessionManager } from '../../hooks/useSessionManager';
 import { useDownload } from '../../hooks/useDownload';
 import { useToast } from '../../hooks/useToast';
 import { useGuestRecordingControl } from '../../hooks/useGuestRecordingControl';
-import { DEFAULT_SETTINGS } from '../../../types/settings';
+import { loadDeviceSettings, saveDeviceSettings } from '../../../types/settings';
 import type { RecorderSettings } from '../../../types/settings';
 
 // 時間表示のフォーマット関数
@@ -44,7 +44,7 @@ interface GuestPageProps {
 
 export const GuestPage: React.FC<GuestPageProps> = ({ roomId }) => {
   const [currentPage, setCurrentPage] = useState<NavigationPage>('recorder');
-  const [settings, setSettings] = useState<RecorderSettings>(DEFAULT_SETTINGS);
+  const [settings, setSettings] = useState<RecorderSettings>(loadDeviceSettings());
   const [guestName, setGuestName] = useState<string | null>(null);
   const [hasJoined, setHasJoined] = useState(false);
 
@@ -118,6 +118,7 @@ export const GuestPage: React.FC<GuestPageProps> = ({ roomId }) => {
 
   const handleSettingsChange = (newSettings: RecorderSettings) => {
     setSettings(newSettings);
+    saveDeviceSettings(newSettings);
   };
 
   const handleJoinRoom = (name: string) => {
