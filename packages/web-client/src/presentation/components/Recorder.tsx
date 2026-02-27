@@ -70,7 +70,7 @@ export const Recorder: React.FC<RecorderProps> = ({
   onRecordingComplete,
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null)
-  const { stream, error, startCapture, restartCapture, videoCapabilities } = useMediaStream()
+  const { stream, error, startCapture, restartCapture } = useMediaStream()
 
   const [wasmInitialized, setWasmInitialized] = useState(false)
   const [elapsedTime, setElapsedTime] = useState(0)
@@ -85,7 +85,6 @@ export const Recorder: React.FC<RecorderProps> = ({
     setRecordingId,
   } = useEncoders({
     wasmInitialized,
-    settings,
     storageStrategy,
     onStatsUpdate: (updater) => setStats(updater),
     onChunkSaved: () => setSavedChunks(prev => prev + 1),

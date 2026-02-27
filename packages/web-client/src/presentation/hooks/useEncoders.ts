@@ -21,19 +21,17 @@
 import { useRef, useCallback } from 'react'
 import type { ChunkStats } from '../../types/webcodecs'
 import { STABLE_QUALITY_CONFIG } from '../../types/settings'
-import type { RecorderSettings } from '../../types/settings'
 import type { IStorageStrategy } from '../../storage-strategies/IStorageStrategy'
 import type { RecordingId } from '@maycast/common-types'
 
 interface UseEncodersProps {
   wasmInitialized: boolean
-  settings: RecorderSettings
   storageStrategy: IStorageStrategy
   onStatsUpdate: (updater: (prev: ChunkStats) => ChunkStats) => void
   onChunkSaved: () => void
 }
 
-export const useEncoders = ({ wasmInitialized, settings, storageStrategy, onStatsUpdate, onChunkSaved }: UseEncodersProps) => {
+export const useEncoders = ({ wasmInitialized, storageStrategy, onStatsUpdate, onChunkSaved }: UseEncodersProps) => {
   const videoEncoderRef = useRef<VideoEncoder | null>(null)
   const audioEncoderRef = useRef<AudioEncoder | null>(null)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
