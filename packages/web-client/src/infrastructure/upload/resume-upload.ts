@@ -63,9 +63,9 @@ export async function detectUnfinishedRecordings(
   for (const recording of incompleteRecordings) {
     const mapping = mappingsByLocalId.get(recording.id);
 
-    // リモートマッピングがない場合はスタンドアロンモードの録画なのでスキップ
+    // リモートマッピングがない場合はスキップ
     if (!mapping) {
-      console.log(`⏭️ [ResumeUpload] Skipping ${recording.id} - no remote mapping (standalone mode)`);
+      console.log(`⏭️ [ResumeUpload] Skipping ${recording.id} - no remote mapping`);
       continue;
     }
 

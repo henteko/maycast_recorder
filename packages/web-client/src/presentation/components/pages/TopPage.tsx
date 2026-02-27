@@ -23,14 +23,8 @@ export const TopPage: React.FC = () => {
         {/* Navigation Buttons */}
         <div className="flex flex-col gap-4">
           <Link
-            to="/solo"
-            className="block w-full px-6 py-3 bg-maycast-primary text-white font-semibold rounded-xl hover:bg-maycast-primary/90 transition-colors"
-          >
-            Solo Mode
-          </Link>
-          <Link
             to="/director"
-            className="block w-full px-6 py-3 bg-maycast-surface border border-maycast-border text-maycast-text font-semibold rounded-xl hover:bg-maycast-surface/80 transition-colors"
+            className="block w-full px-6 py-3 bg-maycast-primary text-white font-semibold rounded-xl hover:bg-maycast-primary/90 transition-colors"
           >
             Director Mode
           </Link>

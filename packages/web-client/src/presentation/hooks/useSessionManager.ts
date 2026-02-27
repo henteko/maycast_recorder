@@ -21,9 +21,6 @@ export const useSessionManager = () => {
   const [isResuming, setIsResuming] = useState(false);
   const progressIntervalRef = useRef<number | null>(null);
 
-  // 初回チェック済みフラグ（再表示防止用）
-  const initialCheckDoneRef = useRef(false);
-
   const di = useDI();
   const listRecordingsUseCase = di.resolve<ListRecordingsUseCase>('ListRecordingsUseCase');
   const deleteRecordingUseCase = di.resolve<DeleteRecordingUseCase>('DeleteRecordingUseCase');
@@ -77,38 +74,7 @@ export const useSessionManager = () => {
           setUnfinishedRecordings(unfinished);
           setShowResumeModal(true);
         }
-        // Remote モードでは従来の Recovery チェックは行わない
-        // （Resume Upload 機能で代替）
         return;
-      }
-
-      // Standalone モードのみ: 初回のみ不完全な録画があれば interrupted 状態に更新し、通知を表示
-      // (synced, interrupted 以外の状態で chunkCount > 0 のものを対象)
-      if (!initialCheckDoneRef.current) {
-        initialCheckDoneRef.current = true;
-
-        const incompleteRecordings = result.recordings.filter(
-          r => r.state !== 'synced' && r.state !== 'interrupted' && r.chunkCount > 0
-        );
-        if (incompleteRecordings.length > 0) {
-          const mostRecent = incompleteRecordings.sort((a, b) => b.startTime - a.startTime)[0];
-          console.log('ℹ️ Found incomplete recording:', mostRecent.id, 'state:', mostRecent.state);
-
-          // 状態を interrupted に更新
-          try {
-            await recordingRepository.updateState(mostRecent.id, 'interrupted');
-            console.log('✅ Recording marked as interrupted:', mostRecent.id);
-            // 録画リストを再読み込み
-            const updatedResult = await listRecordingsUseCase.execute();
-            setSavedRecordings(updatedResult.recordings);
-          } catch (err) {
-            console.error('❌ Failed to mark recording as interrupted:', err);
-          }
-
-          // 通知用のモーダルを表示（Libraryからダウンロード可能であることを案内）
-          setRecoveryRecording(mostRecent);
-          setShowRecoveryModal(true);
-        }
       }
     } catch (err) {
       console.error('❌ Failed to load recordings:', err);

@@ -24,8 +24,7 @@ export interface UploadProgress {
  *
  * チャンクアップロード戦略を抽象化
  * 実装:
- * - NoOpUploadStrategy（アップロードなし、Standaloneモード用）
- * - RemoteUploadStrategy（サーバーへアップロード、Remoteモード用）
+ * - RemoteUploadStrategy（サーバーへアップロード）
  */
 export interface IUploadStrategy {
   /**
