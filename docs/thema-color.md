@@ -51,7 +51,7 @@ Rustのエコシステムや、最近のモダンなDevTools（VS Code, Linear, 
 
 ### 3. UIへの適用イメージ
 
-この配色を実際の画面（Director Mode / Standalone Mode）にどう落とし込むかの具体例です。
+この配色を実際の画面（Director Mode）にどう落とし込むかの具体例です。
 
 #### 📼 収録画面 (The Recorder)
 

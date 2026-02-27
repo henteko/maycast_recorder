@@ -11,7 +11,6 @@ WebCodecs-based video/audio recorder with OPFS storage and real-time server sync
 - **リアルタイムアップロード**: 録画中に並行してチャンクをサーバーへアップロード（最大5並列）
 - **オフライン対応**: ネットワーク障害時もローカル保存継続
 - **Director Mode**: Socket.IOによるリアルタイムRoom機能で複数ゲストの同時録画管理
-- **Solo Mode**: サーバー不要のスタンドアロン録画（軽量専用ビルド対応）
 
 ## クイックスタート
 
@@ -31,13 +30,6 @@ task docker:dev:up
 起動後、http://localhost にアクセスしてください。
 
 ## 使い方
-
-### Solo Mode（スタンドアロン録画）
-
-1. http://localhost/solo にアクセス
-2. デバイスと画質を選択
-4. 録画開始 → 停止
-5. ダウンロードボタンでMP4を保存
 
 ### Director Mode（ルーム管理）
 
@@ -91,12 +83,10 @@ task dev
 # 個別起動
 task dev:client       # Client のみ
 task dev:server       # Server のみ
-task dev:solo         # Solo Mode 専用
 
 # ビルド
 task build            # すべてビルド
 task build:wasm       # WASM のみ
-task build:solo       # Solo 専用ビルド（dist-solo/ に出力）
 
 # テスト・リント
 task test             # すべてのテスト

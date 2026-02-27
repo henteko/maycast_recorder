@@ -27,7 +27,6 @@ export const useSessionManager = () => {
   const recordingRepository = di.resolve<IRecordingRepository>('RecordingRepository');
   const chunkRepository = di.resolve<IChunkRepository>('ChunkRepository');
 
-  // ResumeUploadManager は Remote モードでのみ利用可能
   const resumeUploadManager = di.has('ResumeUploadManager')
     ? di.resolve<ResumeUploadManager>('ResumeUploadManager')
     : null;
@@ -66,7 +65,7 @@ export const useSessionManager = () => {
         setSavedRecordings(updatedResult.recordings);
       }
 
-      // Remote モードの場合は Resume Upload の検出を行う
+      // Resume Upload の検出を行う
       if (resumeUploadManager) {
         const unfinished = await detectUnfinishedRecordings(recordingRepository, chunkRepository);
         if (unfinished.length > 0) {
