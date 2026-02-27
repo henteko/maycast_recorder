@@ -17,28 +17,28 @@ export const Button = ({
   children,
   className = '',
 }: ButtonProps) => {
-  const baseStyles = 'rounded-2xl font-bold transition-all shadow-lg transform hover:scale-[1.02] flex items-center justify-center gap-3 cursor-pointer'
+  const baseStyles = 'rounded-xl font-semibold transition-all flex items-center justify-center gap-2 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-maycast-primary/50 focus-visible:ring-offset-2 focus-visible:ring-offset-maycast-bg'
 
   const sizeStyles = {
-    sm: 'py-2 px-4 text-sm',
-    md: 'py-4 px-6 text-base',
-    lg: 'py-6 px-8 text-xl',
+    sm: 'py-2 px-3.5 text-sm',
+    md: 'py-2.5 px-5 text-sm',
+    lg: 'py-3 px-6 text-base',
   }
 
   const variantStyles = {
-    primary: 'bg-maycast-primary hover:bg-maycast-primary/80 text-white',
-    danger: 'bg-maycast-rec/20 hover:bg-maycast-rec/30 border border-maycast-rec/50 text-white',
-    ghost: 'bg-transparent border-2 border-maycast-text hover:bg-maycast-text/10 text-maycast-text',
-    success: 'bg-maycast-safe hover:bg-maycast-safe/80 text-white',
+    primary: 'bg-maycast-primary hover:brightness-110 text-white shadow-sm shadow-maycast-primary/25',
+    danger: 'bg-maycast-rec/20 hover:bg-maycast-rec/30 border border-maycast-rec/40 text-white',
+    ghost: 'bg-transparent border border-maycast-border/40 hover:bg-maycast-panel/50 text-maycast-text',
+    success: 'bg-maycast-safe hover:brightness-110 text-white shadow-sm shadow-maycast-safe/25',
   }
 
-  const disabledStyles = 'bg-gray-600 cursor-not-allowed opacity-50 text-white'
+  const disabledStyles = 'opacity-40 cursor-not-allowed'
 
   return (
     <button
       onClick={onClick}
       disabled={disabled}
-      className={`${baseStyles} ${sizeStyles[size]} ${disabled ? disabledStyles : variantStyles[variant]} ${className}`}
+      className={`${baseStyles} ${sizeStyles[size]} ${variantStyles[variant]} ${disabled ? disabledStyles : ''} ${className}`}
     >
       {children}
     </button>

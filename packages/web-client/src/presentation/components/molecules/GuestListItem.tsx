@@ -52,8 +52,7 @@ export const GuestListItem: React.FC<GuestListItemProps> = ({ guest, waveformDat
   const mediaStatus = guest.mediaStatus;
 
   return (
-    <div className="bg-maycast-bg/50 backdrop-blur-sm px-4 py-3 rounded-xl border border-maycast-border/30">
-      {/* 上段: 名前とステータス */}
+    <div className="bg-maycast-panel/40 rounded-xl border border-maycast-border/30 p-3.5">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div
@@ -89,41 +88,30 @@ export const GuestListItem: React.FC<GuestListItemProps> = ({ guest, waveformDat
             </div>
           )}
           {(guest.syncState === 'recording' || guest.syncState === 'uploading') && (guest.uploadedChunks !== undefined && guest.totalChunks !== undefined) && guest.totalChunks > 0 && (
-            <span className="text-xs text-maycast-text-secondary font-mono">
-              {guest.uploadedChunks}/{guest.totalChunks} chunks
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-maycast-text-secondary font-mono">
+                {guest.uploadedChunks}/{guest.totalChunks} chunks
+              </span>
+              <div className="w-16 h-1.5 bg-maycast-border/30 rounded-full overflow-hidden">
+                <div className="h-full bg-maycast-primary rounded-full transition-all"
+                  style={{ width: `${(guest.uploadedChunks / guest.totalChunks) * 100}%` }} />
+              </div>
+            </div>
           )}
-          <GuestSyncBadge syncState={guest.syncState} />
-        </div>
-      </div>
-
-      {/* 中段: 波形表示 */}
-      {waveformData && (
-        <div className="mt-2 pt-2 border-t border-maycast-border/20">
-          <div className="flex items-center gap-2">
-            <MicrophoneIcon className="w-3 h-3 flex-shrink-0 text-maycast-text-secondary" />
+          {/* 波形表示（横並び） */}
+          {waveformData && (
             <WaveformDisplay
               waveformData={waveformData}
-              width={180}
-              height={28}
+              width={120}
+              height={24}
               color={mediaStatus?.isMicMuted ? '#ef4444' : '#22c55e'}
               backgroundColor="rgba(0,0,0,0.3)"
               isSilent={isSilent}
             />
-          </div>
+          )}
+          <GuestSyncBadge syncState={guest.syncState} />
         </div>
-      )}
-
-      {/* 下段: デバイス情報 */}
-      {mediaStatus && mediaStatus.micDevice && (
-        <div className="mt-2 pt-2 border-t border-maycast-border/20 space-y-1">
-          {/* マイクデバイス */}
-          <div className="flex items-center gap-2 text-xs text-maycast-text-secondary">
-            <MicrophoneIcon className="w-3 h-3 flex-shrink-0" />
-            <span>{mediaStatus.micDevice.label}</span>
-          </div>
-        </div>
-      )}
+      </div>
     </div>
   );
 };

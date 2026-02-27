@@ -20,7 +20,7 @@ export const GuestSyncBadge: React.FC<GuestSyncBadgeProps> = ({ syncState }) => 
   const config = stateConfig[syncState];
 
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium backdrop-blur-sm border ${config.bgColor} ${config.textColor} ${config.borderColor}`}>
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${config.bgColor} ${config.textColor} ${config.borderColor}`}>
       {syncState === 'uploading' && (
         <div className="w-1.5 h-1.5 bg-yellow-400 rounded-full animate-pulse mr-1.5" />
       )}

@@ -172,11 +172,18 @@ export const RoomDetailPage: React.FC = () => {
     }
   }, [room, getGuestNameForRecording]);
 
+  const headerBg: Record<string, string> = {
+    idle: 'border-b border-maycast-border/60',
+    recording: 'border-b-2 border-b-maycast-rec/50 bg-maycast-rec/5',
+    finalizing: 'border-b-2 border-b-yellow-400/50 bg-yellow-400/5',
+    finished: 'border-b border-maycast-border/60',
+  };
+
   // Access Denied
   if (isAccessDenied) {
     return (
       <div className="flex flex-col items-center justify-center h-full bg-maycast-bg text-maycast-text">
-        <div className="bg-maycast-panel/30 backdrop-blur-md p-12 rounded-2xl border border-maycast-border/40 shadow-xl text-center">
+        <div className="bg-maycast-panel/50 rounded-xl border border-maycast-border/30 p-12 text-center">
           <div className="text-6xl mb-6">🔒</div>
           <h1 className="text-2xl font-bold mb-3">Access Denied</h1>
           <p className="text-maycast-text-secondary mb-6">
@@ -195,9 +202,6 @@ export const RoomDetailPage: React.FC = () => {
   if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center h-full bg-maycast-bg text-maycast-text">
-        <div className="text-3xl font-bold text-maycast-primary text-center mb-8">
-          Maycast Recorder
-        </div>
         <div className="relative">
           <div className="animate-spin rounded-full h-12 w-12 border-4 border-maycast-primary border-t-transparent" />
           <div className="absolute inset-0 animate-ping rounded-full h-12 w-12 border-4 border-maycast-primary/30" />
@@ -211,7 +215,7 @@ export const RoomDetailPage: React.FC = () => {
   if (!room) {
     return (
       <div className="flex flex-col items-center justify-center h-full bg-maycast-bg text-maycast-text">
-        <div className="bg-maycast-panel/30 backdrop-blur-md p-12 rounded-2xl border border-maycast-border/40 shadow-xl text-center">
+        <div className="bg-maycast-panel/50 rounded-xl border border-maycast-border/30 p-12 text-center">
           <h1 className="text-2xl font-bold mb-3">Room Not Found</h1>
           <p className="text-maycast-text-secondary mb-6">
             {error || 'The room does not exist.'}
@@ -228,33 +232,82 @@ export const RoomDetailPage: React.FC = () => {
   return (
     <div className="flex flex-col h-full bg-maycast-bg text-maycast-text">
       {/* Header */}
-      <div className="flex items-center justify-between px-8 py-6 border-b border-maycast-border">
+      <div className={`sticky top-0 z-10 bg-maycast-bg/95 backdrop-blur-sm flex items-center justify-between px-6 py-3 ${headerBg[room.state] || 'border-b border-maycast-border/60'}`}>
         <div className="flex items-center gap-4">
-          <Button onClick={() => navigate('/director')} variant="ghost" size="sm" className="!p-3 !border-maycast-border/30">
+          <button
+            onClick={() => navigate('/director')}
+            className="p-2 rounded-lg hover:bg-maycast-border/30 transition-colors"
+          >
             <ArrowLeftIcon className="w-5 h-5 text-maycast-text-secondary" />
-          </Button>
-          <div className="text-2xl font-bold text-maycast-primary">
+          </button>
+          <div className="text-lg font-bold text-maycast-primary tracking-tight">
             Maycast Recorder
           </div>
-          <div className="w-px h-6 bg-maycast-border/50" />
-          <h1 className="text-lg font-bold text-maycast-text font-mono">
+          <div className="w-px h-5 bg-maycast-border/40" />
+          <h1 className="text-base font-bold text-maycast-text font-mono">
             Room {room.id.substring(0, 8)}
           </h1>
           <RoomStateBadge state={room.state} />
           <ConnectionBadge isConnected={isWebSocketConnected} />
         </div>
         <div className="flex items-center gap-3">
-          <Button
+          {/* Recording controls in header */}
+          {room.state === 'idle' && (
+            <Button
+              onClick={handleStartRecording}
+              disabled={isUpdating}
+              variant="primary"
+              size="sm"
+            >
+              <PlayIcon className="w-4 h-4" />
+              Start Recording
+            </Button>
+          )}
+          {room.state === 'recording' && (
+            <Button
+              onClick={handleStopRecording}
+              disabled={isUpdating}
+              variant="danger"
+              size="sm"
+              className="!bg-maycast-rec !border-none"
+            >
+              <StopIcon className="w-4 h-4" />
+              Stop Recording
+            </Button>
+          )}
+          {room.state === 'finalizing' && (
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-yellow-400 font-medium">Syncing...</span>
+              <Button
+                onClick={handleFinalize}
+                disabled={isUpdating}
+                variant="success"
+                size="sm"
+              >
+                Force Complete
+              </Button>
+            </div>
+          )}
+          {/* Delete button (idle/finished only) */}
+          {(room.state === 'idle' || room.state === 'finished') && (
+            <button
+              onClick={handleDeleteRoom}
+              disabled={isUpdating}
+              className="p-2 rounded-lg hover:bg-maycast-rec/20 transition-colors disabled:opacity-50"
+              title="Delete Room"
+            >
+              <TrashIcon className="w-4 h-4 text-maycast-rec" />
+            </button>
+          )}
+          <button
             onClick={() => refreshRoom()}
             disabled={isUpdating}
-            variant="ghost"
-            size="sm"
-            className="!p-3 !border-maycast-border/30"
+            className="p-2 rounded-lg hover:bg-maycast-border/30 transition-colors disabled:opacity-50"
           >
             <svg className={`w-5 h-5 text-maycast-text-secondary ${isUpdating ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
-          </Button>
+          </button>
         </div>
       </div>
 
@@ -269,7 +322,7 @@ export const RoomDetailPage: React.FC = () => {
       <div className="flex-1 overflow-y-auto px-8 py-6">
         <div className="max-w-3xl mx-auto space-y-6">
           {/* Guest Invitation */}
-          <div className="bg-maycast-panel/30 backdrop-blur-md rounded-2xl border border-maycast-border/40 p-6 shadow-xl">
+          <div className="bg-maycast-panel/50 rounded-xl border border-maycast-border/30 p-5">
             {room.state === 'idle' ? (
               <>
                 <GuestUrlInput url={guestUrl} />
@@ -278,13 +331,15 @@ export const RoomDetailPage: React.FC = () => {
                 </p>
               </>
             ) : room.state === 'recording' ? (
-              <div className="flex items-center gap-3 text-yellow-400">
-                <div className="relative flex-shrink-0">
-                  <div className="w-3 h-3 bg-maycast-rec rounded-full animate-pulse" />
+              <div className="bg-maycast-rec/10 rounded-xl border border-maycast-rec/20 p-3">
+                <div className="flex items-center gap-3">
+                  <div className="relative flex-shrink-0">
+                    <div className="w-3 h-3 bg-maycast-rec rounded-full animate-pulse" />
+                  </div>
+                  <p className="text-sm text-maycast-text-secondary">
+                    Recording in progress. New guests cannot join at this time.
+                  </p>
                 </div>
-                <p className="text-sm text-maycast-text-secondary">
-                  Recording in progress. New guests cannot join at this time.
-                </p>
               </div>
             ) : (
               <div className="flex items-center gap-3">
@@ -298,7 +353,7 @@ export const RoomDetailPage: React.FC = () => {
 
           {/* Participants */}
           {guests.length > 0 && (
-            <div className="bg-maycast-panel/30 backdrop-blur-md rounded-2xl border border-maycast-border/40 p-6 shadow-xl">
+            <div className="bg-maycast-panel/50 rounded-xl border border-maycast-border/30 p-5">
               <label className="text-xs text-maycast-text-secondary mb-3 block font-medium">
                 Participants ({guests.length})
               </label>
@@ -320,7 +375,7 @@ export const RoomDetailPage: React.FC = () => {
 
           {/* Downloads */}
           {room.state === 'finished' && room.recording_ids.length > 0 && (
-            <div className="bg-maycast-panel/30 backdrop-blur-md rounded-2xl border border-maycast-border/40 p-6 shadow-xl">
+            <div className="bg-maycast-panel/50 rounded-xl border border-maycast-border/30 p-5">
               <RecordingsDownloadSection
                 recordingIds={room.recording_ids}
                 onDownloadAll={handleDownloadAll}
@@ -330,90 +385,8 @@ export const RoomDetailPage: React.FC = () => {
               />
             </div>
           )}
-
-          {/* Controls */}
-          <div className="bg-maycast-panel/30 backdrop-blur-md rounded-2xl border border-maycast-border/40 p-6 shadow-xl">
-            <div className="flex items-center gap-3">
-              {room.state === 'idle' && (
-                <Button
-                  onClick={handleStartRecording}
-                  disabled={isUpdating}
-                  variant="primary"
-                  size="sm"
-                  className="flex-1"
-                >
-                  <PlayIcon className="w-5 h-5" />
-                  Start Recording
-                </Button>
-              )}
-              {room.state === 'recording' && (
-                <Button
-                  onClick={handleStopRecording}
-                  disabled={isUpdating}
-                  variant="danger"
-                  size="sm"
-                  className="flex-1 !bg-maycast-rec hover:!bg-maycast-rec/80 !border-none"
-                >
-                  <StopIcon className="w-5 h-5" />
-                  Stop Recording
-                </Button>
-              )}
-              {room.state === 'finalizing' && (
-                <div className="flex-1 bg-yellow-500/20 backdrop-blur-md p-4 rounded-xl border border-yellow-500/30">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3 text-yellow-400">
-                      <div className="relative">
-                        <div className="w-4 h-4 bg-yellow-400 rounded-full animate-pulse" />
-                        <div className="absolute inset-0 w-4 h-4 bg-yellow-400 rounded-full animate-ping opacity-75" />
-                      </div>
-                      <span className="font-semibold">Waiting for guest sync...</span>
-                    </div>
-                    <Button
-                      onClick={handleFinalize}
-                      disabled={isUpdating}
-                      variant="success"
-                      size="sm"
-                      className="!py-2 !px-4"
-                    >
-                      Force Complete
-                    </Button>
-                  </div>
-                </div>
-              )}
-              {(room.state === 'idle' || room.state === 'recording') && (
-                <Button
-                  onClick={handleDeleteRoom}
-                  disabled={isUpdating || room.state === 'recording'}
-                  variant="danger"
-                  size="sm"
-                  className="!p-3"
-                >
-                  <TrashIcon className="w-5 h-5 text-maycast-rec" />
-                </Button>
-              )}
-            </div>
-            {room.state === 'finished' && (
-              <Button
-                onClick={handleDeleteRoom}
-                disabled={isUpdating}
-                variant="danger"
-                size="sm"
-                className="w-full mt-3"
-              >
-                <TrashIcon className="w-5 h-5" />
-                Delete Room
-              </Button>
-            )}
-          </div>
         </div>
       </div>
-
-      {/* Footer */}
-      <footer className="px-8 py-4 border-t border-maycast-border/50 text-center">
-        <p className="text-maycast-text-secondary text-sm">
-          Share the guest invitation URL with participants. Press 'Start Recording' to begin recording for everyone simultaneously.
-        </p>
-      </footer>
     </div>
   );
 };

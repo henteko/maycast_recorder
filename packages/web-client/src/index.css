@@ -28,6 +28,8 @@ html, body, #root {
 
   /* Animations */
   --animate-slide-in-top: slide-in-top 0.3s ease-out;
+  --animate-pulse-subtle: pulse-subtle 2s ease-in-out infinite;
+  --animate-fade-in: fade-in 0.2s ease-out;
 }
 
 @keyframes slide-in-top {
@@ -39,4 +41,14 @@ html, body, #root {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+@keyframes pulse-subtle {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.85; }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
 }
