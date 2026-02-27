@@ -48,8 +48,6 @@ interface RecorderProps {
   hideControls?: boolean;
   /** Guest mode configuration */
   guestMode?: GuestModeConfig;
-  /** Callback to navigate to Library page */
-  onNavigateToLibrary?: () => void;
   /** Callback when settings (device selection) changes */
   onSettingsChange?: (settings: RecorderSettings) => void;
   /** When true, automatically reset to standby after stopping */
@@ -67,7 +65,6 @@ export const Recorder: React.FC<RecorderProps> = ({
   exportRef,
   hideControls = false,
   guestMode,
-  onNavigateToLibrary,
   onSettingsChange,
   autoResetToStandby = false,
   onRecordingComplete,
@@ -262,10 +259,6 @@ export const Recorder: React.FC<RecorderProps> = ({
         alert('Failed to download recording');
       }
     }
-  };
-
-  const handleGoToLibrary = () => {
-    onNavigateToLibrary?.();
   };
 
   // Handle device change - update settings and restart capture
