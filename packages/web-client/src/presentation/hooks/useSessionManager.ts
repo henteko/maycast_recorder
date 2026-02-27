@@ -29,7 +29,7 @@ export const useSessionManager = () => {
     ? di.resolve<ResumeUploadManager>('ResumeUploadManager')
     : null;
 
-  const MAX_LOCAL_RECORDINGS = 2;
+  const MAX_LOCAL_RECORDINGS = 10;
 
   const cleanupOldRecordings = useCallback(async (recordings: Recording[]) => {
     const activeStates = new Set(['recording', 'finalizing']);
