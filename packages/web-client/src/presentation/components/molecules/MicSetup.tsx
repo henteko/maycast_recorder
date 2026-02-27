@@ -45,12 +45,9 @@ export const MicSetup: React.FC<MicSetupProps> = ({
     };
   }, [stopCapture]);
 
-  // デバイス一覧が取得できたら、selectedDeviceIdが未設定なら最初のデバイスを自動選択
-  useEffect(() => {
-    if (!selectedDeviceId && audioDevices.length > 0) {
-      setSelectedDeviceId(audioDevices[0].deviceId);
-    }
-  }, [audioDevices, selectedDeviceId]);
+  // selectedDeviceIdが未設定で、デバイスが取得できたら最初のデバイスを自動選択
+  const effectiveSelectedDeviceId = selectedDeviceId
+    ?? (audioDevices.length > 0 ? audioDevices[0].deviceId : undefined);
 
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
@@ -60,13 +57,13 @@ export const MicSetup: React.FC<MicSetupProps> = ({
   }, [refreshDevices]);
 
   const handleDeviceSelect = (deviceId: string) => {
-    if (deviceId === selectedDeviceId) return;
+    if (deviceId === effectiveSelectedDeviceId) return;
     setSelectedDeviceId(deviceId);
     restartCapture({ audioDeviceId: deviceId });
   };
 
   const handleComplete = () => {
-    onComplete(selectedDeviceId);
+    onComplete(effectiveSelectedDeviceId);
   };
 
   return (
@@ -114,8 +111,8 @@ export const MicSetup: React.FC<MicSetupProps> = ({
                 key={device.deviceId}
                 device={device}
                 index={index}
-                isSelected={selectedDeviceId === device.deviceId}
-                stream={selectedDeviceId === device.deviceId ? stream : null}
+                isSelected={effectiveSelectedDeviceId === device.deviceId}
+                stream={effectiveSelectedDeviceId === device.deviceId ? stream : null}
                 onSelect={() => handleDeviceSelect(device.deviceId)}
               />
             ))}
