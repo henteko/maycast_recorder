@@ -182,20 +182,33 @@ jobs:
   test-s3:
     name: S3 Integration Tests
     runs-on: ubuntu-latest
-    services:
-      localstack:
-        image: localstack/localstack:latest
-        env:
-          SERVICES: s3
-          DEFAULT_REGION: us-east-1
-        ports:
-          - 4566:4566
-        options: >-
-          --health-cmd "curl -sf http://localhost:4566/_localstack/health || exit 1"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
     steps:
+      - name: Start MinIO
+        run: |
+          docker run -d --name minio \
+            -e MINIO_ROOT_USER=minioadmin \
+            -e MINIO_ROOT_PASSWORD=minioadmin \
+            -p 9000:9000 \
+            pgsty/minio server /data
+
+          echo "Waiting for MinIO..."
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:9000/minio/health/live; then
+              echo "MinIO is ready"
+              break
+            fi
+            echo "Waiting for MinIO... ($i/30)"
+            sleep 2
+          done
+
+      - name: Create S3 test bucket
+        run: |
+          aws --endpoint-url=http://localhost:9000 s3 mb s3://maycast-recordings
+        env:
+          AWS_ACCESS_KEY_ID: minioadmin
+          AWS_SECRET_ACCESS_KEY: minioadmin
+          AWS_DEFAULT_REGION: us-east-1
+
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -211,15 +224,10 @@ jobs:
       - name: Build common-types
         run: npm run build -w @maycast/common-types
 
-      - name: Create S3 test bucket
-        run: aws --endpoint-url=http://localhost:4566 s3 mb s3://maycast-recordings
-        env:
-          AWS_ACCESS_KEY_ID: test
-          AWS_SECRET_ACCESS_KEY: test
-          AWS_DEFAULT_REGION: us-east-1
-
       - name: Run S3 integration tests
         working-directory: packages/server
         env:
-          TEST_S3_ENDPOINT: http://localhost:4566
+          TEST_S3_ENDPOINT: http://localhost:9000
+          TEST_S3_ACCESS_KEY_ID: minioadmin
+          TEST_S3_SECRET_ACCESS_KEY: minioadmin
         run: npx vitest run --config vitest.config.s3.ts

@@ -12,7 +12,7 @@ import type { S3StorageConfig } from '../config/storageConfig.js';
 /**
  * S3互換ストレージ Chunk Repository の実装
  *
- * Cloudflare R2, LocalStack, AWS S3 に対応
+ * Cloudflare R2, MinIO, AWS S3 に対応
  *
  * Key Structure:
  * - Without roomId: {recordingId}/init.fmp4, {recordingId}/{chunkId}.fmp4

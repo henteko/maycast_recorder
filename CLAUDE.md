@@ -65,8 +65,8 @@ task test:server    # Vitest tests for server
 # Integration tests (require Docker containers)
 task test:db        # PostgreSQL integration tests (auto-starts/stops test container)
 task test:db:run    # Run DB tests only (assumes test PostgreSQL already running)
-task test:s3        # S3 integration tests via LocalStack (auto-starts/stops container)
-task test:s3:run    # Run S3 tests only (assumes LocalStack already running)
+task test:s3        # S3 integration tests via MinIO (auto-starts/stops container)
+task test:s3:run    # Run S3 tests only (assumes MinIO already running)
 
 # E2E tests (not yet implemented)
 task test:e2e
@@ -125,7 +125,7 @@ task docker:clean
 
 **Docker services** (defined in `docker-compose.yml`):
 - **postgres** (PostgreSQL 16-alpine) - Database with health checks
-- **localstack** - S3-compatible storage for development
+- **minio** (pgsty/minio) - S3-compatible storage for development
 - **nginx** - Reverse proxy with HTTP/2
 - **server** - Express backend
 - **web-client** - Vite dev server / static build
@@ -239,7 +239,7 @@ When adding new dependencies:
 
 - **Local Filesystem** (`STORAGE_BACKEND=local`, default): Chunks in `./recordings-data/` (configurable via `STORAGE_PATH`)
   - Implemented in `LocalFileSystemChunkRepository`
-- **S3-Compatible** (`STORAGE_BACKEND=s3`): Cloudflare R2, AWS S3, or LocalStack
+- **S3-Compatible** (`STORAGE_BACKEND=s3`): Cloudflare R2, AWS S3, or MinIO
   - Key structure: `{recordingId}/init.fmp4`, `{recordingId}/{chunkId}.fmp4`
   - Room recordings: `rooms/{roomId}/{recordingId}/init.fmp4`, `rooms/{roomId}/{recordingId}/{chunkId}.fmp4`
   - Implemented in `S3ChunkRepository`
@@ -407,7 +407,7 @@ When getting started, read these files in order:
 
 - **Server unit tests**: Vitest in `packages/server/src/**/*.test.ts`
 - **DB integration tests**: `packages/server/` with `vitest.config.db.ts` (requires test PostgreSQL on port 5433)
-- **S3 integration tests**: `packages/server/` with `vitest.config.s3.ts` (requires LocalStack on port 4577)
+- **S3 integration tests**: `packages/server/` with `vitest.config.s3.ts` (requires MinIO on port 9100)
 - **Rust tests**: Standard Rust unit tests in `packages/wasm-core/src/`
 - **WASM tests**: `wasm-bindgen-test` in headless Chrome
 - **E2E tests**: Not yet implemented (planned for Phase 1A-6+)
@@ -436,11 +436,11 @@ STORAGE_BACKEND=s3
 STORAGE_PATH=/app/recordings-data
 
 # S3 storage (when STORAGE_BACKEND=s3)
-S3_ENDPOINT=http://localstack:4566
-S3_PUBLIC_ENDPOINT=http://localhost/s3    # Browser-accessible URL for presigned URLs
+S3_ENDPOINT=http://minio:9000
+S3_PUBLIC_ENDPOINT=http://localhost:9000   # Browser-accessible URL for presigned URLs
 S3_BUCKET=maycast-recordings
-S3_ACCESS_KEY_ID=test
-S3_SECRET_ACCESS_KEY=test
+S3_ACCESS_KEY_ID=minioadmin
+S3_SECRET_ACCESS_KEY=minioadmin
 S3_REGION=us-east-1
 S3_FORCE_PATH_STYLE=true
 ```
@@ -467,7 +467,7 @@ STORAGE_PATH=./recordings-data
 ## Docker vs Local Development
 
 **Docker (Recommended)**:
-- Full stack with nginx, PostgreSQL, LocalStack (S3), HTTP/2
+- Full stack with nginx, PostgreSQL, MinIO (S3), HTTP/2
 - Matches production environment
 - No local tool installation needed (except Docker + Task)
 - DB schema auto-applied via init script
@@ -497,7 +497,7 @@ STORAGE_PATH=./recordings-data
 - **4K Support**: High-resolution video encoding via WebCodecs
 - **Library**: Recording history management
 - **PostgreSQL Persistence (Phase 7)**: Recording and Room data stored in PostgreSQL
-- **S3 Storage**: Cloudflare R2 / AWS S3 / LocalStack support with presigned URL downloads
+- **S3 Storage**: Cloudflare R2 / AWS S3 / MinIO support with presigned URL downloads
 - **Room Entity**: Full state machine with access key authentication and recording association
 
 ### Future Phases
@@ -529,9 +529,9 @@ task build:common-types
 - Reset database: `task docker:db:reset`
 
 **S3 storage errors:**
-- Verify LocalStack is running and healthy
+- Verify MinIO is running and healthy
 - Check S3 env vars (`S3_ENDPOINT`, `S3_BUCKET`, credentials)
-- Bucket auto-created via `localstack/init-s3.sh`
+- Bucket auto-created via `minio-init` service in docker-compose
 
 **Docker build issues:**
 ```bash
