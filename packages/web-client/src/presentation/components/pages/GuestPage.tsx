@@ -8,7 +8,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Recorder } from '../Recorder';
 import { LibraryPage } from './LibraryPage';
-import { SettingsPage } from './SettingsPage';
 import { MainLayout } from '../templates/MainLayout';
 import { Sidebar } from '../organisms/Sidebar';
 import { ResumeUploadModal } from '../organisms/RecoveryModal';
@@ -117,11 +116,6 @@ export const GuestPage: React.FC<GuestPageProps> = ({ roomId }) => {
     setCurrentPage(page);
   };
 
-  const handleSaveSettings = () => {
-    saveSettings(settings);
-    console.log('✅ Settings saved:', settings);
-  };
-
   const handleSettingsChange = (newSettings: RecorderSettings) => {
     setSettings(newSettings);
     saveSettings(newSettings);
@@ -182,7 +176,7 @@ export const GuestPage: React.FC<GuestPageProps> = ({ roomId }) => {
           <Sidebar
             currentPage={currentPage}
             onNavigate={handleNavigate}
-            disabledPages={isRecordingActive ? ['library', 'settings'] : undefined}
+            disabledPages={isRecordingActive ? ['library'] : undefined}
             systemHealth={systemHealth}
           />
         }
@@ -214,14 +208,6 @@ export const GuestPage: React.FC<GuestPageProps> = ({ roomId }) => {
             isDownloading={downloadProgress.isDownloading}
             downloadingRecordingId={downloadingRecordingId ?? undefined}
             downloadProgress={downloadProgress}
-          />
-        )}
-        {currentPage === 'settings' && (
-          <SettingsPage
-            settings={settings}
-            onSettingsChange={setSettings}
-            onSave={handleSaveSettings}
-            showServerSettings={true}
           />
         )}
       </MainLayout>
