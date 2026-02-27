@@ -13,7 +13,6 @@ import type { ScreenState } from '../../types/recorder'
 import type { DownloadProgress } from '../hooks/useDownload'
 import type { IStorageStrategy } from '../../storage-strategies/IStorageStrategy'
 
-import { MainHeader } from './organisms/MainHeader'
 import { ControlPanel } from './organisms/ControlPanel'
 import { AudioWaveform } from './atoms/AudioWaveform'
 
@@ -42,10 +41,8 @@ interface RecorderProps {
   onDownload?: (recordingId: RecordingId) => Promise<void>;
   downloadProgress?: DownloadProgress;
   exportRef?: React.Ref<RecorderExports>;
-  /** Hide manual recording controls (for Guest mode where Director controls recording) */
-  hideControls?: boolean;
   /** Guest mode configuration */
-  guestMode?: GuestModeConfig;
+  guestMode: GuestModeConfig;
   /** Callback when settings (device selection) changes */
   onSettingsChange?: (settings: RecorderSettings) => void;
   /** When true, automatically reset to standby after stopping */
@@ -61,7 +58,6 @@ export const Recorder: React.FC<RecorderProps> = ({
   onDownload,
   downloadProgress = { isDownloading: false, current: 0, total: 0 },
   exportRef,
-  hideControls = false,
   guestMode,
   onSettingsChange,
   autoResetToStandby = false,
@@ -165,22 +161,22 @@ export const Recorder: React.FC<RecorderProps> = ({
   // デバイス情報を取得（streamを渡してgetUserMedia完了後に再列挙）
   const { audioDevices } = useDevices(stream);
 
-  // Guest mode: メディアステータスをDirectorに送信
+  // メディアステータスをDirectorに送信
   useGuestMediaStatus({
-    roomId: guestMode?.roomId ?? null,
+    roomId: guestMode.roomId,
     stream,
-    isWebSocketConnected: guestMode?.isWebSocketConnected ?? false,
+    isWebSocketConnected: guestMode.isWebSocketConnected,
     audioDeviceId: settings.audioDeviceId,
     audioDevices,
   });
 
-  // Guest mode: 波形データをDirectorに送信
+  // 波形データをDirectorに送信
   const handleWaveformData = useCallback((waveformData: number[], isSilent: boolean) => {
-    if (!guestMode?.roomId || !guestMode.isWebSocketConnected) return;
+    if (!guestMode.isWebSocketConnected) return;
     const serverUrl = getServerUrl();
     const wsClient = getWebSocketRoomClient(serverUrl);
     wsClient.emitWaveformUpdate(guestMode.roomId, waveformData, isSilent);
-  }, [guestMode?.roomId, guestMode?.isWebSocketConnected]);
+  }, [guestMode.roomId, guestMode.isWebSocketConnected]);
 
   // Export recorder state and controls to parent
   useImperativeHandle(exportRef, () => ({
@@ -198,14 +194,6 @@ export const Recorder: React.FC<RecorderProps> = ({
     const minutes = Math.floor((seconds % 3600) / 60);
     const secs = seconds % 60;
     return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-  };
-
-  const handleStartStop = () => {
-    if (isRecording) {
-      stopRecording();
-    } else {
-      startRecording();
-    }
   };
 
   const handleDownload = async () => {
@@ -241,55 +229,46 @@ export const Recorder: React.FC<RecorderProps> = ({
 
   return (
     <div className="flex flex-col h-full bg-maycast-bg text-maycast-text">
-      {guestMode ? (
-        <div className="flex items-center justify-between px-8 py-6 border-b border-maycast-border">
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 px-4 py-2 bg-maycast-primary/20 backdrop-blur-sm rounded-full border border-maycast-primary/30">
-              <span className="text-maycast-primary/80 font-semibold">Guest</span>
+      <div className="flex items-center justify-between px-8 py-6 border-b border-maycast-border">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 px-4 py-2 bg-maycast-primary/20 backdrop-blur-sm rounded-full border border-maycast-primary/30">
+            <span className="text-maycast-primary/80 font-semibold">Guest</span>
+          </div>
+          <span className="text-maycast-text-secondary font-medium">
+            Room: {guestMode.roomId.substring(0, 8)}
+          </span>
+          {guestMode.isWebSocketConnected ? (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-maycast-safe/20 backdrop-blur-sm rounded-full border border-maycast-safe/30">
+              <div className="relative">
+                <div className="w-2 h-2 bg-maycast-safe rounded-full" />
+                <div className="absolute inset-0 w-2 h-2 bg-maycast-safe rounded-full animate-ping opacity-75" />
+              </div>
+              <span className="text-maycast-safe/80 font-medium text-sm">Live</span>
             </div>
-            <span className="text-maycast-text-secondary font-medium">
-              Room: {guestMode.roomId.substring(0, 8)}
-            </span>
-            {guestMode.isWebSocketConnected ? (
-              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-maycast-safe/20 backdrop-blur-sm rounded-full border border-maycast-safe/30">
-                <div className="relative">
-                  <div className="w-2 h-2 bg-maycast-safe rounded-full" />
-                  <div className="absolute inset-0 w-2 h-2 bg-maycast-safe rounded-full animate-ping opacity-75" />
-                </div>
-                <span className="text-maycast-safe/80 font-medium text-sm">Live</span>
-              </div>
-            ) : (
-              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-yellow-500/20 backdrop-blur-sm rounded-full border border-yellow-500/30">
-                <span className="text-yellow-400/80 font-medium text-sm">Polling</span>
-              </div>
-            )}
-          </div>
-          <div className="flex items-center gap-3">
-            {isRecording && (
-              <div className="flex items-center gap-2 px-4 py-2 bg-maycast-rec/20 backdrop-blur-sm rounded-full border border-maycast-rec/30">
-                <div className="relative">
-                  <div className="w-2 h-2 bg-maycast-rec rounded-full animate-pulse" />
-                  <div className="absolute inset-0 w-2 h-2 bg-maycast-rec rounded-full animate-ping opacity-75" />
-                </div>
-                <span className="text-maycast-rec/80 font-semibold">{formatElapsedTime(elapsedTime)}</span>
-              </div>
-            )}
-            {!isRecording && screenState === 'standby' && guestMode.waitingMessage && (
-              <div className="flex items-center gap-2 px-4 py-2 bg-yellow-500/20 backdrop-blur-sm rounded-full border border-yellow-500/30">
-                <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse" />
-                <span className="text-yellow-400/80 font-medium text-sm">{guestMode.waitingMessage}</span>
-              </div>
-            )}
-          </div>
+          ) : (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-yellow-500/20 backdrop-blur-sm rounded-full border border-yellow-500/30">
+              <span className="text-yellow-400/80 font-medium text-sm">Polling</span>
+            </div>
+          )}
         </div>
-      ) : (
-        <MainHeader
-          screenState={screenState}
-          isRecording={isRecording}
-          wasmInitialized={wasmInitialized}
-          onStartStop={hideControls ? () => {} : handleStartStop}
-        />
-      )}
+        <div className="flex items-center gap-3">
+          {isRecording && (
+            <div className="flex items-center gap-2 px-4 py-2 bg-maycast-rec/20 backdrop-blur-sm rounded-full border border-maycast-rec/30">
+              <div className="relative">
+                <div className="w-2 h-2 bg-maycast-rec rounded-full animate-pulse" />
+                <div className="absolute inset-0 w-2 h-2 bg-maycast-rec rounded-full animate-ping opacity-75" />
+              </div>
+              <span className="text-maycast-rec/80 font-semibold">{formatElapsedTime(elapsedTime)}</span>
+            </div>
+          )}
+          {!isRecording && screenState === 'standby' && guestMode.waitingMessage && (
+            <div className="flex items-center gap-2 px-4 py-2 bg-yellow-500/20 backdrop-blur-sm rounded-full border border-yellow-500/30">
+              <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse" />
+              <span className="text-yellow-400/80 font-medium text-sm">{guestMode.waitingMessage}</span>
+            </div>
+          )}
+        </div>
+      </div>
 
       <div className="flex-1 overflow-y-auto px-8">
         {error && (
@@ -319,22 +298,13 @@ export const Recorder: React.FC<RecorderProps> = ({
               ))}
             </select>
           </div>
-          {isRecording && !guestMode && (
-            <div className="flex items-center gap-2 mb-3 px-3 py-2 bg-maycast-rec/20 backdrop-blur-sm rounded-full border border-maycast-rec/30 w-fit">
-              <div className="relative">
-                <div className="w-2 h-2 bg-maycast-rec rounded-full animate-pulse" />
-                <div className="absolute inset-0 w-2 h-2 bg-maycast-rec rounded-full animate-ping opacity-75" />
-              </div>
-              <span className="text-maycast-rec/80 font-semibold text-sm">{formatElapsedTime(elapsedTime)}</span>
-            </div>
-          )}
           <AudioWaveform
             stream={stream}
             width={500}
             height={60}
             color="#22c55e"
             backgroundColor="rgba(0,0,0,0.3)"
-            onWaveformData={guestMode ? handleWaveformData : undefined}
+            onWaveformData={handleWaveformData}
             waveformDataInterval={200}
             showSilenceWarning={true}
           />

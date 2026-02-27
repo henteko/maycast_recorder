@@ -188,7 +188,6 @@ export const GuestPage: React.FC<GuestPageProps> = ({ roomId }) => {
             onDownload={handleDownload}
             downloadProgress={downloadProgress}
             exportRef={recorderRef}
-            hideControls={true}
             guestMode={{
               roomId,
               isWebSocketConnected,
