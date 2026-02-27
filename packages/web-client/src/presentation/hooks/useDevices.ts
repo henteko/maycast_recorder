@@ -56,5 +56,6 @@ export const useDevices = (stream?: MediaStream | null) => {
 
   return {
     audioDevices,
+    refreshDevices: enumerate,
   };
 };
