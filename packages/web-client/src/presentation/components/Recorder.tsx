@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect, useImperativeHandle, useCallback } from 'react'
+import { useState, useEffect, useImperativeHandle, useCallback } from 'react'
 import { useMediaStream } from '../hooks/useMediaStream'
 import { useEncoders } from '../hooks/useEncoders'
 import { useRecorder } from '../hooks/useRecorder'
@@ -9,13 +9,11 @@ import { getServerUrl } from '../../infrastructure/config/serverConfig'
 // @ts-expect-error - maycast-wasm-core has no type definitions
 import init from 'maycast-wasm-core'
 import type { RecorderSettings } from '../../types/settings'
-import { STABLE_QUALITY_CONFIG } from '../../types/settings'
 import type { ScreenState } from '../../types/recorder'
 import type { DownloadProgress } from '../hooks/useDownload'
 import type { IStorageStrategy } from '../../storage-strategies/IStorageStrategy'
 
 import { MainHeader } from './organisms/MainHeader'
-import { VideoPreview } from './organisms/VideoPreview'
 import { ControlPanel } from './organisms/ControlPanel'
 import { AudioWaveform } from './atoms/AudioWaveform'
 
@@ -69,7 +67,6 @@ export const Recorder: React.FC<RecorderProps> = ({
   autoResetToStandby = false,
   onRecordingComplete,
 }) => {
-  const videoRef = useRef<HTMLVideoElement>(null)
   const { stream, error, startCapture, restartCapture } = useMediaStream()
 
   const [wasmInitialized, setWasmInitialized] = useState(false)
@@ -77,7 +74,6 @@ export const Recorder: React.FC<RecorderProps> = ({
   const [settings, setSettings] = useState<RecorderSettings>(externalSettings)
 
   const {
-    videoEncoderRef,
     audioEncoderRef,
     initializeEncoders,
     closeEncoders,
@@ -103,7 +99,6 @@ export const Recorder: React.FC<RecorderProps> = ({
     setStats,
     setSavedChunks,
   } = useRecorder({
-    videoEncoderRef,
     audioEncoderRef,
     storageStrategy,
     initializeEncoders,
@@ -140,16 +135,12 @@ export const Recorder: React.FC<RecorderProps> = ({
     initWasm()
   }, [])
 
-  // Auto-start camera and microphone capture on mount
+  // Auto-start microphone capture on mount
   useEffect(() => {
     const autoStartCapture = async () => {
-      console.log('📹 Auto-starting camera and microphone capture...')
+      console.log('🎤 Auto-starting microphone capture...')
       await startCapture({
-        videoDeviceId: settings.videoDeviceId,
         audioDeviceId: settings.audioDeviceId,
-        width: STABLE_QUALITY_CONFIG.width,
-        height: STABLE_QUALITY_CONFIG.height,
-        frameRate: STABLE_QUALITY_CONFIG.framerate,
       })
     }
     autoStartCapture()
@@ -171,27 +162,15 @@ export const Recorder: React.FC<RecorderProps> = ({
     return () => clearInterval(timer)
   }, [recordingStartTime])
 
-  // Update video preview when stream changes
-  useEffect(() => {
-    if (videoRef.current && stream) {
-      videoRef.current.srcObject = stream
-      videoRef.current.play().catch(err => {
-        console.error('Failed to play video preview:', err)
-      })
-    }
-  }, [stream])
-
   // デバイス情報を取得（streamを渡してgetUserMedia完了後に再列挙）
-  const { videoDevices, audioDevices } = useDevices(stream);
+  const { audioDevices } = useDevices(stream);
 
   // Guest mode: メディアステータスをDirectorに送信
   useGuestMediaStatus({
     roomId: guestMode?.roomId ?? null,
     stream,
     isWebSocketConnected: guestMode?.isWebSocketConnected ?? false,
-    videoDeviceId: settings.videoDeviceId,
     audioDeviceId: settings.audioDeviceId,
-    videoDevices,
     audioDevices,
   });
 
@@ -256,11 +235,7 @@ export const Recorder: React.FC<RecorderProps> = ({
     // Restart capture with new device settings
     // restartCapture は既存ストリームを停止してから新しいストリームを取得する
     await restartCapture({
-      videoDeviceId: newSettings.videoDeviceId,
       audioDeviceId: newSettings.audioDeviceId,
-      width: STABLE_QUALITY_CONFIG.width,
-      height: STABLE_QUALITY_CONFIG.height,
-      frameRate: STABLE_QUALITY_CONFIG.framerate,
     });
   }, [isRecording, onSettingsChange, restartCapture]);
 
@@ -324,49 +299,8 @@ export const Recorder: React.FC<RecorderProps> = ({
           </div>
         )}
 
-        <div className="mt-6">
-          {/* カメラデバイス選択と画質設定表示 */}
-          <div className="flex items-center justify-between text-maycast-text-secondary text-sm mb-2 px-1">
-            <div className="flex items-center gap-2">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-              </svg>
-              <select
-                value={settings.videoDeviceId || ''}
-                onChange={(e) => handleDeviceChange({ ...settings, videoDeviceId: e.target.value || undefined })}
-                disabled={isRecording}
-                className="bg-transparent text-maycast-text-secondary text-sm border-none outline-none cursor-pointer hover:text-maycast-text disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <option value="" className="bg-maycast-bg text-maycast-text">Default</option>
-                {videoDevices.map(device => (
-                  <option key={device.deviceId} value={device.deviceId} className="bg-maycast-bg text-maycast-text">
-                    {device.label || `Camera ${device.deviceId.slice(0, 8)}`}
-                  </option>
-                ))}
-              </select>
-            </div>
-            {/* 画質設定表示 */}
-            <div className="flex items-center gap-3 text-xs">
-              <span className="px-2 py-1 bg-maycast-bg-secondary rounded">
-                {STABLE_QUALITY_CONFIG.width}x{STABLE_QUALITY_CONFIG.height}
-              </span>
-              <span className="px-2 py-1 bg-maycast-bg-secondary rounded">
-                {(STABLE_QUALITY_CONFIG.bitrate / 1_000_000).toFixed(1)} Mbps
-              </span>
-              <span className="px-2 py-1 bg-maycast-bg-secondary rounded">
-                {STABLE_QUALITY_CONFIG.framerate} fps
-              </span>
-            </div>
-          </div>
-          <VideoPreview
-            videoRef={videoRef}
-            isRecording={isRecording}
-            elapsedTime={formatElapsedTime(elapsedTime)}
-          />
-        </div>
-
         {/* マイク波形表示 */}
-        <div className="mb-6 px-4 py-4 bg-maycast-bg-secondary/50 rounded-xl border border-maycast-border/30">
+        <div className="mt-6 mb-6 px-4 py-4 bg-maycast-bg-secondary/50 rounded-xl border border-maycast-border/30">
           <div className="flex items-center gap-2 text-maycast-text-secondary text-sm mb-3">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
@@ -385,6 +319,15 @@ export const Recorder: React.FC<RecorderProps> = ({
               ))}
             </select>
           </div>
+          {isRecording && (
+            <div className="flex items-center gap-2 mb-3 px-3 py-2 bg-maycast-rec/20 backdrop-blur-sm rounded-full border border-maycast-rec/30 w-fit">
+              <div className="relative">
+                <div className="w-2 h-2 bg-maycast-rec rounded-full animate-pulse" />
+                <div className="absolute inset-0 w-2 h-2 bg-maycast-rec rounded-full animate-ping opacity-75" />
+              </div>
+              <span className="text-maycast-rec/80 font-semibold text-sm">{formatElapsedTime(elapsedTime)}</span>
+            </div>
+          )}
           <AudioWaveform
             stream={stream}
             width={500}

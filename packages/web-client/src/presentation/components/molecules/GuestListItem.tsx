@@ -2,7 +2,7 @@
  * GuestListItem - ゲスト一覧の1行表示
  */
 
-import { VideoCameraIcon, VideoCameraSlashIcon, MicrophoneIcon } from '@heroicons/react/24/solid';
+import { MicrophoneIcon } from '@heroicons/react/24/solid';
 import type { GuestInfo } from '@maycast/common-types';
 import { GuestSyncBadge } from '../atoms/GuestSyncBadge';
 import { WaveformDisplay } from '../atoms/WaveformDisplay';
@@ -70,21 +70,6 @@ export const GuestListItem: React.FC<GuestListItemProps> = ({ guest, waveformDat
           {/* メディアステータスアイコン */}
           {mediaStatus && (
             <div className="flex items-center gap-2">
-              {/* カメラ状態 */}
-              <div
-                className={`p-1 rounded ${
-                  mediaStatus.isCameraActive
-                    ? 'bg-maycast-safe/20 text-maycast-safe'
-                    : 'bg-gray-500/20 text-gray-400'
-                }`}
-                title={mediaStatus.isCameraActive ? 'Camera ON' : 'Camera OFF'}
-              >
-                {mediaStatus.isCameraActive ? (
-                  <VideoCameraIcon className="w-4 h-4" />
-                ) : (
-                  <VideoCameraSlashIcon className="w-4 h-4" />
-                )}
-              </div>
               {/* マイク状態 */}
               <div
                 className={`p-1 rounded relative ${
@@ -130,22 +115,13 @@ export const GuestListItem: React.FC<GuestListItemProps> = ({ guest, waveformDat
       )}
 
       {/* 下段: デバイス情報 */}
-      {mediaStatus && (mediaStatus.cameraDevice || mediaStatus.micDevice) && (
+      {mediaStatus && mediaStatus.micDevice && (
         <div className="mt-2 pt-2 border-t border-maycast-border/20 space-y-1">
-          {/* カメラデバイス */}
-          {mediaStatus.cameraDevice && (
-            <div className="flex items-center gap-2 text-xs text-maycast-text-secondary">
-              <VideoCameraIcon className="w-3 h-3 flex-shrink-0" />
-              <span>{mediaStatus.cameraDevice.label}</span>
-            </div>
-          )}
           {/* マイクデバイス */}
-          {mediaStatus.micDevice && (
-            <div className="flex items-center gap-2 text-xs text-maycast-text-secondary">
-              <MicrophoneIcon className="w-3 h-3 flex-shrink-0" />
-              <span>{mediaStatus.micDevice.label}</span>
-            </div>
-          )}
+          <div className="flex items-center gap-2 text-xs text-maycast-text-secondary">
+            <MicrophoneIcon className="w-3 h-3 flex-shrink-0" />
+            <span>{mediaStatus.micDevice.label}</span>
+          </div>
         </div>
       )}
     </div>

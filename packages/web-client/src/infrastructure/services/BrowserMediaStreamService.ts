@@ -1,7 +1,7 @@
 import type {
   IMediaStreamService,
   ScreenCaptureOptions,
-  CameraCaptureOptions,
+  MicCaptureOptions,
 } from '../../domain/services/IMediaStreamService';
 
 /**
@@ -26,7 +26,6 @@ export class BrowserMediaStreamService implements IMediaStreamService {
       const mediaStream = await navigator.mediaDevices.getDisplayMedia(displayMediaOptions);
 
       console.log('✅ Screen capture acquired:', {
-        videoTracks: mediaStream.getVideoTracks().length,
         audioTracks: mediaStream.getAudioTracks().length,
       });
 
@@ -39,25 +38,24 @@ export class BrowserMediaStreamService implements IMediaStreamService {
     }
   }
 
-  async captureCamera(options: CameraCaptureOptions): Promise<MediaStream> {
+  async captureMic(options: MicCaptureOptions): Promise<MediaStream> {
     try {
       const constraints: MediaStreamConstraints = {
-        video: options.video || true,
+        video: false,
         audio: options.audio || true,
       };
 
       const mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
 
-      console.log('✅ Camera capture acquired:', {
-        videoTracks: mediaStream.getVideoTracks().length,
+      console.log('✅ Mic capture acquired:', {
         audioTracks: mediaStream.getAudioTracks().length,
       });
 
       return mediaStream;
     } catch (error) {
-      console.error('❌ Failed to capture camera:', error);
+      console.error('❌ Failed to capture mic:', error);
       throw new Error(
-        `Camera capture failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+        `Mic capture failed: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
     }
   }

@@ -8,10 +8,9 @@ export interface ScreenCaptureOptions {
 }
 
 /**
- * カメラキャプチャオプション
+ * マイクキャプチャオプション
  */
-export interface CameraCaptureOptions {
-  video?: boolean | MediaTrackConstraints;
+export interface MicCaptureOptions {
   audio?: boolean | MediaTrackConstraints;
 }
 
@@ -28,9 +27,9 @@ export interface IMediaStreamService {
   captureScreen(options: ScreenCaptureOptions): Promise<MediaStream>;
 
   /**
-   * カメラ/マイクのMediaStreamを取得
+   * マイクのMediaStreamを取得
    */
-  captureCamera(options: CameraCaptureOptions): Promise<MediaStream>;
+  captureMic(options: MicCaptureOptions): Promise<MediaStream>;
 
   /**
    * MediaStreamを停止

@@ -5,7 +5,7 @@
  * 次回のDirector URL案内と直近の録画リストを表示する。
  */
 
-import { CheckCircleIcon, ArrowDownTrayIcon, VideoCameraIcon } from '@heroicons/react/24/solid';
+import { CheckCircleIcon, ArrowDownTrayIcon, MicrophoneIcon } from '@heroicons/react/24/solid';
 import type { Recording, RecordingId } from '@maycast/common-types';
 import type { DownloadProgress } from '../../hooks/useDownload';
 
@@ -87,7 +87,7 @@ export const GuestCompletePage: React.FC<GuestCompletePageProps> = ({
                       className="flex items-center gap-3 p-3 bg-maycast-bg/50 rounded-xl border border-maycast-border/30"
                     >
                       <div className="shrink-0">
-                        <VideoCameraIcon className="w-5 h-5 text-maycast-primary/60" />
+                        <MicrophoneIcon className="w-5 h-5 text-maycast-primary/60" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium text-maycast-text truncate">

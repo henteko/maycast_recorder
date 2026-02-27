@@ -1,4 +1,4 @@
-import { VideoCameraIcon } from '@heroicons/react/24/solid'
+import { MicrophoneIcon } from '@heroicons/react/24/solid'
 
 interface RecordingIndicatorProps {
   elapsedTime: string
@@ -12,7 +12,7 @@ export const RecordingIndicator = ({ elapsedTime }: RecordingIndicatorProps) => 
           <div className="w-3 h-3 bg-white rounded-full animate-pulse" />
           <div className="absolute inset-0 w-3 h-3 bg-white rounded-full animate-ping opacity-75" />
         </div>
-        <VideoCameraIcon className="w-5 h-5 text-white" />
+        <MicrophoneIcon className="w-5 h-5 text-white" />
         <span className="text-base font-bold tracking-wider text-white">REC</span>
       </div>
       <div className="bg-black/70 backdrop-blur-md px-7 py-3 rounded-2xl shadow-2xl border border-white/30">

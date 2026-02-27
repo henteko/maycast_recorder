@@ -8,15 +8,15 @@
 /// Configuration for the muxer
 #[derive(Debug, Clone)]
 pub struct MuxideConfig {
-    // Video settings
-    pub video_width: u32,
-    pub video_height: u32,
-    pub video_timescale: u32,
+    // Video settings (optional - None for audio-only mode)
+    pub video_width: Option<u32>,
+    pub video_height: Option<u32>,
+    pub video_timescale: Option<u32>,
     pub fragment_duration_ms: u32,
     /// SPS NAL unit (without start code, required for H.264)
-    pub sps: Vec<u8>,
+    pub sps: Option<Vec<u8>>,
     /// PPS NAL unit (without start code, required for H.264)
-    pub pps: Vec<u8>,
+    pub pps: Option<Vec<u8>>,
 
     // Audio settings (optional)
     pub audio_sample_rate: Option<u32>,
@@ -26,15 +26,35 @@ pub struct MuxideConfig {
     pub audio_specific_config: Option<Vec<u8>>,
 }
 
+impl MuxideConfig {
+    /// Returns true if video track is configured
+    pub fn has_video(&self) -> bool {
+        self.sps.as_ref().is_some_and(|s| !s.is_empty())
+            && self.pps.as_ref().is_some_and(|p| !p.is_empty())
+            && self.video_width.is_some()
+            && self.video_height.is_some()
+    }
+
+    /// Returns true if audio track is configured
+    pub fn has_audio(&self) -> bool {
+        self.audio_sample_rate.is_some() && self.audio_channels.is_some()
+    }
+
+    /// Get video timescale, defaulting to 90000
+    pub fn video_timescale_or_default(&self) -> u32 {
+        self.video_timescale.unwrap_or(90000)
+    }
+}
+
 impl Default for MuxideConfig {
     fn default() -> Self {
         Self {
-            video_width: 1280,
-            video_height: 720,
-            video_timescale: 90000, // Standard video timescale
+            video_width: Some(1280),
+            video_height: Some(720),
+            video_timescale: Some(90000), // Standard video timescale
             fragment_duration_ms: 2000,
-            sps: Vec::new(),
-            pps: Vec::new(),
+            sps: Some(Vec::new()),
+            pps: Some(Vec::new()),
             audio_sample_rate: None,
             audio_channels: None,
             audio_timescale: None,
@@ -110,7 +130,12 @@ impl MuxideMuxerState {
 
     /// Check if audio is enabled
     pub fn has_audio(&self) -> bool {
-        self.config.audio_sample_rate.is_some() && self.config.audio_channels.is_some()
+        self.config.has_audio()
+    }
+
+    /// Check if video is enabled
+    pub fn has_video(&self) -> bool {
+        self.config.has_video()
     }
 
     /// Initialize the muxer and generate fMP4 header (ftyp + moov)
@@ -119,11 +144,22 @@ impl MuxideMuxerState {
             return Err("Muxer already initialized".to_string());
         }
 
-        if self.config.sps.is_empty() || self.config.pps.is_empty() {
-            return Err("SPS and PPS are required for initialization".to_string());
+        let has_video = self.config.has_video();
+        let has_audio = self.config.has_audio();
+
+        if !has_video && !has_audio {
+            return Err("At least one track (video or audio) must be configured".to_string());
         }
 
-        // Build init segment with video and optionally audio
+        if has_video {
+            let sps = self.config.sps.as_ref().unwrap();
+            let pps = self.config.pps.as_ref().unwrap();
+            if sps.is_empty() || pps.is_empty() {
+                return Err("SPS and PPS are required for video initialization".to_string());
+            }
+        }
+
+        // Build init segment with video and/or audio
         self.init_segment = build_init_segment(&self.config);
         self.initialized = true;
 
@@ -154,8 +190,13 @@ impl MuxideMuxerState {
             return Err("Muxer not initialized".to_string());
         }
 
+        if !self.has_video() {
+            return Err("Video not supported in audio-only mode".to_string());
+        }
+
         // Convert timestamp from microseconds to timescale units
-        let pts = (timestamp * self.config.video_timescale as u64) / 1_000_000;
+        let video_timescale = self.config.video_timescale_or_default();
+        let pts = (timestamp * video_timescale as u64) / 1_000_000;
         let dts = pts; // No B-frames, so PTS == DTS
 
         self.video_samples.push(VideoSample {
@@ -211,22 +252,48 @@ impl MuxideMuxerState {
         });
         self.audio_frame_count += 1;
 
+        // In audio-only mode, audio drives segment flushing
+        if !self.has_video() {
+            self.check_and_flush_segments();
+        }
+
         Ok(())
     }
 
-    /// Check if we should flush segments based on video duration
+    /// Check if we should flush segments based on video or audio duration
     fn check_and_flush_segments(&mut self) {
-        if self.video_samples.len() < 2 {
-            return;
-        }
+        if self.has_video() {
+            // Video-based flush: check video sample duration
+            if self.video_samples.len() < 2 {
+                return;
+            }
 
-        let first_dts = self.video_samples[0].dts;
-        let last_dts = self.video_samples.last().unwrap().dts;
-        let duration_ticks = last_dts - first_dts;
-        let duration_ms = duration_ticks * 1000 / self.config.video_timescale as u64;
+            let first_dts = self.video_samples[0].dts;
+            let last_dts = self.video_samples.last().unwrap().dts;
+            let duration_ticks = last_dts - first_dts;
+            let video_timescale = self.config.video_timescale_or_default();
+            let duration_ms = duration_ticks * 1000 / video_timescale as u64;
 
-        if duration_ms >= self.config.fragment_duration_ms as u64 {
-            self.flush_segments();
+            if duration_ms >= self.config.fragment_duration_ms as u64 {
+                self.flush_segments();
+            }
+        } else {
+            // Audio-only flush: check accumulated audio duration
+            if self.audio_samples.len() < 2 {
+                return;
+            }
+
+            let audio_timescale = self
+                .config
+                .audio_timescale
+                .unwrap_or(self.config.audio_sample_rate.unwrap_or(48000));
+            let total_duration_ticks: u64 =
+                self.audio_samples.iter().map(|s| s.duration as u64).sum();
+            let duration_ms = total_duration_ticks * 1000 / audio_timescale as u64;
+
+            if duration_ms >= self.config.fragment_duration_ms as u64 {
+                self.flush_segments();
+            }
         }
     }
 
@@ -257,32 +324,54 @@ impl MuxideMuxerState {
 
     /// Flush all pending samples into a media segment
     fn flush_segments(&mut self) {
-        if self.video_samples.is_empty() {
-            return;
+        if self.has_video() {
+            // Video (+ optional audio) mode
+            if self.video_samples.is_empty() {
+                return;
+            }
+
+            let segment = build_media_segment_av(
+                &self.video_samples,
+                &self.audio_samples,
+                self.video_sequence_number,
+                self.video_base_media_decode_time,
+                self.audio_base_media_decode_time,
+                &self.config,
+            );
+
+            // Update state for next segment using cumulative duration.
+            self.video_sequence_number += 1;
+            let video_total_duration =
+                Self::calculate_video_trun_total_duration(&self.video_samples);
+            self.video_base_media_decode_time += video_total_duration;
+
+            let audio_total_duration =
+                Self::calculate_audio_trun_total_duration(&self.audio_samples);
+            self.audio_base_media_decode_time += audio_total_duration;
+
+            self.video_samples.clear();
+            self.audio_samples.clear();
+            self.pending_segments.push(segment);
+        } else {
+            // Audio-only mode
+            if self.audio_samples.is_empty() {
+                return;
+            }
+
+            let segment = build_media_segment_audio_only(
+                &self.audio_samples,
+                self.audio_sequence_number,
+                self.audio_base_media_decode_time,
+            );
+
+            self.audio_sequence_number += 1;
+            let audio_total_duration =
+                Self::calculate_audio_trun_total_duration(&self.audio_samples);
+            self.audio_base_media_decode_time += audio_total_duration;
+
+            self.audio_samples.clear();
+            self.pending_segments.push(segment);
         }
-
-        let segment = build_media_segment_av(
-            &self.video_samples,
-            &self.audio_samples,
-            self.video_sequence_number,
-            self.video_base_media_decode_time,
-            self.audio_base_media_decode_time,
-            &self.config,
-        );
-
-        // Update state for next segment using cumulative duration.
-        // This guarantees: segment[N].tfdt + sum(segment[N].trun_durations) == segment[N+1].tfdt
-        // No rounding error accumulates across segments.
-        self.video_sequence_number += 1;
-        let video_total_duration = Self::calculate_video_trun_total_duration(&self.video_samples);
-        self.video_base_media_decode_time += video_total_duration;
-
-        let audio_total_duration = Self::calculate_audio_trun_total_duration(&self.audio_samples);
-        self.audio_base_media_decode_time += audio_total_duration;
-
-        self.video_samples.clear();
-        self.audio_samples.clear();
-        self.pending_segments.push(segment);
     }
 
     /// Force flush the current segment even if it hasn't reached the target duration
@@ -519,28 +608,48 @@ fn build_ftyp() -> Vec<u8> {
     build_box(b"ftyp", &payload)
 }
 
-/// Build moov box with video and optionally audio tracks
+/// Build moov box with video and/or audio tracks
 fn build_moov(config: &MuxideConfig) -> Vec<u8> {
     let mut payload = Vec::new();
 
-    let has_audio = config.audio_sample_rate.is_some() && config.audio_channels.is_some();
-    let next_track_id = if has_audio { 3 } else { 2 };
+    let has_video = config.has_video();
+    let has_audio = config.has_audio();
 
-    // mvhd (movie header)
-    let mvhd = build_mvhd(config.video_timescale, next_track_id);
+    let mut track_count: u32 = 0;
+    if has_video {
+        track_count += 1;
+    }
+    if has_audio {
+        track_count += 1;
+    }
+    let next_track_id = track_count + 1;
+
+    // mvhd (movie header) - use video timescale if available, else audio timescale
+    let timescale = if has_video {
+        config.video_timescale_or_default()
+    } else {
+        config
+            .audio_timescale
+            .unwrap_or(config.audio_sample_rate.unwrap_or(48000))
+    };
+    let mvhd = build_mvhd(timescale, next_track_id);
     payload.extend_from_slice(&mvhd);
 
     // mvex (movie extends) - required for fMP4
-    let mvex = build_mvex(has_audio);
+    let mvex = build_mvex(has_video, has_audio);
     payload.extend_from_slice(&mvex);
 
-    // Video trak (track_id = 1)
-    let video_trak = build_video_trak(config);
-    payload.extend_from_slice(&video_trak);
+    // Video trak (track_id = 1) if configured
+    if has_video {
+        let video_trak = build_video_trak(config);
+        payload.extend_from_slice(&video_trak);
+    }
 
-    // Audio trak (track_id = 2) if configured
+    // Audio trak if configured
+    // track_id = 2 when video present, track_id = 1 when audio-only
     if has_audio {
-        let audio_trak = build_audio_trak(config);
+        let audio_track_id = if has_video { 2 } else { 1 };
+        let audio_trak = build_audio_trak(config, audio_track_id);
         payload.extend_from_slice(&audio_trak);
     }
 
@@ -570,16 +679,19 @@ fn build_mvhd(timescale: u32, next_track_id: u32) -> Vec<u8> {
 }
 
 /// Build mvex (movie extends) box with trex for each track
-fn build_mvex(has_audio: bool) -> Vec<u8> {
+fn build_mvex(has_video: bool, has_audio: bool) -> Vec<u8> {
     let mut payload = Vec::new();
 
-    // Video trex (track_id = 1)
-    let video_trex = build_trex(1);
-    payload.extend_from_slice(&video_trex);
+    if has_video {
+        // Video trex (track_id = 1)
+        let video_trex = build_trex(1);
+        payload.extend_from_slice(&video_trex);
+    }
 
-    // Audio trex (track_id = 2) if configured
     if has_audio {
-        let audio_trex = build_trex(2);
+        // Audio trex: track_id = 2 when video present, 1 when audio-only
+        let audio_track_id = if has_video { 2 } else { 1 };
+        let audio_trex = build_trex(audio_track_id);
         payload.extend_from_slice(&audio_trex);
     }
 
@@ -615,6 +727,9 @@ fn build_video_trak(config: &MuxideConfig) -> Vec<u8> {
 
 /// Build video tkhd (track header) box
 fn build_video_tkhd(config: &MuxideConfig) -> Vec<u8> {
+    let video_width = config.video_width.unwrap_or(1280);
+    let video_height = config.video_height.unwrap_or(720);
+
     let mut payload = Vec::new();
     payload.extend_from_slice(&0x0000_0003_u32.to_be_bytes()); // Version 0, flags: enabled + in_movie
     payload.extend_from_slice(&0u32.to_be_bytes()); // Creation time
@@ -634,8 +749,8 @@ fn build_video_tkhd(config: &MuxideConfig) -> Vec<u8> {
     payload.extend_from_slice(&[0u8; 12]);
     payload.extend_from_slice(&0x4000_0000_u32.to_be_bytes());
     // Width and height in 16.16 fixed-point
-    payload.extend_from_slice(&((config.video_width) << 16).to_be_bytes());
-    payload.extend_from_slice(&((config.video_height) << 16).to_be_bytes());
+    payload.extend_from_slice(&(video_width << 16).to_be_bytes());
+    payload.extend_from_slice(&(video_height << 16).to_be_bytes());
     build_box(b"tkhd", &payload)
 }
 
@@ -644,7 +759,7 @@ fn build_video_mdia(config: &MuxideConfig) -> Vec<u8> {
     let mut payload = Vec::new();
 
     // mdhd (media header)
-    let mdhd = build_mdhd(config.video_timescale);
+    let mdhd = build_mdhd(config.video_timescale_or_default());
     payload.extend_from_slice(&mdhd);
 
     // hdlr (handler) - video
@@ -770,14 +885,17 @@ fn build_video_stsd(config: &MuxideConfig) -> Vec<u8> {
 
 /// Build avc1 (H.264 sample entry) box
 fn build_avc1(config: &MuxideConfig) -> Vec<u8> {
+    let video_width = config.video_width.unwrap_or(1280);
+    let video_height = config.video_height.unwrap_or(720);
+
     let mut payload = Vec::new();
     payload.extend_from_slice(&[0u8; 6]); // Reserved
     payload.extend_from_slice(&1u16.to_be_bytes()); // Data reference index
     payload.extend_from_slice(&0u16.to_be_bytes()); // Pre-defined
     payload.extend_from_slice(&0u16.to_be_bytes()); // Reserved
     payload.extend_from_slice(&[0u8; 12]); // Pre-defined
-    payload.extend_from_slice(&(config.video_width as u16).to_be_bytes());
-    payload.extend_from_slice(&(config.video_height as u16).to_be_bytes());
+    payload.extend_from_slice(&(video_width as u16).to_be_bytes());
+    payload.extend_from_slice(&(video_height as u16).to_be_bytes());
     payload.extend_from_slice(&0x0048_0000_u32.to_be_bytes()); // Horizontal resolution (72 dpi)
     payload.extend_from_slice(&0x0048_0000_u32.to_be_bytes()); // Vertical resolution (72 dpi)
     payload.extend_from_slice(&0u32.to_be_bytes()); // Reserved
@@ -795,19 +913,22 @@ fn build_avc1(config: &MuxideConfig) -> Vec<u8> {
 
 /// Build avcC (AVC Configuration) box
 fn build_avcc(config: &MuxideConfig) -> Vec<u8> {
+    let sps = config.sps.as_deref().unwrap_or(&[]);
+    let pps = config.pps.as_deref().unwrap_or(&[]);
+
     let mut payload = vec![
-        1,                                          // Configuration version
-        config.sps.get(1).copied().unwrap_or(0x42), // Profile
-        config.sps.get(2).copied().unwrap_or(0x00), // Profile compatibility
-        config.sps.get(3).copied().unwrap_or(0x1e), // Level
+        1,                                   // Configuration version
+        sps.get(1).copied().unwrap_or(0x42), // Profile
+        sps.get(2).copied().unwrap_or(0x00), // Profile compatibility
+        sps.get(3).copied().unwrap_or(0x1e), // Level
         0xff, // 6 bits reserved + 2 bits NAL unit length - 1 (3 = 4 bytes)
         0xe1, // 3 bits reserved + 5 bits number of SPS
     ];
-    payload.extend_from_slice(&(config.sps.len() as u16).to_be_bytes());
-    payload.extend_from_slice(&config.sps);
+    payload.extend_from_slice(&(sps.len() as u16).to_be_bytes());
+    payload.extend_from_slice(sps);
     payload.push(1); // Number of PPS
-    payload.extend_from_slice(&(config.pps.len() as u16).to_be_bytes());
-    payload.extend_from_slice(&config.pps);
+    payload.extend_from_slice(&(pps.len() as u16).to_be_bytes());
+    payload.extend_from_slice(pps);
     build_box(b"avcC", &payload)
 }
 
@@ -849,11 +970,11 @@ fn build_empty_stco() -> Vec<u8> {
 // ============================================================================
 
 /// Build audio trak box
-fn build_audio_trak(config: &MuxideConfig) -> Vec<u8> {
+fn build_audio_trak(config: &MuxideConfig, track_id: u32) -> Vec<u8> {
     let mut payload = Vec::new();
 
     // tkhd (track header)
-    let tkhd = build_audio_tkhd();
+    let tkhd = build_audio_tkhd(track_id);
     payload.extend_from_slice(&tkhd);
 
     // mdia (media)
@@ -864,12 +985,12 @@ fn build_audio_trak(config: &MuxideConfig) -> Vec<u8> {
 }
 
 /// Build audio tkhd (track header) box
-fn build_audio_tkhd() -> Vec<u8> {
+fn build_audio_tkhd(track_id: u32) -> Vec<u8> {
     let mut payload = Vec::new();
     payload.extend_from_slice(&0x0000_0003_u32.to_be_bytes()); // Version 0, flags: enabled + in_movie
     payload.extend_from_slice(&0u32.to_be_bytes()); // Creation time
     payload.extend_from_slice(&0u32.to_be_bytes()); // Modification time
-    payload.extend_from_slice(&2u32.to_be_bytes()); // Track ID = 2 (audio)
+    payload.extend_from_slice(&track_id.to_be_bytes()); // Track ID
     payload.extend_from_slice(&0u32.to_be_bytes()); // Reserved
     payload.extend_from_slice(&0u32.to_be_bytes()); // Duration
     payload.extend_from_slice(&[0u8; 8]); // Reserved
@@ -1101,6 +1222,73 @@ fn build_audio_specific_config(sample_rate: u32, channels: u16) -> Vec<u8> {
 // Media Segment Building Functions (moof + mdat)
 // ============================================================================
 
+/// Build media segment with audio only (no video track)
+fn build_media_segment_audio_only(
+    audio_samples: &[AudioSample],
+    sequence_number: u32,
+    audio_base_decode_time: u64,
+) -> Vec<u8> {
+    let audio_data_size: usize = audio_samples.iter().map(|s| s.data.len()).sum();
+    let mdat_payload_size = audio_data_size;
+
+    // Build moof to get its size (with placeholder offset)
+    let moof_placeholder = build_moof_audio_only(
+        audio_samples,
+        sequence_number,
+        audio_base_decode_time,
+        0, // placeholder offset
+    );
+    let moof_size = moof_placeholder.len() as u32;
+
+    // Audio data starts after moof + mdat header (8 bytes)
+    let audio_data_offset = moof_size + 8;
+
+    // Rebuild moof with correct offset
+    let moof = build_moof_audio_only(
+        audio_samples,
+        sequence_number,
+        audio_base_decode_time,
+        audio_data_offset,
+    );
+
+    // Build complete segment
+    let mut segment = Vec::with_capacity(moof.len() + 8 + mdat_payload_size);
+    segment.extend_from_slice(&moof);
+
+    // mdat header
+    let mdat_size = (8 + mdat_payload_size) as u32;
+    segment.extend_from_slice(&mdat_size.to_be_bytes());
+    segment.extend_from_slice(b"mdat");
+
+    // mdat payload: audio samples only
+    for sample in audio_samples {
+        segment.extend_from_slice(&sample.data);
+    }
+
+    segment
+}
+
+/// Build moof box for audio-only mode (track_id = 1)
+fn build_moof_audio_only(
+    audio_samples: &[AudioSample],
+    sequence_number: u32,
+    audio_base_decode_time: u64,
+    audio_data_offset: u32,
+) -> Vec<u8> {
+    let mut payload = Vec::new();
+
+    // mfhd (movie fragment header)
+    let mfhd = build_mfhd(sequence_number);
+    payload.extend_from_slice(&mfhd);
+
+    // Audio traf (track_id = 1 in audio-only mode)
+    let audio_traf =
+        build_audio_traf_with_track_id(audio_samples, audio_base_decode_time, audio_data_offset, 1);
+    payload.extend_from_slice(&audio_traf);
+
+    build_box(b"moof", &payload)
+}
+
 /// Build media segment with video and audio
 fn build_media_segment_av(
     video_samples: &[VideoSample],
@@ -1110,9 +1298,7 @@ fn build_media_segment_av(
     audio_base_decode_time: u64,
     config: &MuxideConfig,
 ) -> Vec<u8> {
-    let has_audio = config.audio_sample_rate.is_some()
-        && config.audio_channels.is_some()
-        && !audio_samples.is_empty();
+    let has_audio = config.has_audio() && !audio_samples.is_empty();
 
     // Calculate total mdat size
     let video_data_size: usize = video_samples.iter().map(|s| s.data.len()).sum();
@@ -1232,16 +1418,26 @@ fn build_video_traf(
     build_box(b"traf", &payload)
 }
 
-/// Build audio traf (track fragment) box
+/// Build audio traf (track fragment) box with track_id = 2 (video+audio mode)
 fn build_audio_traf(
     samples: &[AudioSample],
     base_media_decode_time: u64,
     data_offset: u32,
 ) -> Vec<u8> {
+    build_audio_traf_with_track_id(samples, base_media_decode_time, data_offset, 2)
+}
+
+/// Build audio traf (track fragment) box with configurable track_id
+fn build_audio_traf_with_track_id(
+    samples: &[AudioSample],
+    base_media_decode_time: u64,
+    data_offset: u32,
+    track_id: u32,
+) -> Vec<u8> {
     let mut payload = Vec::new();
 
     // tfhd (track fragment header)
-    let tfhd = build_tfhd(2); // track_id = 2
+    let tfhd = build_tfhd(track_id);
     payload.extend_from_slice(&tfhd);
 
     // tfdt (track fragment decode time)
@@ -1373,12 +1569,12 @@ mod tests {
         let (sps, pps) = create_test_sps_pps();
 
         let config = MuxideConfig {
-            video_width: 1280,
-            video_height: 720,
-            video_timescale: 90000,
+            video_width: Some(1280),
+            video_height: Some(720),
+            video_timescale: Some(90000),
             fragment_duration_ms: 2000,
-            sps,
-            pps,
+            sps: Some(sps),
+            pps: Some(pps),
             ..Default::default()
         };
 
@@ -1426,12 +1622,12 @@ mod tests {
         let (sps, pps) = create_test_sps_pps();
 
         let config = MuxideConfig {
-            video_width: 1280,
-            video_height: 720,
-            video_timescale: 90000,
+            video_width: Some(1280),
+            video_height: Some(720),
+            video_timescale: Some(90000),
             fragment_duration_ms: 2000,
-            sps,
-            pps,
+            sps: Some(sps),
+            pps: Some(pps),
             audio_sample_rate: Some(48000),
             audio_channels: Some(2),
             audio_timescale: Some(48000),
@@ -1520,12 +1716,12 @@ mod tests {
         let (sps, pps) = create_test_sps_pps();
 
         let config = MuxideConfig {
-            video_width: 1280,
-            video_height: 720,
-            video_timescale: 90000,
+            video_width: Some(1280),
+            video_height: Some(720),
+            video_timescale: Some(90000),
             fragment_duration_ms: 2000,
-            sps,
-            pps,
+            sps: Some(sps),
+            pps: Some(pps),
             audio_sample_rate: None, // Audio not configured
             audio_channels: None,
             ..Default::default()
@@ -1539,6 +1735,98 @@ mod tests {
         let result = muxer.push_audio_chunk(&[0x00], 0, 1024);
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("Audio not configured"));
+    }
+
+    #[test]
+    fn test_muxide_muxer_audio_only() {
+        let config = MuxideConfig {
+            video_width: None,
+            video_height: None,
+            video_timescale: None,
+            fragment_duration_ms: 2000,
+            sps: None,
+            pps: None,
+            audio_sample_rate: Some(48000),
+            audio_channels: Some(2),
+            audio_timescale: Some(48000),
+            audio_specific_config: None, // Will be auto-generated
+        };
+
+        let mut muxer = MuxideMuxerState::new(config);
+        assert!(muxer.has_audio());
+        assert!(!muxer.has_video());
+        muxer.init().unwrap();
+
+        // Get init segment
+        let init_segment = muxer.get_init_segment().unwrap();
+        assert!(!init_segment.is_empty());
+        assert_eq!(&init_segment[4..8], b"ftyp");
+
+        // Verify init segment contains audio track (mp4a box) but no video (avc1)
+        assert!(
+            init_segment.windows(4).any(|w| w == b"mp4a"),
+            "Init segment should contain mp4a box"
+        );
+        assert!(
+            !init_segment.windows(4).any(|w| w == b"avc1"),
+            "Init segment should NOT contain avc1 box in audio-only mode"
+        );
+
+        // push_video should fail in audio-only mode
+        let nal_data = vec![0x65, 0x00, 0x00, 0x00];
+        let mut avcc_data = Vec::new();
+        avcc_data.extend_from_slice(&(nal_data.len() as u32).to_be_bytes());
+        avcc_data.extend_from_slice(&nal_data);
+        let video_result = muxer.push_video_chunk(&avcc_data, 0, true);
+        assert!(video_result.is_err());
+        assert!(video_result
+            .unwrap_err()
+            .contains("Video not supported in audio-only mode"));
+
+        // Push audio frames (~2 seconds worth to trigger a flush)
+        for i in 0..100 {
+            let audio_timestamp = (i as u64) * 21333; // 1024 samples @ 48kHz
+            let audio_data = vec![0x21, 0x10, 0x04, 0x60, 0x8c, 0x1c, 0x00, 0x00];
+            let duration = 21333u32; // ~21.33ms in microseconds
+            muxer
+                .push_audio_chunk(&audio_data, audio_timestamp, duration)
+                .unwrap();
+        }
+
+        // Get complete file
+        let complete_file = muxer.get_complete_file().unwrap();
+
+        // Write to file for manual inspection
+        let output_path = "/tmp/test_muxide_audio_only.mp4";
+        let mut file = File::create(output_path).unwrap();
+        file.write_all(&complete_file).unwrap();
+
+        assert!(complete_file.len() > init_segment.len());
+        assert_eq!(muxer.video_frame_count, 0);
+        assert!(muxer.audio_frame_count > 0);
+    }
+
+    #[test]
+    fn test_no_tracks_configured_error() {
+        let config = MuxideConfig {
+            video_width: None,
+            video_height: None,
+            video_timescale: None,
+            fragment_duration_ms: 2000,
+            sps: None,
+            pps: None,
+            audio_sample_rate: None,
+            audio_channels: None,
+            audio_timescale: None,
+            audio_specific_config: None,
+        };
+
+        let mut muxer = MuxideMuxerState::new(config);
+        let result = muxer.init();
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .contains("At least one track (video or audio) must be configured"));
     }
 
     #[test]

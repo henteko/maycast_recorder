@@ -30,15 +30,6 @@ export interface RecordingMetadata {
     screenResolution: string;
   };
 
-  /** Video configuration */
-  videoConfig?: {
-    codec: string;
-    width: number;
-    height: number;
-    frameRate: number;
-    bitrate: number;
-  };
-
   /** Audio configuration */
   audioConfig?: {
     codec: string;

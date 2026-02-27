@@ -4,19 +4,7 @@ import type { IMediaStreamService } from '../../domain/services/IMediaStreamServ
 import { ErrorHandler } from '../../shared/errors';
 
 export interface MediaStreamOptions {
-  videoDeviceId?: string;
   audioDeviceId?: string;
-  width?: number;
-  height?: number;
-  frameRate?: number;
-}
-
-export interface VideoCapabilities {
-  maxWidth: number;
-  maxHeight: number;
-  maxFrameRate: number;
-  supports4K: boolean;
-  supports1080p: boolean;
 }
 
 interface UseMediaStreamResult {
@@ -26,14 +14,13 @@ interface UseMediaStreamResult {
   restartCapture: (options?: MediaStreamOptions) => Promise<MediaStream | null>;
   stopCapture: () => void;
   isCapturing: boolean;
-  videoCapabilities: VideoCapabilities | null;
 }
 
 /**
- * useMediaStream Hook (Refactored)
+ * useMediaStream Hook
  *
  * BrowserMediaStreamServiceを使用してメディアストリームを管理
- * カメラ/マイクのキャプチャに使用
+ * マイクのキャプチャに使用
  */
 export const useMediaStream = (): UseMediaStreamResult => {
   const di = useDI();
@@ -42,7 +29,6 @@ export const useMediaStream = (): UseMediaStreamResult => {
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
-  const [videoCapabilities, setVideoCapabilities] = useState<VideoCapabilities | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
   const startCapture = useCallback(
@@ -50,21 +36,10 @@ export const useMediaStream = (): UseMediaStreamResult => {
       try {
         setError(null);
 
-        // 既存のストリームがあればそのまま返す（カメラ/マイクの再取得を避ける）
+        // 既存のストリームがあればそのまま返す（マイクの再取得を避ける）
         if (streamRef.current) {
-          console.log('📹 Reusing existing media stream');
+          console.log('🎤 Reusing existing media stream');
           return streamRef.current;
-        }
-
-        // Build constraints for camera capture
-        const videoConstraints: MediaTrackConstraints = {
-          width: { ideal: options?.width || 1280 },
-          height: { ideal: options?.height || 720 },
-          frameRate: { ideal: options?.frameRate || 30 },
-        };
-
-        if (options?.videoDeviceId) {
-          videoConstraints.deviceId = { exact: options.videoDeviceId };
         }
 
         const audioConstraints: MediaTrackConstraints = {
@@ -77,38 +52,14 @@ export const useMediaStream = (): UseMediaStreamResult => {
           audioConstraints.deviceId = { exact: options.audioDeviceId };
         }
 
-        // Use BrowserMediaStreamService to capture camera
-        const mediaStream = await mediaStreamService.captureCamera({
-          video: videoConstraints,
+        // Use BrowserMediaStreamService to capture mic
+        const mediaStream = await mediaStreamService.captureMic({
           audio: audioConstraints,
         });
 
         streamRef.current = mediaStream;
         setStream(mediaStream);
         setIsCapturing(true);
-
-        // ビデオトラックの capabilities を取得
-        const videoTrack = mediaStream.getVideoTracks()[0];
-        if (videoTrack && typeof videoTrack.getCapabilities === 'function') {
-          try {
-            const capabilities = videoTrack.getCapabilities();
-            const maxWidth = (capabilities.width as { max?: number })?.max || 0;
-            const maxHeight = (capabilities.height as { max?: number })?.max || 0;
-            const maxFrameRate = (capabilities.frameRate as { max?: number })?.max || 30;
-
-            const caps: VideoCapabilities = {
-              maxWidth,
-              maxHeight,
-              maxFrameRate,
-              supports4K: maxWidth >= 3840 && maxHeight >= 2160,
-              supports1080p: maxWidth >= 1920 && maxHeight >= 1080,
-            };
-            setVideoCapabilities(caps);
-            console.log('📹 Video capabilities:', caps);
-          } catch (err) {
-            console.warn('⚠️ Failed to get video capabilities:', err);
-          }
-        }
 
         return mediaStream;
       } catch (err) {
@@ -131,12 +82,12 @@ export const useMediaStream = (): UseMediaStreamResult => {
   }, [mediaStreamService]);
 
   // 既存のストリームを停止してから新しいストリームを取得する
-  // デバイス変更や画質変更時に使用
+  // デバイス変更時に使用
   const restartCapture = useCallback(
     async (options?: MediaStreamOptions) => {
       // 既存のストリームを停止
       if (streamRef.current) {
-        console.log('📹 Stopping existing stream for restart...');
+        console.log('🎤 Stopping existing stream for restart...');
         mediaStreamService.stopStream(streamRef.current);
         streamRef.current = null;
         setStream(null);
@@ -156,6 +107,5 @@ export const useMediaStream = (): UseMediaStreamResult => {
     restartCapture,
     stopCapture,
     isCapturing,
-    videoCapabilities,
   };
 };
