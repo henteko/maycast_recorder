@@ -1,13 +1,4 @@
 /**
- * 画面キャプチャオプション
- */
-export interface ScreenCaptureOptions {
-  video?: boolean | MediaTrackConstraints;
-  audio?: boolean | MediaTrackConstraints;
-  preferCurrentTab?: boolean;
-}
-
-/**
  * マイクキャプチャオプション
  */
 export interface MicCaptureOptions {
@@ -18,14 +9,9 @@ export interface MicCaptureOptions {
  * MediaStream Service Interface
  *
  * メディアストリーム取得を抽象化
- * 実装: BrowserMediaStreamService（getDisplayMedia, getUserMedia）
+ * 実装: BrowserMediaStreamService（getUserMedia）
  */
 export interface IMediaStreamService {
-  /**
-   * 画面共有のMediaStreamを取得
-   */
-  captureScreen(options: ScreenCaptureOptions): Promise<MediaStream>;
-
   /**
    * マイクのMediaStreamを取得
    */

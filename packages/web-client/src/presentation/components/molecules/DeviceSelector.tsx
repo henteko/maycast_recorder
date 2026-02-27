@@ -3,11 +3,11 @@ interface DeviceSelectorProps {
   value: string | undefined
   onChange: (value: string | undefined) => void
   devices: MediaDeviceInfo[]
-  deviceType: 'camera' | 'microphone'
+  deviceType: 'microphone'
 }
 
 export const DeviceSelector = ({ label, value, onChange, devices, deviceType }: DeviceSelectorProps) => {
-  const defaultLabel = deviceType === 'camera' ? 'Camera' : 'Microphone'
+  const defaultLabel = 'Microphone'
 
   return (
     <div className="mb-6">

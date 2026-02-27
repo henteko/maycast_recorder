@@ -274,7 +274,7 @@ export const RoomDetailPage: React.FC = () => {
               <>
                 <GuestUrlInput url={guestUrl} />
                 <p className="text-xs text-maycast-text-secondary mt-3">
-                  Share this URL with participants before starting the recording. Guests can join and set up their camera/microphone while waiting.
+                  Share this URL with participants before starting the recording. Guests can join and set up their microphone while waiting.
                 </p>
               </>
             ) : room.state === 'recording' ? (
