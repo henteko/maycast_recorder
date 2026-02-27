@@ -190,12 +190,18 @@ jobs:
           MINIO_ROOT_PASSWORD: minioadmin
         ports:
           - 9000:9000
-        options: >-
-          --health-cmd "bash -c 'echo > /dev/tcp/localhost/9000'"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
     steps:
+      - name: Wait for MinIO
+        run: |
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:9000/minio/health/live; then
+              echo "MinIO is ready"
+              break
+            fi
+            echo "Waiting for MinIO... ($i/30)"
+            sleep 2
+          done
+
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -223,4 +229,6 @@ jobs:
         working-directory: packages/server
         env:
           TEST_S3_ENDPOINT: http://localhost:9000
+          TEST_S3_ACCESS_KEY_ID: minioadmin
+          TEST_S3_SECRET_ACCESS_KEY: minioadmin
         run: npx vitest run --config vitest.config.s3.ts

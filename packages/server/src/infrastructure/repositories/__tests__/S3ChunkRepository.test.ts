@@ -5,10 +5,10 @@ import type { S3StorageConfig } from '../../config/storageConfig.js';
 
 const TEST_CONFIG: S3StorageConfig = {
   backend: 's3',
-  endpoint: process.env.TEST_S3_ENDPOINT || 'http://localhost:4577',
+  endpoint: process.env.TEST_S3_ENDPOINT || 'http://localhost:9100',
   bucket: 'maycast-recordings',
-  accessKeyId: 'test',
-  secretAccessKey: 'test',
+  accessKeyId: process.env.TEST_S3_ACCESS_KEY_ID || 'minioadmin',
+  secretAccessKey: process.env.TEST_S3_SECRET_ACCESS_KEY || 'minioadmin',
   region: 'us-east-1',
   forcePathStyle: true,
 };

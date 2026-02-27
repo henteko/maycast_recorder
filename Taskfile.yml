@@ -168,8 +168,18 @@ tasks:
   test:s3:up:
     desc: Start test MinIO container
     cmds:
-      - docker-compose -f docker-compose.test.yml up -d minio-test minio-test-init --wait
-      - echo "✅ Test MinIO started on port 9100"
+      - docker-compose -f docker-compose.test.yml up -d minio-test minio-test-init
+      - |
+        echo "Waiting for MinIO..."
+        for i in $(seq 1 30); do
+          if curl -sf http://localhost:9100/minio/health/live > /dev/null 2>&1; then
+            echo "✅ Test MinIO started on port 9100"
+            exit 0
+          fi
+          sleep 2
+        done
+        echo "❌ MinIO failed to start"
+        exit 1
 
   test:s3:down:
     desc: Stop test MinIO container
