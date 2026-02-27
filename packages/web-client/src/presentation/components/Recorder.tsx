@@ -1,4 +1,4 @@
-import { useState, useEffect, useImperativeHandle, useCallback } from 'react'
+import { useState, useEffect, useImperativeHandle, useCallback, useRef } from 'react'
 import { useMediaStream } from '../hooks/useMediaStream'
 import { useEncoders } from '../hooks/useEncoders'
 import { useRecorder } from '../hooks/useRecorder'
@@ -15,6 +15,8 @@ import type { IStorageStrategy } from '../../storage-strategies/IStorageStrategy
 
 import { ControlPanel } from './organisms/ControlPanel'
 import { AudioWaveform } from './atoms/AudioWaveform'
+import { VUMeter } from './atoms/VUMeter'
+import { RecordingStatsBar } from './molecules/RecordingStatsBar'
 
 import type { RecordingId } from '@maycast/common-types';
 
@@ -85,6 +87,7 @@ export const Recorder: React.FC<RecorderProps> = ({
   const {
     screenState,
     isRecording,
+    stats,
     savedChunks,
     recordingStartTime,
     recordingIdRef,
@@ -189,6 +192,32 @@ export const Recorder: React.FC<RecorderProps> = ({
     stopRecording,
   }), [screenState, recordingIdRef, savedChunks, isRecording, wasmInitialized, startRecording, stopRecording]);
 
+  // Studio Area: track container width for AudioWaveform
+  const studioRef = useRef<HTMLDivElement>(null);
+  const [canvasWidth, setCanvasWidth] = useState(500);
+
+  useEffect(() => {
+    if (!studioRef.current) return;
+    const observer = new ResizeObserver(entries => {
+      for (const entry of entries) {
+        setCanvasWidth(entry.contentBoxSize[0].inlineSize);
+      }
+    });
+    observer.observe(studioRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  const studioStyles = (() => {
+    switch (screenState) {
+      case 'recording':
+        return 'bg-maycast-panel border-maycast-rec/50 shadow-[0_0_30px_rgba(239,68,68,0.15)]';
+      case 'completed':
+        return 'bg-maycast-panel border-maycast-safe/50 shadow-[0_0_30px_rgba(16,185,129,0.15)]';
+      default:
+        return 'bg-maycast-panel border-maycast-border';
+    }
+  })();
+
   const formatElapsedTime = (seconds: number): string => {
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
@@ -278,35 +307,59 @@ export const Recorder: React.FC<RecorderProps> = ({
           </div>
         )}
 
-        {/* マイク波形表示 */}
-        <div className="mt-6 mb-6 px-4 py-4 bg-maycast-bg-secondary/50 rounded-xl border border-maycast-border/30">
-          <div className="flex items-center gap-2 text-maycast-text-secondary text-sm mb-3">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-            </svg>
-            <select
-              value={settings.audioDeviceId || ''}
-              onChange={(e) => handleDeviceChange({ ...settings, audioDeviceId: e.target.value || undefined })}
-              disabled={isRecording}
-              className="bg-transparent text-maycast-text-secondary text-sm border-none outline-none cursor-pointer hover:text-maycast-text disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <option value="" className="bg-maycast-bg text-maycast-text">Default</option>
-              {audioDevices.map(device => (
-                <option key={device.deviceId} value={device.deviceId} className="bg-maycast-bg text-maycast-text">
-                  {device.label || `Mic ${device.deviceId.slice(0, 8)}`}
-                </option>
-              ))}
-            </select>
+        {/* Studio Area */}
+        <div className={`mt-6 mx-auto w-full max-w-2xl p-6 rounded-2xl border shadow-xl transition-all duration-500 ${studioStyles}`}>
+          {/* Waveform Section */}
+          <div className="mb-4" ref={studioRef}>
+            <div className="flex items-center gap-2 text-maycast-subtext text-sm mb-3">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+              </svg>
+              <select
+                value={settings.audioDeviceId || ''}
+                onChange={(e) => handleDeviceChange({ ...settings, audioDeviceId: e.target.value || undefined })}
+                disabled={isRecording}
+                className="bg-transparent text-maycast-subtext text-sm border-none outline-none cursor-pointer hover:text-maycast-text disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <option value="" className="bg-maycast-bg text-maycast-text">Default</option>
+                {audioDevices.map(device => (
+                  <option key={device.deviceId} value={device.deviceId} className="bg-maycast-bg text-maycast-text">
+                    {device.label || `Mic ${device.deviceId.slice(0, 8)}`}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <AudioWaveform
+              stream={stream}
+              width={canvasWidth}
+              height={80}
+              color={isRecording ? '#06B6D4' : '#22c55e'}
+              backgroundColor="rgba(0,0,0,0.3)"
+              onWaveformData={handleWaveformData}
+              waveformDataInterval={200}
+              showSilenceWarning={true}
+            />
           </div>
-          <AudioWaveform
-            stream={stream}
-            width={500}
-            height={60}
-            color="#22c55e"
-            backgroundColor="rgba(0,0,0,0.3)"
-            onWaveformData={handleWaveformData}
-            waveformDataInterval={200}
-            showSilenceWarning={true}
+
+          {/* VU Meter Section */}
+          {screenState !== 'completed' && (
+            <div className="mb-4">
+              <VUMeter
+                stream={stream}
+                height={120}
+                inactive={screenState === 'standby'}
+              />
+            </div>
+          )}
+
+          {/* Stats Bar */}
+          <RecordingStatsBar
+            isRecording={isRecording}
+            elapsedTime={elapsedTime}
+            savedChunks={savedChunks}
+            totalSize={stats.totalSize}
+            screenState={screenState}
+            waitingMessage={guestMode.waitingMessage}
           />
         </div>
 
