@@ -138,8 +138,11 @@ export const AudioWaveform: React.FC<AudioWaveformProps> = ({
       }
 
       // 背景をクリア
-      ctx.fillStyle = backgroundColor;
-      ctx.fillRect(0, 0, width, height);
+      ctx.clearRect(0, 0, width, height);
+      if (backgroundColor !== 'transparent') {
+        ctx.fillStyle = backgroundColor;
+        ctx.fillRect(0, 0, width, height);
+      }
 
       // 波形の色（無音時は警告色）
       const waveColor = isSilentRef.current ? '#f59e0b' : color;
