@@ -11,8 +11,6 @@ import type { IChunkRepository } from '../../domain/repositories/IChunkRepositor
 
 export const useSessionManager = () => {
   const [savedRecordings, setSavedRecordings] = useState<Recording[]>([]);
-  const [recoveryRecording, setRecoveryRecording] = useState<Recording | null>(null);
-  const [showRecoveryModal, setShowRecoveryModal] = useState(false);
 
   // Resume Upload 関連の状態
   const [unfinishedRecordings, setUnfinishedRecordings] = useState<UnfinishedRecording[]>([]);
@@ -201,9 +199,6 @@ export const useSessionManager = () => {
 
   return {
     savedRecordings,
-    recoveryRecording,
-    showRecoveryModal,
-    setShowRecoveryModal,
     loadRecordings,
     deleteRecording,
     clearAllRecordings,
@@ -215,11 +210,5 @@ export const useSessionManager = () => {
     isResuming,
     resumeAllRecordings,
     skipResume,
-    // Deprecated aliases for backward compatibility
-    savedSessions: savedRecordings,
-    recoverySession: recoveryRecording,
-    loadSessions: loadRecordings,
-    deleteSession: deleteRecording,
-    clearAllSessions: clearAllRecordings,
   };
 };
