@@ -20,7 +20,7 @@
 
 import { useRef, useCallback } from 'react'
 import type { ChunkStats } from '../../types/webcodecs'
-import { QUALITY_PRESETS } from '../../types/settings'
+import { STABLE_QUALITY_CONFIG } from '../../types/settings'
 import type { RecorderSettings } from '../../types/settings'
 import type { IStorageStrategy } from '../../storage-strategies/IStorageStrategy'
 import type { RecordingId } from '@maycast/common-types'
@@ -63,7 +63,7 @@ export const useEncoders = ({ wasmInitialized, settings, storageStrategy, onStat
       return
     }
 
-    const qualityConfig = QUALITY_PRESETS[settings.qualityPreset]
+    const qualityConfig = STABLE_QUALITY_CONFIG
     const audioSettings = audioSettingsRef.current
 
     console.log('📹 Initializing MuxideMuxer with config:', {
@@ -72,7 +72,6 @@ export const useEncoders = ({ wasmInitialized, settings, storageStrategy, onStat
       audioSettings,
       width: qualityConfig.width,
       height: qualityConfig.height,
-      preset: settings.qualityPreset
     })
 
     // @ts-expect-error - Dynamic import from WASM
@@ -116,7 +115,7 @@ export const useEncoders = ({ wasmInitialized, settings, storageStrategy, onStat
     } catch (err) {
       console.error('❌ Failed to initialize MuxideMuxer:', err)
     }
-  }, [wasmInitialized, settings.qualityPreset, storageStrategy])
+  }, [wasmInitialized, storageStrategy])
 
   const initializeEncoders = useCallback((activeStream: MediaStream) => {
     if (!activeStream || !wasmInitialized) return
@@ -125,7 +124,7 @@ export const useEncoders = ({ wasmInitialized, settings, storageStrategy, onStat
 
     const audioTrack = activeStream.getAudioTracks()[0]
     const audioSettings = audioTrack?.getSettings()
-    const qualityConfig = QUALITY_PRESETS[settings.qualityPreset]
+    const qualityConfig = STABLE_QUALITY_CONFIG
 
     // オーディオ設定を保存（Muxer初期化時に使用）
     if (audioSettings?.sampleRate && audioSettings?.channelCount) {
@@ -274,7 +273,7 @@ export const useEncoders = ({ wasmInitialized, settings, storageStrategy, onStat
 
     audioEncoderRef.current.configure(audioConfig)
     console.log('✅ AudioEncoder configured:', audioConfig)
-  }, [wasmInitialized, settings.qualityPreset, initializeMuxerWithConfigs, storageStrategy, onStatsUpdate, onChunkSaved])
+  }, [wasmInitialized, initializeMuxerWithConfigs, storageStrategy, onStatsUpdate, onChunkSaved])
 
   const closeEncoders = useCallback(async () => {
     if (videoEncoderRef.current) {
