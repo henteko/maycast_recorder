@@ -68,7 +68,7 @@ export const RecordingDownloadItem: React.FC<RecordingDownloadItemProps> = ({
   const processingState = recording?.processing_state;
 
   return (
-    <div className="flex items-center justify-between bg-maycast-bg/50 backdrop-blur-sm px-4 py-3 rounded-xl border border-maycast-border/30">
+    <div className="flex items-center justify-between bg-maycast-panel/40 rounded-xl border border-maycast-border/30 px-4 py-3">
       <div className="flex items-center gap-3">
         <div className="p-2 bg-maycast-safe/20 rounded-lg">
           <DocumentArrowDownIcon className="w-4 h-4 text-maycast-safe" />

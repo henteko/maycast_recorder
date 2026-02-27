@@ -241,7 +241,7 @@ export const RecordingsDownloadSection: React.FC<RecordingsDownloadSectionProps>
   }
 
   return (
-    <div className="bg-maycast-safe/10 backdrop-blur-md p-5 rounded-2xl border border-maycast-safe/30 shadow-lg">
+    <div className="bg-maycast-safe/10 p-5 rounded-xl border border-maycast-safe/30">
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <CheckIcon className="w-5 h-5 text-maycast-safe" />
