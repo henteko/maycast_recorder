@@ -21,7 +21,7 @@ import { useRef, useState, useCallback } from 'react';
 import { generateRecordingId } from '../../infrastructure/storage/chunk-storage';
 import type { ChunkStats } from '../../types/webcodecs';
 import type { RecorderSettings } from '../../types/settings';
-import { QUALITY_PRESETS } from '../../types/settings';
+import { STABLE_QUALITY_CONFIG } from '../../types/settings';
 import type { MediaStreamOptions } from './useMediaStream';
 import type { RecordingId } from '@maycast/common-types';
 import type { IStorageStrategy } from '../../storage-strategies/IStorageStrategy';
@@ -101,13 +101,12 @@ export const useRecorder = ({
 
     console.log('🎬 Starting recording with settings:', settings)
 
-    const qualityConfig = QUALITY_PRESETS[settings.qualityPreset]
     const activeStream = await startCapture({
       videoDeviceId: settings.videoDeviceId,
       audioDeviceId: settings.audioDeviceId,
-      width: qualityConfig.width,
-      height: qualityConfig.height,
-      frameRate: qualityConfig.framerate,
+      width: STABLE_QUALITY_CONFIG.width,
+      height: STABLE_QUALITY_CONFIG.height,
+      frameRate: STABLE_QUALITY_CONFIG.framerate,
     })
 
     if (!activeStream) {
@@ -138,7 +137,7 @@ export const useRecorder = ({
           const frame = result.value
           if (videoEncoderRef.current && videoEncoderRef.current.state === 'configured') {
             frameCount++
-            const needsKeyframe = frameCount % qualityConfig.keyframeInterval === 0
+            const needsKeyframe = frameCount % STABLE_QUALITY_CONFIG.keyframeInterval === 0
 
             videoEncoderRef.current.encode(frame, { keyFrame: needsKeyframe })
           }

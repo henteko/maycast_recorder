@@ -1,8 +1,8 @@
 import React from 'react';
-import { VideoCameraIcon, FolderIcon, Cog6ToothIcon } from '@heroicons/react/24/solid';
+import { VideoCameraIcon, FolderIcon } from '@heroicons/react/24/solid';
 import { NavigationItem } from '../molecules/NavigationItem';
 
-export type NavigationPage = 'recorder' | 'library' | 'settings';
+export type NavigationPage = 'recorder' | 'library';
 
 interface SidebarNavigationProps {
   currentPage?: NavigationPage;
@@ -30,13 +30,6 @@ export const SidebarNavigation: React.FC<SidebarNavigationProps> = ({
         isActive={currentPage === 'library'}
         disabled={disabledPages.includes('library')}
         onClick={() => onNavigate?.('library')}
-      />
-      <NavigationItem
-        icon={<Cog6ToothIcon />}
-        label="Settings"
-        isActive={currentPage === 'settings'}
-        disabled={disabledPages.includes('settings')}
-        onClick={() => onNavigate?.('settings')}
       />
     </nav>
   );

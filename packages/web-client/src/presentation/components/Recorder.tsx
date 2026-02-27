@@ -9,7 +9,7 @@ import { getServerUrl } from '../../infrastructure/config/serverConfig'
 // @ts-expect-error - maycast-wasm-core has no type definitions
 import init from 'maycast-wasm-core'
 import type { RecorderSettings } from '../../types/settings'
-import { QUALITY_PRESETS } from '../../types/settings'
+import { STABLE_QUALITY_CONFIG } from '../../types/settings'
 import type { ScreenState } from '../../types/recorder'
 import type { DownloadProgress } from '../hooks/useDownload'
 import type { IStorageStrategy } from '../../storage-strategies/IStorageStrategy'
@@ -70,7 +70,7 @@ export const Recorder: React.FC<RecorderProps> = ({
   onRecordingComplete,
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null)
-  const { stream, error, startCapture, restartCapture, videoCapabilities } = useMediaStream()
+  const { stream, error, startCapture, restartCapture } = useMediaStream()
 
   const [wasmInitialized, setWasmInitialized] = useState(false)
   const [elapsedTime, setElapsedTime] = useState(0)
@@ -85,7 +85,6 @@ export const Recorder: React.FC<RecorderProps> = ({
     setRecordingId,
   } = useEncoders({
     wasmInitialized,
-    settings,
     storageStrategy,
     onStatsUpdate: (updater) => setStats(updater),
     onChunkSaved: () => setSavedChunks(prev => prev + 1),
@@ -122,24 +121,10 @@ export const Recorder: React.FC<RecorderProps> = ({
     autoResetToStandby,
   })
 
-  // Sync with external settings changes and restart capture if quality preset changed
+  // Sync with external settings changes (device selection)
   useEffect(() => {
-    const qualityPresetChanged = externalSettings.qualityPreset !== settings.qualityPreset;
     setSettings(externalSettings);
-
-    // 画質設定が変わった場合、録画中でなければストリームを再取得
-    if (qualityPresetChanged && !isRecording) {
-      const qualityConfig = QUALITY_PRESETS[externalSettings.qualityPreset];
-      console.log('🔄 Quality preset changed, restarting capture with:', externalSettings.qualityPreset);
-      restartCapture({
-        videoDeviceId: externalSettings.videoDeviceId,
-        audioDeviceId: externalSettings.audioDeviceId,
-        width: qualityConfig.width,
-        height: qualityConfig.height,
-        frameRate: qualityConfig.framerate,
-      });
-    }
-  }, [externalSettings, isRecording, restartCapture, settings.qualityPreset]);
+  }, [externalSettings]);
 
   // Initialize WASM
   useEffect(() => {
@@ -158,14 +143,13 @@ export const Recorder: React.FC<RecorderProps> = ({
   // Auto-start camera and microphone capture on mount
   useEffect(() => {
     const autoStartCapture = async () => {
-      const qualityConfig = QUALITY_PRESETS[settings.qualityPreset]
       console.log('📹 Auto-starting camera and microphone capture...')
       await startCapture({
         videoDeviceId: settings.videoDeviceId,
         audioDeviceId: settings.audioDeviceId,
-        width: qualityConfig.width,
-        height: qualityConfig.height,
-        frameRate: qualityConfig.framerate,
+        width: STABLE_QUALITY_CONFIG.width,
+        height: STABLE_QUALITY_CONFIG.height,
+        frameRate: STABLE_QUALITY_CONFIG.framerate,
       })
     }
     autoStartCapture()
@@ -269,15 +253,14 @@ export const Recorder: React.FC<RecorderProps> = ({
     setSettings(newSettings);
     onSettingsChange?.(newSettings);
 
-    // Restart capture with new device/quality settings
+    // Restart capture with new device settings
     // restartCapture は既存ストリームを停止してから新しいストリームを取得する
-    const qualityConfig = QUALITY_PRESETS[newSettings.qualityPreset];
     await restartCapture({
       videoDeviceId: newSettings.videoDeviceId,
       audioDeviceId: newSettings.audioDeviceId,
-      width: qualityConfig.width,
-      height: qualityConfig.height,
-      frameRate: qualityConfig.framerate,
+      width: STABLE_QUALITY_CONFIG.width,
+      height: STABLE_QUALITY_CONFIG.height,
+      frameRate: STABLE_QUALITY_CONFIG.framerate,
     });
   }, [isRecording, onSettingsChange, restartCapture]);
 
@@ -364,32 +347,15 @@ export const Recorder: React.FC<RecorderProps> = ({
             </div>
             {/* 画質設定表示 */}
             <div className="flex items-center gap-3 text-xs">
-              {(() => {
-                const qualityConfig = QUALITY_PRESETS[settings.qualityPreset];
-                const isUnsupported = videoCapabilities && (
-                  qualityConfig.width > videoCapabilities.maxWidth ||
-                  qualityConfig.height > videoCapabilities.maxHeight
-                );
-                return (
-                  <>
-                    <span className={`px-2 py-1 rounded ${isUnsupported ? 'bg-amber-500/20 text-amber-400' : 'bg-maycast-bg-secondary'}`}>
-                      {qualityConfig.width}x{qualityConfig.height}
-                      {isUnsupported && ' (unsupported)'}
-                    </span>
-                    <span className="px-2 py-1 bg-maycast-bg-secondary rounded">
-                      {(qualityConfig.bitrate / 1_000_000).toFixed(1)} Mbps
-                    </span>
-                    <span className="px-2 py-1 bg-maycast-bg-secondary rounded">
-                      {qualityConfig.framerate} fps
-                    </span>
-                    {videoCapabilities && (
-                      <span className="px-2 py-1 bg-maycast-primary/20 text-maycast-primary rounded" title={`Camera max: ${videoCapabilities.maxWidth}x${videoCapabilities.maxHeight}`}>
-                        Max {videoCapabilities.maxWidth}x{videoCapabilities.maxHeight}
-                      </span>
-                    )}
-                  </>
-                );
-              })()}
+              <span className="px-2 py-1 bg-maycast-bg-secondary rounded">
+                {STABLE_QUALITY_CONFIG.width}x{STABLE_QUALITY_CONFIG.height}
+              </span>
+              <span className="px-2 py-1 bg-maycast-bg-secondary rounded">
+                {(STABLE_QUALITY_CONFIG.bitrate / 1_000_000).toFixed(1)} Mbps
+              </span>
+              <span className="px-2 py-1 bg-maycast-bg-secondary rounded">
+                {STABLE_QUALITY_CONFIG.framerate} fps
+              </span>
             </div>
           </div>
           <VideoPreview

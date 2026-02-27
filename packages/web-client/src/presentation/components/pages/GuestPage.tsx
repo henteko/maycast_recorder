@@ -8,7 +8,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Recorder } from '../Recorder';
 import { LibraryPage } from './LibraryPage';
-import { SettingsPage } from './SettingsPage';
 import { MainLayout } from '../templates/MainLayout';
 import { Sidebar } from '../organisms/Sidebar';
 import { ResumeUploadModal } from '../organisms/RecoveryModal';
@@ -24,7 +23,7 @@ import { useSessionManager } from '../../hooks/useSessionManager';
 import { useDownload } from '../../hooks/useDownload';
 import { useToast } from '../../hooks/useToast';
 import { useGuestRecordingControl } from '../../hooks/useGuestRecordingControl';
-import { loadSettings, saveSettings } from '../../../types/settings';
+import { loadDeviceSettings, saveDeviceSettings } from '../../../types/settings';
 import type { RecorderSettings } from '../../../types/settings';
 
 // 時間表示のフォーマット関数
@@ -45,7 +44,7 @@ interface GuestPageProps {
 
 export const GuestPage: React.FC<GuestPageProps> = ({ roomId }) => {
   const [currentPage, setCurrentPage] = useState<NavigationPage>('recorder');
-  const [settings, setSettings] = useState<RecorderSettings>(loadSettings());
+  const [settings, setSettings] = useState<RecorderSettings>(loadDeviceSettings());
   const [guestName, setGuestName] = useState<string | null>(null);
   const [hasJoined, setHasJoined] = useState(false);
 
@@ -117,15 +116,9 @@ export const GuestPage: React.FC<GuestPageProps> = ({ roomId }) => {
     setCurrentPage(page);
   };
 
-  const handleSaveSettings = () => {
-    saveSettings(settings);
-    console.log('✅ Settings saved:', settings);
-  };
-
   const handleSettingsChange = (newSettings: RecorderSettings) => {
     setSettings(newSettings);
-    saveSettings(newSettings);
-    console.log('✅ Settings saved from Recorder:', newSettings);
+    saveDeviceSettings(newSettings);
   };
 
   const handleJoinRoom = (name: string) => {
@@ -182,7 +175,7 @@ export const GuestPage: React.FC<GuestPageProps> = ({ roomId }) => {
           <Sidebar
             currentPage={currentPage}
             onNavigate={handleNavigate}
-            disabledPages={isRecordingActive ? ['library', 'settings'] : undefined}
+            disabledPages={isRecordingActive ? ['library'] : undefined}
             systemHealth={systemHealth}
           />
         }
@@ -214,14 +207,6 @@ export const GuestPage: React.FC<GuestPageProps> = ({ roomId }) => {
             isDownloading={downloadProgress.isDownloading}
             downloadingRecordingId={downloadingRecordingId ?? undefined}
             downloadProgress={downloadProgress}
-          />
-        )}
-        {currentPage === 'settings' && (
-          <SettingsPage
-            settings={settings}
-            onSettingsChange={setSettings}
-            onSave={handleSaveSettings}
-            showServerSettings={true}
           />
         )}
       </MainLayout>

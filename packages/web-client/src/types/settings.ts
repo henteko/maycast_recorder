@@ -1,9 +1,6 @@
-export type QualityPreset = 'stability' | 'quality' | '4k'
-
 export interface RecorderSettings {
   videoDeviceId?: string
   audioDeviceId?: string
-  qualityPreset: QualityPreset
 }
 
 export interface QualityConfig {
@@ -14,48 +11,32 @@ export interface QualityConfig {
   keyframeInterval: number // frames
 }
 
-export const QUALITY_PRESETS: Record<QualityPreset, QualityConfig> = {
-  stability: {
-    width: 1280,
-    height: 720,
-    bitrate: 2_000_000, // 2 Mbps
-    framerate: 30,
-    keyframeInterval: 30, // 1秒ごと (30fps)
-  },
-  quality: {
-    width: 1920,
-    height: 1080,
-    bitrate: 5_000_000, // 5 Mbps
-    framerate: 30,
-    keyframeInterval: 90, // 3秒ごと (30fps)
-  },
-  '4k': {
-    width: 3840,
-    height: 2160,
-    bitrate: 20_000_000, // 20 Mbps
-    framerate: 30,
-    keyframeInterval: 90, // 3秒ごと (30fps)
-  },
+export const STABLE_QUALITY_CONFIG: QualityConfig = {
+  width: 1280,
+  height: 720,
+  bitrate: 2_000_000, // 2 Mbps
+  framerate: 30,
+  keyframeInterval: 30, // 1秒ごと (30fps)
 }
 
 const SETTINGS_KEY = 'maycast-recorder-settings'
 
-export function saveSettings(settings: RecorderSettings): void {
+export function saveDeviceSettings(settings: RecorderSettings): void {
   localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings))
 }
 
-export function loadSettings(): RecorderSettings {
+export function loadDeviceSettings(): RecorderSettings {
   const saved = localStorage.getItem(SETTINGS_KEY)
   if (saved) {
     try {
-      return JSON.parse(saved)
-    } catch (err) {
-      console.error('Failed to parse settings:', err)
+      const parsed = JSON.parse(saved)
+      return {
+        videoDeviceId: parsed.videoDeviceId,
+        audioDeviceId: parsed.audioDeviceId,
+      }
+    } catch {
+      // ignore
     }
   }
-
-  // Default settings
-  return {
-    qualityPreset: 'stability',
-  }
+  return {}
 }
