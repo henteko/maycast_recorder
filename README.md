@@ -11,7 +11,6 @@ WebCodecs-based video/audio recorder with OPFS storage and real-time server sync
 - **Real-Time Upload**: Chunks are uploaded to the server in parallel during recording (up to 5 concurrent)
 - **Offline Support**: Local saving continues during network failures
 - **Director Mode**: Real-time room management via Socket.IO for simultaneous multi-guest recording
-- **Solo Mode**: Standalone recording without a server (lightweight dedicated build available)
 
 ## Quick Start
 
@@ -31,13 +30,6 @@ task docker:dev:up
 Once started, visit http://localhost.
 
 ## Usage
-
-### Solo Mode (Standalone Recording)
-
-1. Visit http://localhost/solo
-2. Select device and quality
-4. Start recording → Stop
-5. Save as MP4 with the download button
 
 ### Director Mode (Room Management)
 
@@ -91,12 +83,10 @@ task dev
 # Start individually
 task dev:client       # Client only
 task dev:server       # Server only
-task dev:solo         # Solo Mode only
 
 # Build
 task build            # Build everything
 task build:wasm       # WASM only
-task build:solo       # Solo dedicated build (outputs to dist-solo/)
 
 # Test & Lint
 task test             # Run all tests

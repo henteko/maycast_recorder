@@ -2,7 +2,6 @@ import { DIContainer } from './DIContainer';
 import { IndexedDBRecordingRepository } from '../repositories/IndexedDBRecordingRepository';
 import { OPFSChunkRepository } from '../repositories/OPFSChunkRepository';
 import { BrowserMediaStreamService } from '../services/BrowserMediaStreamService';
-import { NoOpUploadStrategy } from '../services/NoOpUploadStrategy';
 import { RemoteUploadStrategy } from '../services/RemoteUploadStrategy';
 import { RecordingAPIClient } from '../api/recording-api';
 import { getServerUrl } from '../config/serverConfig';
@@ -23,10 +22,8 @@ import type { IUploadStrategy } from '../../domain/services/IUploadStrategy';
 
 /**
  * DIコンテナのセットアップ
- *
- * @param mode - 'standalone' または 'remote'
  */
-export function setupContainer(mode: 'standalone' | 'remote'): DIContainer {
+export function setupContainer(): DIContainer {
   const container = DIContainer.getInstance();
 
   // すでにセットアップ済みの場合はスキップ
@@ -45,18 +42,13 @@ export function setupContainer(mode: 'standalone' | 'remote'): DIContainer {
   const mediaStreamService = new BrowserMediaStreamService();
   container.register<IMediaStreamService>('MediaStreamService', mediaStreamService);
 
-  // Recording API Client (Remote mode で使用)
+  // Recording API Client
   const serverUrl = getServerUrl();
   const apiClient = new RecordingAPIClient(serverUrl);
   container.register('RecordingAPIClient', apiClient);
 
-  // Upload Strategy（モードに応じて切り替え）
-  let uploadStrategy: IUploadStrategy;
-  if (mode === 'remote') {
-    uploadStrategy = new RemoteUploadStrategy(apiClient);
-  } else {
-    uploadStrategy = new NoOpUploadStrategy();
-  }
+  // Upload Strategy
+  const uploadStrategy: IUploadStrategy = new RemoteUploadStrategy(apiClient);
   container.register<IUploadStrategy>('UploadStrategy', uploadStrategy);
 
   // Use Cases
@@ -90,17 +82,15 @@ export function setupContainer(mode: 'standalone' | 'remote'): DIContainer {
   const listRecordingsUseCase = new ListRecordingsUseCase(recordingRepository);
   container.register('ListRecordingsUseCase', listRecordingsUseCase);
 
-  // ResumeUploadManager（Remote mode でのみ使用）
-  if (mode === 'remote') {
-    const resumeUploadManager = new ResumeUploadManager(
-      chunkRepository,
-      apiClient,
-      recordingRepository
-    );
-    container.register('ResumeUploadManager', resumeUploadManager);
-  }
+  // ResumeUploadManager
+  const resumeUploadManager = new ResumeUploadManager(
+    chunkRepository,
+    apiClient,
+    recordingRepository
+  );
+  container.register('ResumeUploadManager', resumeUploadManager);
 
-  console.log(`✅ DIContainer setup complete (mode: ${mode})`);
+  console.log('✅ DIContainer setup complete');
 
   return container;
 }

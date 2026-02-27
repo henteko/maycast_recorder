@@ -1,80 +1,9 @@
-import { InformationCircleIcon, FolderOpenIcon, XMarkIcon, CloudArrowUpIcon, ArrowPathIcon } from '@heroicons/react/24/solid';
-import type { Recording } from '@maycast/common-types';
+import { XMarkIcon, CloudArrowUpIcon, ArrowPathIcon } from '@heroicons/react/24/solid';
 import type { UnfinishedRecording } from '../../../infrastructure/upload/resume-upload';
 import type { UploadProgress } from '../../../infrastructure/upload/types';
 
-interface RecoveryModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  recording: Recording | null;
-  onGoToLibrary: () => void;
-  formatElapsedTime: (seconds: number) => string;
-}
-
-export const RecoveryModal = ({
-  isOpen,
-  onClose,
-  recording,
-  onGoToLibrary,
-  formatElapsedTime,
-}: RecoveryModalProps) => {
-  if (!isOpen || !recording) return null
-
-  return (
-    <div
-      className="fixed inset-0 bg-black bg-opacity-30 backdrop-blur-sm flex items-center justify-center z-50 animate-fadeIn"
-      onClick={onClose}
-    >
-      <div
-        className="bg-maycast-panel/95 backdrop-blur-xl border border-maycast-border/50 rounded-2xl p-8 max-w-md w-full mx-4 shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center gap-3 mb-4">
-          <InformationCircleIcon className="w-7 h-7 text-maycast-primary" />
-          <h2 className="text-2xl font-bold text-maycast-text">About Previous Recording</h2>
-        </div>
-        <p className="text-maycast-subtext mb-6">
-          The previous recording was interrupted. You can download it from the Library.
-        </p>
-
-        <div className="bg-white p-4 rounded-xl mb-6 border-2 border-maycast-border">
-          <p className="text-sm text-gray-600 font-semibold mb-2">Recording Info</p>
-          <p className="text-lg text-gray-900 font-bold mt-2">
-            {new Date(recording.startTime).toLocaleString('en-US')}
-          </p>
-          <p className="text-sm text-gray-700 mt-2">
-            Chunks: {recording.chunkCount} / Size: {(recording.totalSize / 1024 / 1024).toFixed(2)} MB
-          </p>
-          {recording.endTime && (
-            <p className="text-sm text-gray-700 mt-1">
-              Duration: {formatElapsedTime(Math.floor((recording.endTime - recording.startTime) / 1000))}
-            </p>
-          )}
-        </div>
-
-        <div className="flex gap-4">
-          <button
-            onClick={onGoToLibrary}
-            className="flex-1 py-3 px-6 bg-maycast-primary hover:bg-maycast-primary/80 rounded-xl font-bold transition-all shadow-lg flex items-center justify-center gap-2 text-white cursor-pointer"
-          >
-            <FolderOpenIcon className="w-5 h-5" />
-            View Library
-          </button>
-          <button
-            onClick={onClose}
-            className="flex-1 py-3 px-6 bg-white hover:bg-gray-100 rounded-xl font-bold transition-all border-2 border-maycast-border flex items-center justify-center gap-2 text-gray-900 cursor-pointer"
-          >
-            <XMarkIcon className="w-5 h-5" />
-            Close
-          </button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 /**
- * Resume Upload用のRecoveryModal
+ * Resume Upload用のModal
  * 複数のUnfinished Recordingに対応し、進捗表示機能を持つ
  */
 interface ResumeUploadModalProps {

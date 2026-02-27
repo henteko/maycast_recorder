@@ -6,7 +6,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Maycast Recorder** is a WebCodecs-based video/audio recorder with OPFS storage, PostgreSQL persistence, S3-compatible cloud storage, and real-time server synchronization. It's a monorepo project with Clean Architecture + DDD patterns, supporting multiple modes:
 
-- **Solo Mode**: Browser-only standalone recording (no server required)
 - **Director Mode**: Room-based multi-guest recording management via Socket.IO
 - **Guest Mode**: Participate in director-controlled recording sessions
 
@@ -37,9 +36,6 @@ task dev:server
 
 # Watch mode for WASM development
 task dev:wasm
-
-# Start Solo Mode only (standalone, no server needed)
-task dev:solo
 ```
 
 ### Building
@@ -52,7 +48,6 @@ task build
 task build:common-types   # Compile TypeScript types
 task build:wasm           # Build Rust WASM with wasm-pack
 task build:client         # Build React app for production
-task build:solo           # Build Solo-only client (outputs to dist-solo/)
 task build:server         # Compile server TypeScript
 ```
 
@@ -186,7 +181,7 @@ This codebase follows **Clean Architecture + Domain-Driven Design (DDD)**:
   - Server: `PostgresRecordingRepository`, `PostgresRoomRepository`, `LocalFileSystemChunkRepository`, `S3ChunkRepository`
   - Server (fallback): `InMemoryRecordingRepository`, `InMemoryRoomRepository`
 - **Database**: `PostgresClient` for connection pooling, schema in `packages/server/sql/init.sql`
-- **Service Implementations**: `BrowserMediaStreamService`, `RemoteUploadStrategy`, `NoOpUploadStrategy`, `S3PresignedUrlService`, `NoOpPresignedUrlService`
+- **Service Implementations**: `BrowserMediaStreamService`, `RemoteUploadStrategy`, `S3PresignedUrlService`, `NoOpPresignedUrlService`
 - **API Clients**: `RecordingAPIClient` for HTTP, `RoomAPIClient` for Room endpoints
 - **WebSocket**: `WebSocketRoomClient` (client-side Socket.IO), `WebSocketManager` (server-side), `WebSocketRoomEventPublisher`
 - **Storage Config**: `storageConfig.ts` reads `STORAGE_BACKEND` env var to select local or S3
@@ -195,7 +190,7 @@ This codebase follows **Clean Architecture + Domain-Driven Design (DDD)**:
 #### 3. Presentation Layer (outermost)
 - **Controllers** (server): `RecordingController`, `ChunkController`, `RoomController`
 - **React Components** (web-client): Organized as Atomic Design (atoms/molecules/organisms/pages/templates)
-  - **Pages**: `TopPage`, `SoloPage`, `DirectorPage`, `RoomDetailPage`, `GuestPage`, `LibraryPage`, `SettingsPage`
+  - **Pages**: `TopPage`, `DirectorPage`, `RoomDetailPage`, `GuestPage`, `LibraryPage`, `SettingsPage`
 - **Custom Hooks**:
   - Core: `useRecorder`, `useMediaStream`, `useDownload`, `useDevices`, `useEncoders`
   - Room/Director: `useRoomDetail`, `useRoomWebSocket`
@@ -215,7 +210,7 @@ This codebase follows **Clean Architecture + Domain-Driven Design (DDD)**:
   - PostgreSQL pool shared across repositories
 - **Web-client**: React Context API for DI propagation
   - `DIProvider.tsx` wraps app, `useDI()` hook accesses dependencies
-  - Mode-aware setup: `standalone` (Solo) vs `remote` (Director/Guest)
+  - `DIProvider.tsx` provides dependencies for Director/Guest modes
 
 When adding new dependencies:
 1. Register in `setupContainer.ts`
@@ -236,7 +231,6 @@ When adding new dependencies:
 
 **Storage Strategies** (Strategy Pattern):
 - `RemoteStorageStrategy`: OPFS locally + concurrent server upload (Director mode)
-- `StandaloneStorageStrategy`: OPFS only, no upload (Solo mode)
 - `GuestStorageStrategy`: OPFS locally + concurrent server upload with local→remote recording ID mapping and roomId context (Guest mode)
 
 #### Server Storage
@@ -345,14 +339,6 @@ idle → recording → finalizing → finished → idle (reset)
 - `PATCH /api/rooms/:id/state` - Update room state (accessKey required)
 - `DELETE /api/rooms/:id` - Delete room (accessKey required)
 
-### OPFS and Crash Recovery
-
-**Solo Mode** supports crash-proof recording:
-- OPFS persists chunks even if browser crashes
-- On app restart, scans for incomplete sessions
-- Recovery modal offers to restore and download
-- Interrupted recordings marked with `interrupted` state
-
 ## Development Workflow
 
 ### When adding a new feature:
@@ -408,7 +394,7 @@ When getting started, read these files in order:
 2. **`packages/common-types/src/entities/Room.entity.ts`** - Room state machine and access control
 3. **`packages/common-types/src/websocket.ts`** - WebSocket event type definitions
 4. **`packages/common-types/src/room.ts`** - Room, GuestInfo, GuestSyncState types
-5. **`packages/web-client/src/infrastructure/di/setupContainer.ts`** - Client dependency wiring (mode-aware)
+5. **`packages/web-client/src/infrastructure/di/setupContainer.ts`** - Client dependency wiring
 6. **`packages/web-client/src/presentation/hooks/useRecorder.ts`** - Full recording lifecycle
 7. **`packages/web-client/src/presentation/hooks/useEncoders.ts`** - WebCodecs encoder management (4K support)
 8. **`packages/web-client/src/presentation/hooks/useRoomDetail.ts`** - Director room management with WebSocket
@@ -506,7 +492,6 @@ STORAGE_PATH=./recordings-data
 ## Implementation Status
 
 ### Completed Features
-- **Solo Mode**: Standalone browser-only recording with crash recovery
 - **Director Mode (Phase 4)**: Socket.IO-based room management for multi-guest recording
 - **Guest Mode**: Participate in director-controlled sessions with sync tracking
 - **4K Support**: High-resolution video encoding via WebCodecs

@@ -1,7 +1,7 @@
 /**
  * IStorageStrategy - ストレージ戦略インターフェース
  *
- * Standalone Mode と Remote Mode で保存方法を切り替えるための抽象化
+ * 保存方法を抽象化するためのインターフェース
  */
 
 import type { RecordingId } from '@maycast/common-types';

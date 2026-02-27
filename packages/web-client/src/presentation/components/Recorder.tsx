@@ -1,6 +1,5 @@
 import { useRef, useState, useEffect, useImperativeHandle, useCallback } from 'react'
 import { useMediaStream } from '../hooks/useMediaStream'
-import { useSessionManager } from '../hooks/useSessionManager'
 import { useEncoders } from '../hooks/useEncoders'
 import { useRecorder } from '../hooks/useRecorder'
 import { useDevices } from '../hooks/useDevices'
@@ -16,7 +15,6 @@ import type { DownloadProgress } from '../hooks/useDownload'
 import type { IStorageStrategy } from '../../storage-strategies/IStorageStrategy'
 
 import { MainHeader } from './organisms/MainHeader'
-import { RecoveryModal } from './organisms/RecoveryModal'
 import { VideoPreview } from './organisms/VideoPreview'
 import { ControlPanel } from './organisms/ControlPanel'
 import { AudioWaveform } from './atoms/AudioWaveform'
@@ -50,8 +48,6 @@ interface RecorderProps {
   hideControls?: boolean;
   /** Guest mode configuration */
   guestMode?: GuestModeConfig;
-  /** Callback to navigate to Library page */
-  onNavigateToLibrary?: () => void;
   /** Callback when settings (device selection) changes */
   onSettingsChange?: (settings: RecorderSettings) => void;
   /** When true, automatically reset to standby after stopping */
@@ -69,7 +65,6 @@ export const Recorder: React.FC<RecorderProps> = ({
   exportRef,
   hideControls = false,
   guestMode,
-  onNavigateToLibrary,
   onSettingsChange,
   autoResetToStandby = false,
   onRecordingComplete,
@@ -80,12 +75,6 @@ export const Recorder: React.FC<RecorderProps> = ({
   const [wasmInitialized, setWasmInitialized] = useState(false)
   const [elapsedTime, setElapsedTime] = useState(0)
   const [settings, setSettings] = useState<RecorderSettings>(externalSettings)
-
-  const {
-    recoveryRecording,
-    showRecoveryModal,
-    setShowRecoveryModal,
-  } = useSessionManager();
 
   const {
     videoEncoderRef,
@@ -272,11 +261,6 @@ export const Recorder: React.FC<RecorderProps> = ({
     }
   };
 
-  const handleGoToLibrary = () => {
-    setShowRecoveryModal(false);
-    onNavigateToLibrary?.();
-  };
-
   // Handle device change - update settings and restart capture
   const handleDeviceChange = useCallback(async (newSettings: RecorderSettings) => {
     if (isRecording) {
@@ -299,14 +283,6 @@ export const Recorder: React.FC<RecorderProps> = ({
 
   return (
     <div className="flex flex-col h-full bg-maycast-bg text-maycast-text">
-      <RecoveryModal
-        isOpen={showRecoveryModal}
-        onClose={() => setShowRecoveryModal(false)}
-        recording={recoveryRecording}
-        onGoToLibrary={handleGoToLibrary}
-        formatElapsedTime={formatElapsedTime}
-      />
-
       {guestMode ? (
         <div className="flex items-center justify-between px-8 py-6 border-b border-maycast-border">
           <div className="flex items-center gap-4">
