@@ -2,7 +2,7 @@
  * RecordingDownloadItem - 録画ダウンロードアイテム
  */
 
-import { ArrowDownTrayIcon, DocumentArrowDownIcon, MusicalNoteIcon } from '@heroicons/react/24/solid';
+import { DocumentArrowDownIcon, MusicalNoteIcon } from '@heroicons/react/24/solid';
 import { RecordingAPIClient, type RecordingInfo } from '../../../infrastructure/api/recording-api';
 import { Button } from '../atoms/Button';
 
@@ -10,26 +10,18 @@ interface RecordingDownloadItemProps {
   recordingId: string;
   recording: RecordingInfo | null;
   isLoading: boolean;
-  onDownload: (recordingId: string) => void;
-  onDownloadM4a?: (recordingId: string) => void;
-  isDownloading: boolean;
+  onDownloadM4a: (recordingId: string) => void;
   isDownloadingM4a?: boolean;
-  chunkProgress?: { current: number; total: number };
   guestName?: string;
-  hasM4a?: boolean;
 }
 
 export const RecordingDownloadItem: React.FC<RecordingDownloadItemProps> = ({
   recordingId,
   recording,
   isLoading,
-  onDownload,
   onDownloadM4a,
-  isDownloading,
   isDownloadingM4a = false,
-  chunkProgress,
   guestName,
-  hasM4a = false,
 }) => {
   const duration = recording ? RecordingAPIClient.calculateDuration(recording) : null;
 
@@ -62,47 +54,22 @@ export const RecordingDownloadItem: React.FC<RecordingDownloadItemProps> = ({
           )}
         </div>
       </div>
-      <div className="flex items-center gap-2">
-        {hasM4a && onDownloadM4a && (
-          <Button
-            onClick={() => onDownloadM4a(recordingId)}
-            disabled={isLoading || isDownloadingM4a}
-            variant="ghost"
-            size="sm"
-            className="!py-2 !px-3 !text-sm !border-maycast-primary/30"
-          >
-            {isDownloadingM4a ? (
-              <div className="w-4 h-4 border-2 border-maycast-primary border-t-transparent rounded-full animate-spin" />
-            ) : (
-              <>
-                <MusicalNoteIcon className="w-4 h-4 text-maycast-primary" />
-                <span>M4A</span>
-              </>
-            )}
-          </Button>
+      <Button
+        onClick={() => onDownloadM4a(recordingId)}
+        disabled={isLoading || isDownloadingM4a}
+        variant="success"
+        size="sm"
+        className="!py-2 !px-4 !text-sm"
+      >
+        {isDownloadingM4a ? (
+          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+        ) : (
+          <>
+            <MusicalNoteIcon className="w-4 h-4" />
+            <span>M4A</span>
+          </>
         )}
-        <Button
-          onClick={() => onDownload(recordingId)}
-          disabled={isLoading || isDownloading}
-          variant="success"
-          size="sm"
-          className="!py-2 !px-4 !text-sm"
-        >
-          {isDownloading ? (
-            <>
-              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              <span>{chunkProgress && chunkProgress.total > 0
-                ? `${chunkProgress.current}/${chunkProgress.total}`
-                : 'Processing...'}</span>
-            </>
-          ) : (
-            <>
-              <ArrowDownTrayIcon className="w-4 h-4" />
-              <span>MP4</span>
-            </>
-          )}
-        </Button>
-      </div>
+      </Button>
     </div>
   );
 };

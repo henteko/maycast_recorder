@@ -36,7 +36,6 @@ export const RecordingsDownloadSection: React.FC<RecordingsDownloadSectionProps>
 }) => {
   const [recordings, setRecordings] = useState<Map<string, RecordingInfo>>(new Map());
   const [loadingIds, setLoadingIds] = useState<Set<string>>(new Set());
-  const [downloadProgress, setDownloadProgress] = useState<Map<string, { current: number; total: number }>>(new Map());
   const [m4aDownloading, setM4aDownloading] = useState<Set<string>>(new Set());
   const fetchedIdsRef = useRef<Set<string>>(new Set());
 
@@ -78,55 +77,6 @@ export const RecordingsDownloadSection: React.FC<RecordingsDownloadSectionProps>
     fetchRecordings();
   }, [recordingIds]);
 
-  // 個別ダウンロード（MP4）
-  const handleDownload = useCallback(async (recordingId: string) => {
-    setDownloadProgress((prev) => new Map(prev).set(recordingId, { current: 0, total: 0 }));
-    try {
-      const serverUrl = getServerUrl();
-      const apiClient = new RecordingAPIClient(serverUrl);
-
-      const onChunkProgress = (progress: { current: number; total: number }) => {
-        setDownloadProgress((prev) => new Map(prev).set(recordingId, progress));
-      };
-
-      let blob: Blob;
-      let filename: string | undefined;
-      const downloadUrls = await apiClient.getDownloadUrls(recordingId);
-      if (downloadUrls.directDownload) {
-        const cloudService = new CloudDownloadService();
-        blob = await cloudService.download(downloadUrls, onChunkProgress);
-        filename = downloadUrls.filename;
-      } else {
-        blob = await apiClient.downloadRecording(recordingId);
-        filename = downloadUrls.filename;
-      }
-
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      if (!filename) {
-        const guestName = getGuestNameForRecording(recordingId);
-        filename = guestName
-          ? `${guestName}-${recordingId.substring(0, 8)}.mp4`
-          : `recording-${recordingId.substring(0, 8)}.mp4`;
-      }
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    } catch (err) {
-      console.error(`Failed to download recording ${recordingId}:`, err);
-      alert(`Failed to download recording: ${err instanceof Error ? err.message : 'Unknown error'}`);
-    } finally {
-      setDownloadProgress((prev) => {
-        const next = new Map(prev);
-        next.delete(recordingId);
-        return next;
-      });
-    }
-  }, [getGuestNameForRecording]);
-
   // 個別ダウンロード（M4A） - クライアントサイドで音声抽出
   const handleDownloadM4a = useCallback(async (recordingId: string) => {
     setM4aDownloading((prev) => new Set(prev).add(recordingId));
@@ -134,7 +84,7 @@ export const RecordingsDownloadSection: React.FC<RecordingsDownloadSectionProps>
       const serverUrl = getServerUrl();
       const apiClient = new RecordingAPIClient(serverUrl);
 
-      // 1. MP4データをダウンロード（handleDownloadと同じ方法）
+      // 1. MP4データをダウンロード
       let mp4Blob: Blob;
       const downloadUrls = await apiClient.getDownloadUrls(recordingId);
       if (downloadUrls.directDownload) {
@@ -224,16 +174,9 @@ export const RecordingsDownloadSection: React.FC<RecordingsDownloadSectionProps>
             recordingId={recordingId}
             recording={recordings.get(recordingId) || null}
             isLoading={loadingIds.has(recordingId)}
-            onDownload={handleDownload}
             onDownloadM4a={handleDownloadM4a}
-            isDownloading={downloadProgress.has(recordingId)}
             isDownloadingM4a={m4aDownloading.has(recordingId)}
-            chunkProgress={downloadProgress.get(recordingId)}
             guestName={getGuestNameForRecording(recordingId)}
-            hasM4a={(() => {
-              const rec = recordings.get(recordingId);
-              return !!rec && rec.state !== 'standby';
-            })()}
           />
         ))}
       </div>
