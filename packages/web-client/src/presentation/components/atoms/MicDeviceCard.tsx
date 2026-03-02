@@ -13,6 +13,10 @@ interface MicDeviceCardProps {
   isSelected: boolean;
   stream: MediaStream | null;
   onSelect: () => void;
+  /** 波形データを外部に送信するコールバック（Director送信用） */
+  onWaveformData?: (data: number[], isSilent: boolean) => void;
+  /** 波形データ送信間隔（ミリ秒） */
+  waveformDataInterval?: number;
 }
 
 export const MicDeviceCard: React.FC<MicDeviceCardProps> = ({
@@ -21,6 +25,8 @@ export const MicDeviceCard: React.FC<MicDeviceCardProps> = ({
   isSelected,
   stream,
   onSelect,
+  onWaveformData,
+  waveformDataInterval,
 }) => {
   const label = device.label || `Microphone ${index + 1}`;
 
@@ -62,6 +68,8 @@ export const MicDeviceCard: React.FC<MicDeviceCardProps> = ({
                 color="#06B6D4"
                 backgroundColor="transparent"
                 showSilenceWarning={true}
+                onWaveformData={onWaveformData}
+                waveformDataInterval={waveformDataInterval}
               />
             </div>
           )}

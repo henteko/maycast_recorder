@@ -16,7 +16,9 @@ import type { IStorageStrategy } from '../../storage-strategies/IStorageStrategy
 import { ControlPanel } from './organisms/ControlPanel'
 import { AudioWaveform } from './atoms/AudioWaveform'
 import { VUMeter } from './atoms/VUMeter'
+import { MicDeviceCard } from './atoms/MicDeviceCard'
 import { RecordingStatsBar } from './molecules/RecordingStatsBar'
+import { ArrowPathIcon } from '@heroicons/react/24/solid'
 
 import type { RecordingId } from '@maycast/common-types';
 
@@ -162,7 +164,8 @@ export const Recorder: React.FC<RecorderProps> = ({
   }, [recordingStartTime])
 
   // デバイス情報を取得（streamを渡してgetUserMedia完了後に再列挙）
-  const { audioDevices } = useDevices(stream);
+  const { audioDevices, refreshDevices } = useDevices(stream);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // メディアステータスをDirectorに送信
   useGuestMediaStatus({
@@ -256,6 +259,28 @@ export const Recorder: React.FC<RecorderProps> = ({
     });
   }, [isRecording, onSettingsChange, restartCapture]);
 
+  // Handle device select from MicDeviceCard
+  const handleDeviceSelect = useCallback((deviceId: string) => {
+    handleDeviceChange({ ...settings, audioDeviceId: deviceId });
+  }, [handleDeviceChange, settings]);
+
+  // Handle refresh devices
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    await refreshDevices();
+    setTimeout(() => setIsRefreshing(false), 500);
+  }, [refreshDevices]);
+
+  // Determine if a device is the effectively selected one
+  const isEffectiveDevice = useCallback((device: MediaDeviceInfo) => {
+    if (settings.audioDeviceId) {
+      return device.deviceId === settings.audioDeviceId;
+    }
+    // If no device explicitly selected, the first device is the default
+    const firstDevice = audioDevices[0];
+    return firstDevice ? device.deviceId === firstDevice.deviceId : false;
+  }, [settings.audioDeviceId, audioDevices]);
+
   return (
     <div className="flex flex-col h-full bg-maycast-bg text-maycast-text">
       <div className="flex items-center justify-between px-8 py-6 border-b border-maycast-border">
@@ -309,36 +334,72 @@ export const Recorder: React.FC<RecorderProps> = ({
 
         {/* Studio Area */}
         <div className={`mt-6 mx-auto w-full max-w-2xl p-6 rounded-2xl border shadow-xl transition-all duration-500 ${studioStyles}`}>
-          {/* Waveform Section */}
+          {/* Microphone Section */}
           <div className="mb-4" ref={studioRef}>
-            <div className="flex items-center gap-2 text-maycast-subtext text-sm mb-3">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
-              </svg>
-              <select
-                value={settings.audioDeviceId || ''}
-                onChange={(e) => handleDeviceChange({ ...settings, audioDeviceId: e.target.value || undefined })}
-                disabled={isRecording}
-                className="bg-transparent text-maycast-subtext text-sm border-none outline-none cursor-pointer hover:text-maycast-text disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <option value="" className="bg-maycast-bg text-maycast-text">Default</option>
-                {audioDevices.map(device => (
-                  <option key={device.deviceId} value={device.deviceId} className="bg-maycast-bg text-maycast-text">
-                    {device.label || `Mic ${device.deviceId.slice(0, 8)}`}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <AudioWaveform
-              stream={stream}
-              width={canvasWidth}
-              height={80}
-              color={isRecording ? '#06B6D4' : '#22c55e'}
-              backgroundColor="rgba(0,0,0,0.3)"
-              onWaveformData={handleWaveformData}
-              waveformDataInterval={200}
-              showSilenceWarning={true}
-            />
+            {screenState === 'standby' ? (
+              <>
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-sm font-medium text-maycast-text-secondary flex items-center gap-2">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                    </svg>
+                    Microphone
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleRefresh}
+                    disabled={isRefreshing}
+                    className="flex items-center gap-1.5 text-xs text-maycast-text-secondary hover:text-maycast-primary transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <ArrowPathIcon className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+                    {isRefreshing ? 'Refreshing...' : 'Refresh'}
+                  </button>
+                </div>
+                <div className="space-y-3">
+                  {audioDevices.map((device, index) => {
+                    const selected = isEffectiveDevice(device);
+                    return (
+                      <MicDeviceCard
+                        key={device.deviceId}
+                        device={device}
+                        index={index}
+                        isSelected={selected}
+                        stream={selected ? stream : null}
+                        onSelect={() => handleDeviceSelect(device.deviceId)}
+                        onWaveformData={selected ? handleWaveformData : undefined}
+                        waveformDataInterval={selected ? 200 : undefined}
+                      />
+                    );
+                  })}
+                  {audioDevices.length === 0 && (
+                    <div className="text-center py-4 text-maycast-subtext text-sm">
+                      No microphones detected
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center gap-2 text-maycast-subtext text-sm mb-3">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                  </svg>
+                  <span>
+                    {audioDevices.find(d => isEffectiveDevice(d))?.label || 'Default'}
+                  </span>
+                </div>
+                <AudioWaveform
+                  stream={stream}
+                  width={canvasWidth}
+                  height={80}
+                  color={isRecording ? '#06B6D4' : '#22c55e'}
+                  backgroundColor="rgba(0,0,0,0.3)"
+                  onWaveformData={handleWaveformData}
+                  waveformDataInterval={200}
+                  showSilenceWarning={true}
+                />
+              </>
+            )}
           </div>
 
           {/* VU Meter Section */}

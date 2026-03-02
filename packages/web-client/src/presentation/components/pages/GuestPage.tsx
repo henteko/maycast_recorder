@@ -16,7 +16,6 @@ import { LoadingScreen } from '../molecules/LoadingScreen';
 import { RoomNotFoundScreen } from '../molecules/RoomNotFoundScreen';
 import { GuestCompletePage } from '../molecules/GuestCompletePage';
 import { GuestNameInput } from '../molecules/GuestNameInput';
-import { MicSetup } from '../molecules/MicSetup';
 import { RoomClosedScreen } from '../molecules/RoomClosedScreen';
 import type { NavigationPage } from '../organisms/SidebarNavigation';
 import { useSystemHealth } from '../../hooks/useSystemHealth';
@@ -48,7 +47,6 @@ export const GuestPage: React.FC<GuestPageProps> = ({ roomId }) => {
   const [settings, setSettings] = useState<RecorderSettings>(loadDeviceSettings());
   const [guestName, setGuestName] = useState<string | null>(null);
   const [hasJoined, setHasJoined] = useState(false);
-  const [micSetupComplete, setMicSetupComplete] = useState(false);
 
   const systemHealth = useSystemHealth();
   const {
@@ -128,11 +126,6 @@ export const GuestPage: React.FC<GuestPageProps> = ({ roomId }) => {
     setHasJoined(true);
   };
 
-  const handleMicSetupComplete = (audioDeviceId?: string) => {
-    handleSettingsChange({ ...settings, audioDeviceId });
-    setMicSetupComplete(true);
-  };
-
   const renderContent = () => {
     // Loading画面
     if (isRoomLoading) {
@@ -158,17 +151,6 @@ export const GuestPage: React.FC<GuestPageProps> = ({ roomId }) => {
     // 名前入力画面（参加前）
     if (!hasJoined) {
       return <GuestNameInput roomId={roomId} onJoin={handleJoinRoom} />;
-    }
-
-    // マイクセットアップ画面（名前入力後、Recorder前）
-    if (!micSetupComplete) {
-      return (
-        <MicSetup
-          roomId={roomId}
-          initialAudioDeviceId={settings.audioDeviceId}
-          onComplete={handleMicSetupComplete}
-        />
-      );
     }
 
     // Complete画面 (sync完了後)

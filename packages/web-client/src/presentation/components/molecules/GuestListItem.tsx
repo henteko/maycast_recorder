@@ -66,10 +66,10 @@ export const GuestListItem: React.FC<GuestListItemProps> = ({ guest, waveformDat
           <ClockSyncBadge guest={guest} />
         </div>
         <div className="flex items-center gap-3">
-          {/* メディアステータスアイコン */}
+          {/* メディアステータス */}
           {mediaStatus && (
             <div className="flex items-center gap-2">
-              {/* マイク状態 */}
+              {/* マイク状態アイコン */}
               <div
                 className={`p-1 rounded relative ${
                   mediaStatus.isMicMuted
@@ -85,6 +85,12 @@ export const GuestListItem: React.FC<GuestListItemProps> = ({ guest, waveformDat
                   </div>
                 )}
               </div>
+              {/* デバイス名 */}
+              {mediaStatus.micDevice && (
+                <span className="text-xs text-maycast-text-secondary">
+                  {mediaStatus.micDevice.label}
+                </span>
+              )}
             </div>
           )}
           {(guest.syncState === 'recording' || guest.syncState === 'uploading') && (guest.uploadedChunks !== undefined && guest.totalChunks !== undefined) && guest.totalChunks > 0 && (
