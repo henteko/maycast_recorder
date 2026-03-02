@@ -64,17 +64,17 @@ export const GuestPage: React.FC<GuestPageProps> = ({ roomId }) => {
     resumeAllRecordings,
     skipResume,
   } = useSessionManager();
-  const { downloadProgress, downloadRecordingById } = useDownload();
+  const { downloadProgress, downloadM4aById } = useDownload();
   const [downloadingRecordingId, setDownloadingRecordingId] = useState<string | null>(null);
 
   const handleDownload = useCallback(async (recordingId: string) => {
     setDownloadingRecordingId(recordingId);
     try {
-      await downloadRecordingById(recordingId);
+      await downloadM4aById(recordingId);
     } finally {
       setDownloadingRecordingId(null);
     }
-  }, [downloadRecordingById]);
+  }, [downloadM4aById]);
   const { toast, showToast } = useToast();
 
   const {
