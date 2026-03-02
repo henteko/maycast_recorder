@@ -31,7 +31,4 @@ export class NoOpPresignedUrlService implements IPresignedUrlService {
     throw new Error('Upload presigned URLs are not supported with local storage backend');
   }
 
-  async getPresignedUrlForKey(): Promise<string> {
-    throw new Error('Presigned URLs are not supported with local storage backend');
-  }
 }

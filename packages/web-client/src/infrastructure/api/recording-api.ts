@@ -15,8 +15,6 @@ import type {
  * サーバーから返されるRecording情報
  * (API Response用の型)
  */
-export type ProcessingState = 'pending' | 'processing' | 'completed' | 'failed';
-
 export interface RecordingInfo {
   id: string;
   state: RecordingState;
@@ -26,7 +24,6 @@ export interface RecordingInfo {
   metadata?: RecordingMetadata;
   chunk_count: number;
   room_id?: string;
-  processing_state?: ProcessingState | null;
 }
 
 export class RecordingAPIClient {

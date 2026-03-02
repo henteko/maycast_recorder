@@ -88,10 +88,6 @@ export class S3PresignedUrlService implements IPresignedUrlService {
     return this.generateUploadPresignedUrl(key, expiresIn);
   }
 
-  async getPresignedUrlForKey(key: string, expiresIn: number = DEFAULT_EXPIRES_IN): Promise<string> {
-    return this.generatePresignedUrl(key, expiresIn);
-  }
-
   private async generatePresignedUrl(key: string, expiresIn: number): Promise<string> {
     const command = new GetObjectCommand({
       Bucket: this.bucket,

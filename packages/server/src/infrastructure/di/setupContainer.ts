@@ -147,7 +147,6 @@ export function setupContainer(): DIContainer {
     updateRecordingMetadataUseCase,
     downloadRecordingUseCase,
     getDownloadUrlsUseCase,
-    recordingRepository
   );
   container.register('RecordingController', recordingController);
 

@@ -11,7 +11,6 @@ import { errorHandler } from './presentation/middleware/errorHandler.js';
 import { createRoomAccessMiddleware } from './presentation/middleware/roomAccessMiddleware.js';
 
 import { getWebSocketManager } from './infrastructure/websocket/WebSocketManager.js';
-import { getAudioExtractionQueue } from './infrastructure/queue/audioExtractionQueue.js';
 import type { RecordingController } from './presentation/controllers/RecordingController.js';
 import type { ChunkController } from './presentation/controllers/ChunkController.js';
 import type { RoomController } from './presentation/controllers/RoomController.js';
@@ -19,7 +18,6 @@ import type { UpdateRoomStateUseCase } from './domain/usecases/UpdateRoomState.u
 import type { GetRoomUseCase } from './domain/usecases/GetRoom.usecase.js';
 import type { ValidateRoomAccessUseCase } from './domain/usecases/ValidateRoomAccess.usecase.js';
 import type { IRecordingRepository } from './domain/repositories/IRecordingRepository.js';
-import type { IRoomRepository } from './domain/repositories/IRoomRepository.js';
 
 // Load environment variables
 dotenv.config();
@@ -41,7 +39,6 @@ const updateRoomStateUseCase = container.resolve<UpdateRoomStateUseCase>('Update
 const getRoomUseCase = container.resolve<GetRoomUseCase>('GetRoomUseCase');
 const validateRoomAccessUseCase = container.resolve<ValidateRoomAccessUseCase>('ValidateRoomAccessUseCase');
 const recordingRepository = container.resolve<IRecordingRepository>('RecordingRepository');
-const roomRepository = container.resolve<IRoomRepository>('RoomRepository');
 
 // Room Access Middleware
 const roomAccessMiddleware = createRoomAccessMiddleware(validateRoomAccessUseCase);
@@ -121,32 +118,6 @@ webSocketManager.setOnAllGuestsSyncedCallback(async (roomId: string) => {
       // finalizing状態の場合のみfinishedに遷移
       await updateRoomStateUseCase.execute({ roomId, state: 'finished' });
       console.log(`✅ [Server] Room ${roomId} transitioned to finished`);
-
-      // Audio extraction ジョブを投入
-      const audioQueue = getAudioExtractionQueue();
-      if (audioQueue) {
-        try {
-          const roomEntity = await roomRepository.findById(roomId);
-          if (roomEntity) {
-            const recordingIds = roomEntity.toDTO().recordingIds;
-
-            // 各recordingのprocessing_stateをpendingに更新
-            for (const recId of recordingIds) {
-              await recordingRepository.updateProcessingState(recId, 'pending');
-            }
-
-            await audioQueue.add(`room-${roomId}`, {
-              roomId,
-              recordingIds,
-              createdAt: new Date().toISOString(),
-            });
-
-            console.log(`📤 [Server] Audio extraction job enqueued for room ${roomId} with ${recordingIds.length} recordings`);
-          }
-        } catch (queueErr) {
-          console.error(`❌ [Server] Failed to enqueue audio extraction job for room ${roomId}:`, queueErr);
-        }
-      }
     }
   } catch (err) {
     console.error(`❌ [Server] Failed to transition room ${roomId} to finished:`, err);

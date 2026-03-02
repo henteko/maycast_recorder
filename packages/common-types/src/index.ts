@@ -46,10 +46,6 @@ export type {
 // Room types
 export type { RoomId, RoomState, Room, GuestSyncState, GuestInfo, GuestMediaStatus, GuestClockSyncStatus, DeviceInfo } from './room.js';
 
-// Job types
-export type { AudioExtractionJobPayload, AudioExtractionJobResult } from './job.js';
-export { QUEUE_NAMES } from './job.js';
-
 // WebSocket message types
 export type {
   RoomCreated,
