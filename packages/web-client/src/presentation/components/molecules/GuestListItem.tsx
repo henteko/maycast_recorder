@@ -92,10 +92,6 @@ export const GuestListItem: React.FC<GuestListItemProps> = ({ guest, waveformDat
               <span className="text-xs text-maycast-text-secondary font-mono">
                 {guest.uploadedChunks}/{guest.totalChunks} chunks
               </span>
-              <div className="w-16 h-1.5 bg-maycast-border/30 rounded-full overflow-hidden">
-                <div className="h-full bg-maycast-primary rounded-full transition-all"
-                  style={{ width: `${(guest.uploadedChunks / guest.totalChunks) * 100}%` }} />
-              </div>
             </div>
           )}
           {/* 波形表示（横並び） */}
