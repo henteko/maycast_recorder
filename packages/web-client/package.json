@@ -15,6 +15,7 @@
     "@maycast/common-types": "*",
     "@noble/hashes": "^2.0.1",
     "jszip": "^3.10.1",
+    "mp4box": "^2.3.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-router-dom": "^6.21.1",

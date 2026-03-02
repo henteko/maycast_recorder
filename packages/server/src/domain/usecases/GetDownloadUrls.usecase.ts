@@ -73,20 +73,6 @@ export class GetDownloadUrlsUseCase {
     // 6. ソート済みレスポンス
     chunks.sort((a, b) => a.chunkId - b.chunkId);
 
-    // 7. Processing済みm4aのURL生成（存在する場合）
-    let m4aUrl: string | undefined;
-    let m4aFilename: string | undefined;
-    const processingInfo = await this.recordingRepository.getProcessingInfo(request.recordingId);
-    if (processingInfo?.processingState === 'completed' && processingInfo.outputM4aKey) {
-      m4aUrl = await this.presignedUrlService.getPresignedUrlForKey(
-        processingInfo.outputM4aKey,
-        expiresIn
-      );
-      m4aFilename = participantName
-        ? `${participantName}-${timestamp}.m4a`
-        : `recording-${timestamp}.m4a`;
-    }
-
     return {
       directDownload: true,
       filename,
@@ -94,8 +80,6 @@ export class GetDownloadUrlsUseCase {
       chunks,
       totalChunks: chunks.length,
       expiresIn,
-      m4aUrl,
-      m4aFilename,
     };
   }
 }

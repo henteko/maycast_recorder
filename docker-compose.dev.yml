@@ -16,6 +16,3 @@ services:
       - ./packages/web-client/src:/app/packages/web-client/src:ro
       - ./packages/web-client/public:/app/packages/web-client/public:ro
 
-  worker:
-    volumes:
-      - ./packages/worker/src:/app/packages/worker/src:ro
