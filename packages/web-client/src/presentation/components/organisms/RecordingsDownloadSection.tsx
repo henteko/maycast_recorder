@@ -5,7 +5,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { ArrowDownTrayIcon, CheckIcon } from '@heroicons/react/24/solid';
 import { RecordingAPIClient, type RecordingInfo } from '../../../infrastructure/api/recording-api';
-import { CloudDownloadService } from '../../../infrastructure/download/CloudDownloadService';
+import { CloudDownloadService, type DownloadProgress } from '../../../infrastructure/download/CloudDownloadService';
 import { AudioExtractionService } from '../../../infrastructure/download/AudioExtractionService';
 import { getServerUrl } from '../../../infrastructure/config/serverConfig';
 import { Button } from '../atoms/Button';
@@ -17,6 +17,13 @@ export interface DownloadAllProgress {
   totalRecordings: number;
   currentChunk: number;
   totalChunks: number;
+}
+
+export type M4aDownloadPhase = 'downloading' | 'extracting';
+
+export interface M4aDownloadProgress {
+  phase: M4aDownloadPhase;
+  chunkProgress?: DownloadProgress;
 }
 
 interface RecordingsDownloadSectionProps {
@@ -37,6 +44,7 @@ export const RecordingsDownloadSection: React.FC<RecordingsDownloadSectionProps>
   const [recordings, setRecordings] = useState<Map<string, RecordingInfo>>(new Map());
   const [loadingIds, setLoadingIds] = useState<Set<string>>(new Set());
   const [m4aDownloading, setM4aDownloading] = useState<Set<string>>(new Set());
+  const [m4aProgress, setM4aProgress] = useState<Map<string, M4aDownloadProgress>>(new Map());
   const fetchedIdsRef = useRef<Set<string>>(new Set());
 
   // recordingId -> guestName のマッピングを作成
@@ -80,6 +88,7 @@ export const RecordingsDownloadSection: React.FC<RecordingsDownloadSectionProps>
   // 個別ダウンロード（M4A） - クライアントサイドで音声抽出
   const handleDownloadM4a = useCallback(async (recordingId: string) => {
     setM4aDownloading((prev) => new Set(prev).add(recordingId));
+    setM4aProgress((prev) => new Map(prev).set(recordingId, { phase: 'downloading' }));
     try {
       const serverUrl = getServerUrl();
       const apiClient = new RecordingAPIClient(serverUrl);
@@ -89,12 +98,18 @@ export const RecordingsDownloadSection: React.FC<RecordingsDownloadSectionProps>
       const downloadUrls = await apiClient.getDownloadUrls(recordingId);
       if (downloadUrls.directDownload) {
         const cloudService = new CloudDownloadService();
-        mp4Blob = await cloudService.download(downloadUrls);
+        mp4Blob = await cloudService.download(downloadUrls, (progress) => {
+          setM4aProgress((prev) => new Map(prev).set(recordingId, {
+            phase: 'downloading',
+            chunkProgress: progress,
+          }));
+        });
       } else {
         mp4Blob = await apiClient.downloadRecording(recordingId);
       }
 
       // 2. AudioExtractionServiceで音声を抽出
+      setM4aProgress((prev) => new Map(prev).set(recordingId, { phase: 'extracting' }));
       const audioService = new AudioExtractionService();
       const m4aBlob = await audioService.extract(await mp4Blob.arrayBuffer());
 
@@ -118,6 +133,11 @@ export const RecordingsDownloadSection: React.FC<RecordingsDownloadSectionProps>
     } finally {
       setM4aDownloading((prev) => {
         const next = new Set(prev);
+        next.delete(recordingId);
+        return next;
+      });
+      setM4aProgress((prev) => {
+        const next = new Map(prev);
         next.delete(recordingId);
         return next;
       });
@@ -176,6 +196,7 @@ export const RecordingsDownloadSection: React.FC<RecordingsDownloadSectionProps>
             isLoading={loadingIds.has(recordingId)}
             onDownloadM4a={handleDownloadM4a}
             isDownloadingM4a={m4aDownloading.has(recordingId)}
+            m4aDownloadProgress={m4aProgress.get(recordingId)}
             guestName={getGuestNameForRecording(recordingId)}
           />
         ))}
