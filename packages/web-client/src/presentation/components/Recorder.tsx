@@ -16,6 +16,7 @@ import type { IStorageStrategy } from '../../storage-strategies/IStorageStrategy
 import { ControlPanel } from './organisms/ControlPanel'
 import { AudioWaveform } from './atoms/AudioWaveform'
 import { VUMeter } from './atoms/VUMeter'
+import { PeakLevelMeter } from './atoms/PeakLevelMeter'
 import { MicDeviceCard } from './atoms/MicDeviceCard'
 import { RecordingStatsBar } from './molecules/RecordingStatsBar'
 import { ArrowPathIcon } from '@heroicons/react/24/solid'
@@ -401,6 +402,13 @@ export const Recorder: React.FC<RecorderProps> = ({
               </>
             )}
           </div>
+
+          {/* Peak Level Meter (standby only) */}
+          {screenState === 'standby' && (
+            <div className="mb-4">
+              <PeakLevelMeter stream={stream} />
+            </div>
+          )}
 
           {/* VU Meter Section */}
           {screenState !== 'completed' && (
