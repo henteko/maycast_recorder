@@ -12,11 +12,17 @@ import { Button } from '../atoms/Button';
 import { RecordingDownloadItem } from '../molecules/RecordingDownloadItem';
 import type { GuestInfo } from '@maycast/common-types';
 
+export type RecordingDownloadStatus = 'waiting' | 'downloading' | 'extracting' | 'done' | 'error';
+
 export interface DownloadAllProgress {
-  currentRecording: number;
-  totalRecordings: number;
-  currentChunk: number;
-  totalChunks: number;
+  /** 各レコーディングのステータス */
+  statuses: Map<string, RecordingDownloadStatus>;
+  /** 各レコーディングのチャンクプログレス */
+  chunkProgress: Map<string, { current: number; total: number }>;
+  /** 完了数 */
+  completedCount: number;
+  /** 合計数 */
+  totalCount: number;
 }
 
 export type M4aDownloadPhase = 'downloading' | 'extracting';
@@ -173,8 +179,8 @@ export const RecordingsDownloadSection: React.FC<RecordingsDownloadSectionProps>
               {isDownloadingAll ? (
                 <>
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  {downloadAllProgress && downloadAllProgress.totalRecordings > 0
-                    ? `${downloadAllProgress.currentRecording}/${downloadAllProgress.totalRecordings}`
+                  {downloadAllProgress && downloadAllProgress.totalCount > 0
+                    ? `${downloadAllProgress.completedCount}/${downloadAllProgress.totalCount}`
                     : 'Downloading...'}
                 </>
               ) : (
@@ -188,6 +194,7 @@ export const RecordingsDownloadSection: React.FC<RecordingsDownloadSectionProps>
         </div>
       </div>
       <div className="space-y-3">
+<<<<<<< HEAD
         {recordingIds.map((recordingId) => (
           <RecordingDownloadItem
             key={recordingId}
@@ -200,6 +207,29 @@ export const RecordingsDownloadSection: React.FC<RecordingsDownloadSectionProps>
             guestName={getGuestNameForRecording(recordingId)}
           />
         ))}
+=======
+        {recordingIds.map((recordingId) => {
+          const batchStatus = isDownloadingAll
+            ? downloadAllProgress?.statuses.get(recordingId)
+            : undefined;
+          const batchChunkProgress = isDownloadingAll
+            ? downloadAllProgress?.chunkProgress.get(recordingId)
+            : undefined;
+          return (
+            <RecordingDownloadItem
+              key={recordingId}
+              recordingId={recordingId}
+              recording={recordings.get(recordingId) || null}
+              isLoading={loadingIds.has(recordingId)}
+              onDownloadM4a={handleDownloadM4a}
+              isDownloadingM4a={m4aDownloading.has(recordingId)}
+              guestName={getGuestNameForRecording(recordingId)}
+              batchStatus={batchStatus}
+              batchChunkProgress={batchChunkProgress}
+            />
+          );
+        })}
+>>>>>>> 048479f (複数ダウンロード時にm4aになるようにした)
       </div>
     </div>
   );
