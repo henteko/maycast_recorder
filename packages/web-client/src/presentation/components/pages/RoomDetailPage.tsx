@@ -19,7 +19,8 @@ import { ConnectionBadge } from '../atoms/ConnectionBadge';
 import { Button } from '../atoms/Button';
 import { GuestUrlInput } from '../molecules/GuestUrlInput';
 import { GuestListItem } from '../molecules/GuestListItem';
-import { RecordingsDownloadSection, type DownloadAllProgress } from '../organisms/RecordingsDownloadSection';
+import { AudioExtractionService } from '../../../infrastructure/download/AudioExtractionService';
+import { RecordingsDownloadSection, type DownloadAllProgress, type RecordingDownloadStatus } from '../organisms/RecordingsDownloadSection';
 
 
 export const RoomDetailPage: React.FC = () => {
@@ -44,7 +45,7 @@ export const RoomDetailPage: React.FC = () => {
   const [isUpdating, setIsUpdating] = useState(false);
   const [isDownloadingAll, setIsDownloadingAll] = useState(false);
   const [downloadAllProgress, setDownloadAllProgress] = useState<DownloadAllProgress>({
-    currentRecording: 0, totalRecordings: 0, currentChunk: 0, totalChunks: 0,
+    statuses: new Map(), chunkProgress: new Map(), completedCount: 0, totalCount: 0,
   });
 
   const guestUrl = roomId ? `${window.location.origin}/guest/${roomId}` : '';
@@ -88,38 +89,66 @@ export const RoomDetailPage: React.FC = () => {
   const handleDownloadAll = useCallback(async () => {
     if (!room || room.recording_ids.length === 0) return;
 
-    const totalRecordings = room.recording_ids.length;
+    const totalCount = room.recording_ids.length;
+    const statuses = new Map<string, RecordingDownloadStatus>(
+      room.recording_ids.map((id) => [id, 'waiting'])
+    );
+    const chunkProgress = new Map<string, { current: number; total: number }>();
+
     setIsDownloadingAll(true);
-    setDownloadAllProgress({ currentRecording: 0, totalRecordings, currentChunk: 0, totalChunks: 0 });
+    setDownloadAllProgress({ statuses: new Map(statuses), chunkProgress: new Map(), completedCount: 0, totalCount });
+
+    const updateStatus = (recordingId: string, status: RecordingDownloadStatus) => {
+      statuses.set(recordingId, status);
+      setDownloadAllProgress((prev) => ({
+        ...prev,
+        statuses: new Map(statuses),
+        completedCount: [...statuses.values()].filter((s) => s === 'done' || s === 'error').length,
+      }));
+    };
+
+    const updateChunkProgress = (recordingId: string, current: number, total: number) => {
+      chunkProgress.set(recordingId, { current, total });
+      setDownloadAllProgress((prev) => ({
+        ...prev,
+        chunkProgress: new Map(chunkProgress),
+      }));
+    };
+
     try {
       const serverUrl = getServerUrl();
       const apiClient = new RecordingAPIClient(serverUrl);
+      const audioService = new AudioExtractionService();
       const zip = new JSZip();
 
-      let completedRecordings = 0;
       for (const recordingId of room.recording_ids) {
         try {
-          let blob: Blob;
-          let fileName: string | undefined;
-          const onChunkProgress = (progress: { current: number; total: number }) => {
-            setDownloadAllProgress({
-              currentRecording: completedRecordings,
-              totalRecordings,
-              currentChunk: progress.current,
-              totalChunks: progress.total,
-            });
-          };
+          // 1. Download fMP4 chunks
+          updateStatus(recordingId, 'downloading');
+          let mp4Blob: Blob;
+          let serverFileName: string | undefined;
+
           const downloadUrls = await apiClient.getDownloadUrls(recordingId);
           if (downloadUrls.directDownload) {
             const cloudService = new CloudDownloadService();
-            blob = await cloudService.download(downloadUrls, onChunkProgress);
-            fileName = downloadUrls.filename;
+            mp4Blob = await cloudService.download(downloadUrls, (progress) => {
+              updateChunkProgress(recordingId, progress.current, progress.total);
+            });
+            serverFileName = downloadUrls.filename;
           } else {
-            blob = await apiClient.downloadRecording(recordingId);
-            fileName = downloadUrls.filename;
+            mp4Blob = await apiClient.downloadRecording(recordingId);
+            serverFileName = downloadUrls.filename;
           }
 
-          if (!fileName) {
+          // 2. Extract audio (MP4 → M4A)
+          updateStatus(recordingId, 'extracting');
+          const m4aBlob = await audioService.extract(await mp4Blob.arrayBuffer());
+
+          // 3. Determine filename (.m4a)
+          let fileName: string;
+          if (serverFileName) {
+            fileName = serverFileName.replace(/\.mp4$/i, '.m4a');
+          } else {
             let guestName = getGuestNameForRecording(recordingId);
             if (!guestName) {
               try {
@@ -128,16 +157,15 @@ export const RoomDetailPage: React.FC = () => {
               } catch { /* ignore */ }
             }
             fileName = guestName
-              ? `${guestName}-${recordingId.substring(0, 8)}.mp4`
-              : `recording-${recordingId.substring(0, 8)}.mp4`;
+              ? `${guestName}-${recordingId.substring(0, 8)}.m4a`
+              : `recording-${recordingId.substring(0, 8)}.m4a`;
           }
-          zip.file(fileName, blob);
-          completedRecordings++;
-          setDownloadAllProgress((prev) => ({ ...prev, currentRecording: completedRecordings }));
+
+          zip.file(fileName, m4aBlob);
+          updateStatus(recordingId, 'done');
         } catch (err) {
           console.error(`Failed to download recording ${recordingId}:`, err);
-          completedRecordings++;
-          setDownloadAllProgress((prev) => ({ ...prev, currentRecording: completedRecordings }));
+          updateStatus(recordingId, 'error');
         }
       }
 

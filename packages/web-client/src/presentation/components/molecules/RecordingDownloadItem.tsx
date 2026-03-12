@@ -2,9 +2,10 @@
  * RecordingDownloadItem - 録画ダウンロードアイテム
  */
 
-import { DocumentArrowDownIcon, MusicalNoteIcon } from '@heroicons/react/24/solid';
+import { DocumentArrowDownIcon, MusicalNoteIcon, CheckCircleIcon, ExclamationCircleIcon } from '@heroicons/react/24/solid';
 import { RecordingAPIClient, type RecordingInfo } from '../../../infrastructure/api/recording-api';
 import { Button } from '../atoms/Button';
+import type { RecordingDownloadStatus } from '../organisms/RecordingsDownloadSection';
 
 interface RecordingDownloadItemProps {
   recordingId: string;
@@ -13,6 +14,10 @@ interface RecordingDownloadItemProps {
   onDownloadM4a: (recordingId: string) => void;
   isDownloadingM4a?: boolean;
   guestName?: string;
+  /** バッチダウンロード時のステータス */
+  batchStatus?: RecordingDownloadStatus;
+  /** バッチダウンロード時のチャンクプログレス */
+  batchChunkProgress?: { current: number; total: number };
 }
 
 export const RecordingDownloadItem: React.FC<RecordingDownloadItemProps> = ({
@@ -22,54 +27,106 @@ export const RecordingDownloadItem: React.FC<RecordingDownloadItemProps> = ({
   onDownloadM4a,
   isDownloadingM4a = false,
   guestName,
+  batchStatus,
+  batchChunkProgress,
 }) => {
   const duration = recording ? RecordingAPIClient.calculateDuration(recording) : null;
 
+  const batchProgressPercent = batchChunkProgress && batchChunkProgress.total > 0
+    ? Math.round((batchChunkProgress.current / batchChunkProgress.total) * 100)
+    : 0;
+
   return (
-    <div className="flex items-center justify-between bg-maycast-panel/40 rounded-xl border border-maycast-border/30 px-4 py-3">
-      <div className="flex items-center gap-3">
-        <div className="p-2 bg-maycast-safe/20 rounded-lg">
-          <DocumentArrowDownIcon className="w-4 h-4 text-maycast-safe" />
-        </div>
-        <div>
-          <div className="flex items-center gap-2">
-            {guestName && (
-              <span className="text-sm font-semibold text-maycast-text">
-                {guestName}
-              </span>
+    <div className="relative overflow-hidden bg-maycast-panel/40 rounded-xl border border-maycast-border/30 px-4 py-3">
+      {/* バッチダウンロード時のプログレスバー背景 */}
+      {batchStatus === 'downloading' && batchChunkProgress && (
+        <div
+          className="absolute inset-y-0 left-0 bg-maycast-primary/10 transition-[width] duration-200"
+          style={{ width: `${batchProgressPercent}%` }}
+        />
+      )}
+      {batchStatus === 'extracting' && (
+        <div className="absolute inset-y-0 left-0 right-0 bg-amber-500/10 animate-pulse" />
+      )}
+
+      <div className="relative flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className={`p-2 rounded-lg ${
+            batchStatus === 'done' ? 'bg-maycast-safe/20' :
+            batchStatus === 'error' ? 'bg-red-500/20' :
+            'bg-maycast-safe/20'
+          }`}>
+            {batchStatus === 'done' ? (
+              <CheckCircleIcon className="w-4 h-4 text-maycast-safe" />
+            ) : batchStatus === 'error' ? (
+              <ExclamationCircleIcon className="w-4 h-4 text-red-400" />
+            ) : (
+              <DocumentArrowDownIcon className="w-4 h-4 text-maycast-safe" />
             )}
-            <span className="text-sm font-mono text-maycast-text-secondary">
-              {recordingId.substring(0, 8)}...
-            </span>
           </div>
-          {recording && (
-            <div className="flex items-center gap-2 text-xs text-maycast-text-secondary mt-0.5">
-              {duration !== null && (
-                <span>{RecordingAPIClient.formatDuration(duration)}</span>
+          <div>
+            <div className="flex items-center gap-2">
+              {guestName && (
+                <span className="text-sm font-semibold text-maycast-text">
+                  {guestName}
+                </span>
               )}
-              {recording.chunk_count > 0 && (
-                <span>• {recording.chunk_count} chunks</span>
+              <span className="text-sm font-mono text-maycast-text-secondary">
+                {recordingId.substring(0, 8)}...
+              </span>
+            </div>
+            <div className="flex items-center gap-2 text-xs text-maycast-text-secondary mt-0.5">
+              {recording && (
+                <>
+                  {duration !== null && (
+                    <span>{RecordingAPIClient.formatDuration(duration)}</span>
+                  )}
+                  {recording.chunk_count > 0 && (
+                    <span>• {recording.chunk_count} chunks</span>
+                  )}
+                </>
+              )}
+              {/* バッチダウンロード進捗テキスト */}
+              {batchStatus === 'downloading' && batchChunkProgress && (
+                <span className="text-maycast-primary font-medium">
+                  • Downloading {batchChunkProgress.current}/{batchChunkProgress.total} chunks
+                </span>
+              )}
+              {batchStatus === 'extracting' && (
+                <span className="text-amber-400 font-medium">
+                  • Extracting audio...
+                </span>
+              )}
+              {batchStatus === 'done' && (
+                <span className="text-maycast-safe font-medium">
+                  • Done
+                </span>
+              )}
+              {batchStatus === 'error' && (
+                <span className="text-red-400 font-medium">
+                  • Failed
+                </span>
               )}
             </div>
-          )}
+          </div>
         </div>
+        <Button
+          onClick={() => onDownloadM4a(recordingId)}
+          disabled={isLoading || isDownloadingM4a || !!batchStatus}
+          variant="success"
+          size="sm"
+          className="!py-2 !px-4 !text-sm"
+        >
+          {isDownloadingM4a ? (
+            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+          ) : (
+            <>
+              <MusicalNoteIcon className="w-4 h-4" />
+              <span>M4A</span>
+            </>
+          )}
+        </Button>
       </div>
-      <Button
-        onClick={() => onDownloadM4a(recordingId)}
-        disabled={isLoading || isDownloadingM4a}
-        variant="success"
-        size="sm"
-        className="!py-2 !px-4 !text-sm"
-      >
-        {isDownloadingM4a ? (
-          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-        ) : (
-          <>
-            <MusicalNoteIcon className="w-4 h-4" />
-            <span>M4A</span>
-          </>
-        )}
-      </Button>
     </div>
   );
 };
