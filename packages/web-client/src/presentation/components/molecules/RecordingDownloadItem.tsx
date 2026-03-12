@@ -12,12 +12,11 @@ interface RecordingDownloadItemProps {
   recording: RecordingInfo | null;
   isLoading: boolean;
   onDownloadM4a: (recordingId: string) => void;
-  isDownloadingM4a?: boolean;
   guestName?: string;
-  /** バッチダウンロード時のステータス */
-  batchStatus?: RecordingDownloadStatus;
-  /** バッチダウンロード時のチャンクプログレス */
-  batchChunkProgress?: { current: number; total: number };
+  /** ダウンロード時のステータス（個別・バッチ共通） */
+  downloadStatus?: RecordingDownloadStatus;
+  /** ダウンロード時のチャンクプログレス（個別・バッチ共通） */
+  downloadChunkProgress?: { current: number; total: number };
 }
 
 export const RecordingDownloadItem: React.FC<RecordingDownloadItemProps> = ({
@@ -25,40 +24,41 @@ export const RecordingDownloadItem: React.FC<RecordingDownloadItemProps> = ({
   recording,
   isLoading,
   onDownloadM4a,
-  isDownloadingM4a = false,
   guestName,
-  batchStatus,
-  batchChunkProgress,
+  downloadStatus,
+  downloadChunkProgress,
 }) => {
   const duration = recording ? RecordingAPIClient.calculateDuration(recording) : null;
 
-  const batchProgressPercent = batchChunkProgress && batchChunkProgress.total > 0
-    ? Math.round((batchChunkProgress.current / batchChunkProgress.total) * 100)
+  const progressPercent = downloadChunkProgress && downloadChunkProgress.total > 0
+    ? Math.round((downloadChunkProgress.current / downloadChunkProgress.total) * 100)
     : 0;
+
+  const isDownloading = !!downloadStatus && downloadStatus !== 'done' && downloadStatus !== 'error';
 
   return (
     <div className="relative overflow-hidden bg-maycast-panel/40 rounded-xl border border-maycast-border/30 px-4 py-3">
-      {/* バッチダウンロード時のプログレスバー背景 */}
-      {batchStatus === 'downloading' && batchChunkProgress && (
+      {/* ダウンロード時のプログレスバー背景 */}
+      {downloadStatus === 'downloading' && downloadChunkProgress && (
         <div
           className="absolute inset-y-0 left-0 bg-maycast-primary/10 transition-[width] duration-200"
-          style={{ width: `${batchProgressPercent}%` }}
+          style={{ width: `${progressPercent}%` }}
         />
       )}
-      {batchStatus === 'extracting' && (
+      {downloadStatus === 'extracting' && (
         <div className="absolute inset-y-0 left-0 right-0 bg-amber-500/10 animate-pulse" />
       )}
 
       <div className="relative flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className={`p-2 rounded-lg ${
-            batchStatus === 'done' ? 'bg-maycast-safe/20' :
-            batchStatus === 'error' ? 'bg-red-500/20' :
+            downloadStatus === 'done' ? 'bg-maycast-safe/20' :
+            downloadStatus === 'error' ? 'bg-red-500/20' :
             'bg-maycast-safe/20'
           }`}>
-            {batchStatus === 'done' ? (
+            {downloadStatus === 'done' ? (
               <CheckCircleIcon className="w-4 h-4 text-maycast-safe" />
-            ) : batchStatus === 'error' ? (
+            ) : downloadStatus === 'error' ? (
               <ExclamationCircleIcon className="w-4 h-4 text-red-400" />
             ) : (
               <DocumentArrowDownIcon className="w-4 h-4 text-maycast-safe" />
@@ -86,23 +86,23 @@ export const RecordingDownloadItem: React.FC<RecordingDownloadItemProps> = ({
                   )}
                 </>
               )}
-              {/* バッチダウンロード進捗テキスト */}
-              {batchStatus === 'downloading' && batchChunkProgress && (
+              {/* ダウンロード進捗テキスト */}
+              {downloadStatus === 'downloading' && downloadChunkProgress && (
                 <span className="text-maycast-primary font-medium">
-                  • Downloading {batchChunkProgress.current}/{batchChunkProgress.total} chunks
+                  • Downloading {downloadChunkProgress.current}/{downloadChunkProgress.total} chunks
                 </span>
               )}
-              {batchStatus === 'extracting' && (
+              {downloadStatus === 'extracting' && (
                 <span className="text-amber-400 font-medium">
                   • Extracting audio...
                 </span>
               )}
-              {batchStatus === 'done' && (
+              {downloadStatus === 'done' && (
                 <span className="text-maycast-safe font-medium">
                   • Done
                 </span>
               )}
-              {batchStatus === 'error' && (
+              {downloadStatus === 'error' && (
                 <span className="text-red-400 font-medium">
                   • Failed
                 </span>
@@ -112,12 +112,12 @@ export const RecordingDownloadItem: React.FC<RecordingDownloadItemProps> = ({
         </div>
         <Button
           onClick={() => onDownloadM4a(recordingId)}
-          disabled={isLoading || isDownloadingM4a || !!batchStatus}
+          disabled={isLoading || isDownloading || !!downloadStatus}
           variant="success"
           size="sm"
           className="!py-2 !px-4 !text-sm"
         >
-          {isDownloadingM4a ? (
+          {isDownloading ? (
             <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
           ) : (
             <>

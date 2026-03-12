@@ -42,7 +42,8 @@ export const RecordingsDownloadSection: React.FC<RecordingsDownloadSectionProps>
 }) => {
   const [recordings, setRecordings] = useState<Map<string, RecordingInfo>>(new Map());
   const [loadingIds, setLoadingIds] = useState<Set<string>>(new Set());
-  const [m4aDownloading, setM4aDownloading] = useState<Set<string>>(new Set());
+  const [individualStatus, setIndividualStatus] = useState<Map<string, RecordingDownloadStatus>>(new Map());
+  const [individualChunkProgress, setIndividualChunkProgress] = useState<Map<string, { current: number; total: number }>>(new Map());
   const fetchedIdsRef = useRef<Set<string>>(new Set());
 
   // recordingId -> guestName のマッピングを作成
@@ -85,7 +86,7 @@ export const RecordingsDownloadSection: React.FC<RecordingsDownloadSectionProps>
 
   // 個別ダウンロード（M4A） - クライアントサイドで音声抽出
   const handleDownloadM4a = useCallback(async (recordingId: string) => {
-    setM4aDownloading((prev) => new Set(prev).add(recordingId));
+    setIndividualStatus((prev) => new Map(prev).set(recordingId, 'downloading'));
     try {
       const serverUrl = getServerUrl();
       const apiClient = new RecordingAPIClient(serverUrl);
@@ -95,12 +96,23 @@ export const RecordingsDownloadSection: React.FC<RecordingsDownloadSectionProps>
       const downloadUrls = await apiClient.getDownloadUrls(recordingId);
       if (downloadUrls.directDownload) {
         const cloudService = new CloudDownloadService();
-        mp4Blob = await cloudService.download(downloadUrls);
+        mp4Blob = await cloudService.download(downloadUrls, (progress) => {
+          setIndividualChunkProgress((prev) => new Map(prev).set(recordingId, {
+            current: progress.current,
+            total: progress.total,
+          }));
+        });
       } else {
         mp4Blob = await apiClient.downloadRecording(recordingId);
       }
 
       // 2. AudioExtractionServiceで音声を抽出
+      setIndividualStatus((prev) => new Map(prev).set(recordingId, 'extracting'));
+      setIndividualChunkProgress((prev) => {
+        const next = new Map(prev);
+        next.delete(recordingId);
+        return next;
+      });
       const audioService = new AudioExtractionService();
       const m4aBlob = await audioService.extract(await mp4Blob.arrayBuffer());
 
@@ -118,15 +130,12 @@ export const RecordingsDownloadSection: React.FC<RecordingsDownloadSectionProps>
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
+
+      setIndividualStatus((prev) => new Map(prev).set(recordingId, 'done'));
     } catch (err) {
       console.error(`Failed to download m4a for ${recordingId}:`, err);
       alert(`Failed to download audio: ${err instanceof Error ? err.message : 'Unknown error'}`);
-    } finally {
-      setM4aDownloading((prev) => {
-        const next = new Set(prev);
-        next.delete(recordingId);
-        return next;
-      });
+      setIndividualStatus((prev) => new Map(prev).set(recordingId, 'error'));
     }
   }, [getGuestNameForRecording]);
 
@@ -175,12 +184,13 @@ export const RecordingsDownloadSection: React.FC<RecordingsDownloadSectionProps>
       </div>
       <div className="space-y-3">
         {recordingIds.map((recordingId) => {
-          const batchStatus = isDownloadingAll
+          // バッチダウンロード中はバッチの進捗を、それ以外は個別の進捗を表示
+          const downloadStatus = isDownloadingAll
             ? downloadAllProgress?.statuses.get(recordingId)
-            : undefined;
-          const batchChunkProgress = isDownloadingAll
+            : individualStatus.get(recordingId);
+          const downloadChunkProgress = isDownloadingAll
             ? downloadAllProgress?.chunkProgress.get(recordingId)
-            : undefined;
+            : individualChunkProgress.get(recordingId);
           return (
             <RecordingDownloadItem
               key={recordingId}
@@ -188,10 +198,9 @@ export const RecordingsDownloadSection: React.FC<RecordingsDownloadSectionProps>
               recording={recordings.get(recordingId) || null}
               isLoading={loadingIds.has(recordingId)}
               onDownloadM4a={handleDownloadM4a}
-              isDownloadingM4a={m4aDownloading.has(recordingId)}
               guestName={getGuestNameForRecording(recordingId)}
-              batchStatus={batchStatus}
-              batchChunkProgress={batchChunkProgress}
+              downloadStatus={downloadStatus}
+              downloadChunkProgress={downloadChunkProgress}
             />
           );
         })}
